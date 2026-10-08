@@ -2,7 +2,7 @@ using System.Text.Json;
 
 namespace Overdub.Audio;
 
-public sealed record ClipData(string File, long StartSample);
+public sealed record ClipData(string File, long StartSample, long? Offset = null, long? Length = null);
 
 public sealed record MidiEventData(long At, int Note, int Velocity);
 

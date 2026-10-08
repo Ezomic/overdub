@@ -8,10 +8,14 @@ public sealed class PlaybackTrack
     {
         Samples = samples;
         StartSample = startSample;
+        Length = samples.Length;
     }
 
     public float[] Samples { get; }
-    public long StartSample { get; }
+    public long StartSample { get; set; }
+    public long Offset { get; set; }
+    public long Length { get; set; }
+    public long EndSample => StartSample + Length;
     public float Gain { get; set; } = 1f;
     public float Pan { get; set; }
     public bool Mute { get; set; }

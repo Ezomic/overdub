@@ -106,6 +106,12 @@ public partial class MainWindow : Window
 
     private void OnSnapClick(object sender, RoutedEventArgs e) => _viewModel.CycleSnap();
 
+    private void OnSplitClick(object sender, RoutedEventArgs e) => _viewModel.SplitAtPlayhead();
+
+    private void OnDuplicateClick(object sender, RoutedEventArgs e) => _viewModel.DuplicateSelection();
+
+    private void OnDeleteClick(object sender, RoutedEventArgs e) => _viewModel.DeleteSelection();
+
     private void OnTunerClick(object sender, RoutedEventArgs e) => new TunerWindow(_viewModel) { Owner = this }.Show();
 
     private void OnLatencyClick(object sender, RoutedEventArgs e) => new LatencyWindow(_viewModel) { Owner = this }.ShowDialog();
@@ -192,6 +198,9 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OnLaneMouseDown(object sender, MouseButtonEventArgs e) =>
+    private void OnLaneMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        _viewModel.Select(null);
         _viewModel.SeekToPixel(e.GetPosition(LaneArea).X);
+    }
 }

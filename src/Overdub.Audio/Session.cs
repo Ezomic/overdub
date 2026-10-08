@@ -19,6 +19,7 @@ public sealed class Session : IDisposable
     public string Directory { get; private set; }
     public AsioEngine Engine { get; } = new();
     public MidiInput Midi { get; } = new();
+    public EditHistory History { get; } = new();
     public List<Track> Tracks { get; } = [];
 
     public Track AddTrack(string name, int? input)
@@ -117,7 +118,7 @@ public sealed class Session : IDisposable
     }
 
     public long LengthSamples => Math.Max(
-        Tracks.SelectMany(t => t.Clips).Select(c => c.StartSample + c.Length).DefaultIfEmpty(0).Max(),
+        Tracks.SelectMany(t => t.Clips).Select(c => c.EndSample).DefaultIfEmpty(0).Max(),
         Tracks.SelectMany(t => t.MidiClips).Select(c => c.EndSample).DefaultIfEmpty(0).Max());
 
     public void ApplyMixerState()
@@ -162,7 +163,10 @@ public sealed class Session : IDisposable
         File.Delete(path);
     }
 
-    private void PublishClips()
+    public void Edit(string name, Action doIt, Action undo) =>
+        History.Execute(name, () => { doIt(); PublishClips(); }, () => { undo(); PublishClips(); });
+
+    public void PublishClips()
     {
         Engine.SetTracks(Tracks.SelectMany(t => t.Clips).Select(c => c.Playback));
         Engine.SetMidiClips(Tracks.SelectMany(t => t.MidiClips));
@@ -237,8 +241,8 @@ public sealed class Session : IDisposable
             t.Mute,
             t.Solo,
             t.Gain,
-            t.Clips.Select(c => new ClipData(System.IO.Path.GetRelativePath(Directory, c.Path), c.StartSample)).ToList(),
-            t.MidiClips.Select(m => new MidiClipData(m.Events.Select(e => new MidiEventData(e.At, e.Note, e.Velocity)).ToList())).ToList(),
+            t.Clips.Select(c => new ClipData(System.IO.Path.GetRelativePath(Directory, c.Path), c.StartSample, c.Playback.Offset, c.Length)).ToList(),
+            t.MidiClips.Select(m => new MidiClipData(m.Events.Select(e => new MidiEventData(e.At + m.Shift, e.Note, e.Velocity)).ToList())).ToList(),
             t.Pan,
             t.Input,
             t.IsMidi,
@@ -263,7 +267,14 @@ public sealed class Session : IDisposable
             foreach (var c in d.Clips)
             {
                 var path = System.IO.Path.Combine(directory, c.File);
-                track.AddClip(new Clip(path, PlaybackTrack.FromWav(path, c.StartSample, Engine.SampleRate)));
+                var playback = PlaybackTrack.FromWav(path, c.StartSample, Engine.SampleRate);
+                if (c.Offset is { } offset && c.Length is { } length)
+                {
+                    playback.Offset = Math.Clamp(offset, 0, playback.Samples.Length);
+                    playback.Length = Math.Clamp(length, 0, playback.Samples.Length - playback.Offset);
+                }
+
+                track.AddClip(new Clip(path, playback));
             }
 
             foreach (var midi in d.MidiClips ?? [])
@@ -282,6 +293,7 @@ public sealed class Session : IDisposable
         ApplyMixerState();
         Engine.BeatsPerBar = data.BeatsPerBar;
         Engine.BeatUnit = data.BeatUnit;
+        History.Clear();
         return data.Bpm;
     }
 
