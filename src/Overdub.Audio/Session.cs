@@ -63,7 +63,14 @@ public sealed class Session : IDisposable
         }
 
         Engine.StartRecording(inputs);
-        Engine.Play();
+        if (Engine.CountInBars > 0)
+        {
+            Engine.BeginCountIn();
+        }
+        else
+        {
+            Engine.Play();
+        }
     }
 
     public void StopRecording()
@@ -74,6 +81,12 @@ public sealed class Session : IDisposable
         foreach (var (track, path) in _recordingPaths)
         {
             var playback = PlaybackTrack.FromWav(path, start, Engine.SampleRate);
+            if (playback.Samples.Length == 0)
+            {
+                File.Delete(path);
+                continue;
+            }
+
             track.AddClip(new Clip(path, playback));
         }
 
@@ -119,7 +132,7 @@ public sealed class Session : IDisposable
 
         lock (_midiLock)
         {
-            if (_midiBuffer is null)
+            if (_midiBuffer is null || Engine.IsCountingIn)
             {
                 return;
             }

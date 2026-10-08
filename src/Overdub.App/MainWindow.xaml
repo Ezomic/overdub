@@ -46,6 +46,7 @@
                          HorizontalContentAlignment="Center" Background="{StaticResource Bg}" Foreground="{StaticResource Text}"
                          BorderBrush="{StaticResource Border}" CaretBrush="{StaticResource Text}" Margin="0,0,12,0" />
                 <ToggleButton Style="{StaticResource Chip}" IsChecked="{Binding Metronome}" Content="Click" Margin="0,0,8,0" Focusable="False" />
+                <Button Style="{StaticResource TransportButton}" Width="Auto" Height="24" FontSize="12" Padding="10,0" Margin="0,0,8,0" Content="{Binding CountInLabel}" Click="OnCountInClick" Focusable="False" ToolTip="Click bars before recording starts" />
                 <Button Style="{StaticResource TransportButton}" Width="64" Height="24" FontSize="12" Margin="0,0,8,0" Content="Open" Click="OnOpenClick" Focusable="False" ToolTip="Open a project" />
                 <Button Style="{StaticResource TransportButton}" Width="64" Height="24" FontSize="12" Margin="0,0,8,0" Content="Save" Click="OnSaveClick" Focusable="False" ToolTip="Save the project" />
                 <Button Style="{StaticResource TransportButton}" Width="64" Height="24" FontSize="12" Margin="0" Content="Export" Click="OnExportClick" Focusable="False" ToolTip="Export a stereo WAV mixdown" />

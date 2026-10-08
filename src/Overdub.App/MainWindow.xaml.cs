@@ -104,6 +104,8 @@ public partial class MainWindow : Window
         }
     }
 
+    private void OnCountInClick(object sender, RoutedEventArgs e) => _viewModel.CycleCountIn();
+
     private void OnSaveClick(object sender, RoutedEventArgs e) => _viewModel.Save();
 
     private void OnOpenClick(object sender, RoutedEventArgs e)
