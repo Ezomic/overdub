@@ -17,7 +17,14 @@ public sealed class AsioEngine : IDisposable
     private readonly float[] _tunerRing = new float[8192];
     private int _tunerWrite;
     private volatile int _tunerChannel = -1;
-    private float[] _monitor = new float[4096];
+    private float[] _monitorL = new float[4096];
+    private float[] _monitorR = new float[4096];
+    private float[] _liveL = new float[4096];
+    private float[] _liveR = new float[4096];
+    private readonly MixScratch _fxScratch = new();
+    private readonly EffectChain?[] _liveSource = new EffectChain?[MaxInputs];
+    private readonly EffectChain?[] _liveProcessor = new EffectChain?[MaxInputs];
+    private ChannelStrip[] _channels = [];
     private float[] _mixL = new float[4096];
     private float[] _mixR = new float[4096];
     private float[] _synthBuf = new float[4096];
@@ -142,7 +149,18 @@ public sealed class AsioEngine : IDisposable
 
     public IReadOnlyList<PlaybackTrack> Tracks => _tracks;
 
-    public void SetTracks(IEnumerable<PlaybackTrack> tracks) => _tracks = tracks.ToArray();
+    public void SetChannels(IEnumerable<ChannelStrip> channels)
+    {
+        var array = channels.ToArray();
+        _tracks = array.SelectMany(c => c.Clips).ToArray();
+        _channels = array;
+    }
+
+    public void SetLiveEffects(int input, EffectChain? source, EffectChain? processor)
+    {
+        _liveProcessor[input] = processor;
+        _liveSource[input] = source;
+    }
 
     public void SetMidiClips(IEnumerable<MidiClip> clips) => _midi = clips.ToArray();
 
@@ -333,7 +351,8 @@ public sealed class AsioEngine : IDisposable
         var inputs = Math.Min(e.InputBuffers.Length, InputCount);
         var frames = e.SamplesPerBuffer;
         EnsureBuffers(frames);
-        Array.Clear(_monitor, 0, frames);
+        Array.Clear(_monitorL, 0, frames);
+        Array.Clear(_monitorR, 0, frames);
 
         for (var channel = 0; channel < inputs; channel++)
         {
@@ -348,9 +367,31 @@ public sealed class AsioEngine : IDisposable
 
             if (_monitoring)
             {
-                for (var i = 0; i < frames; i++)
+                var source = _liveSource[channel];
+                var processor = _liveProcessor[channel];
+                if (source is { AnyEnabled: true } && processor is not null)
                 {
-                    _monitor[i] += buffer[i];
+                    if (processor.AppliedVersion != source.Version)
+                    {
+                        processor.CopyFrom(source);
+                    }
+
+                    Array.Copy(buffer, _liveL, frames);
+                    Array.Copy(buffer, _liveR, frames);
+                    processor.Process(_liveL, _liveR, frames);
+                    for (var i = 0; i < frames; i++)
+                    {
+                        _monitorL[i] += _liveL[i];
+                        _monitorR[i] += _liveR[i];
+                    }
+                }
+                else
+                {
+                    for (var i = 0; i < frames; i++)
+                    {
+                        _monitorL[i] += buffer[i];
+                        _monitorR[i] += buffer[i];
+                    }
                 }
             }
         }
@@ -388,8 +429,8 @@ public sealed class AsioEngine : IDisposable
         Mixer.AddPanned(_synthBuf, SynthGain, SynthPan, _mixL, _mixR, frames);
         for (var i = 0; i < frames; i++)
         {
-            _mixL[i] = Mixer.SoftLimit(_mixL[i] + _monitor[i]);
-            _mixR[i] = Mixer.SoftLimit(_mixR[i] + _monitor[i]);
+            _mixL[i] = Mixer.SoftLimit(_mixL[i] + _monitorL[i]);
+            _mixR[i] = Mixer.SoftLimit(_mixR[i] + _monitorR[i]);
         }
 
         for (var channel = 0; channel < e.OutputBuffers.Length; channel++)
@@ -413,7 +454,10 @@ public sealed class AsioEngine : IDisposable
         }
 
         _scratch = new float[frames];
-        _monitor = new float[frames];
+        _monitorL = new float[frames];
+        _monitorR = new float[frames];
+        _liveL = new float[frames];
+        _liveR = new float[frames];
         _mixL = new float[frames];
         _mixR = new float[frames];
         _synthBuf = new float[frames];
@@ -425,6 +469,7 @@ public sealed class AsioEngine : IDisposable
         var startPosition = Volatile.Read(ref _position);
         var position = startPosition;
         var tracks = _tracks;
+        var channels = _channels;
         var midi = _midi;
         var anySolo = Mixer.AnySolo(tracks, midi);
         var loopOn = LoopEnabled && LoopEnd > LoopStart;
@@ -447,7 +492,7 @@ public sealed class AsioEngine : IDisposable
                 chunk = (int)Math.Min(chunk, PunchOut - position);
             }
 
-            Mixer.Mix(tracks, anySolo, position, _mixL, _mixR, chunk, done);
+            Mixer.MixChannels(channels, anySolo, position, _mixL, _mixR, chunk, done, _fxScratch);
             _sequencer.Render(Synth, midi, anySolo, position, _synthBuf, chunk, done);
             if (_metronomeEnabled)
             {

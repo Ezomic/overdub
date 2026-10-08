@@ -302,7 +302,29 @@ public sealed class Session : IDisposable
 
     public void PublishClips()
     {
-        Engine.SetTracks(Tracks.SelectMany(t => t.Clips).Select(c => c.Playback));
+        var rate = Engine.SampleRate;
+        var strips = new List<ChannelStrip>();
+        foreach (var track in Tracks.Where(t => !t.IsMidi))
+        {
+            if (rate > 0)
+            {
+                track.PlaybackFx.Configure(rate);
+            }
+
+            strips.Add(new ChannelStrip(track.Clips.Select(c => c.Playback).ToArray(), track.Effects, track.PlaybackFx));
+        }
+
+        Engine.SetChannels(strips);
+        for (var input = 0; input < AsioEngine.MaxInputs; input++)
+        {
+            var bound = Tracks.Where(t => t.Input == input).OrderByDescending(t => t.Effects.AnyEnabled).ThenByDescending(t => t.Armed).FirstOrDefault();
+            if (bound is not null && rate > 0)
+            {
+                bound.LiveFx.Configure(rate);
+            }
+
+            Engine.SetLiveEffects(input, bound?.Effects, bound?.LiveFx);
+        }
         Engine.SetMidiClips(Tracks.SelectMany(t => t.MidiClips));
     }
 
@@ -427,7 +449,8 @@ public sealed class Session : IDisposable
             t.IsMidi,
             t.ColorIndex,
             t.Preset,
-            t.IsBacking ? true : null)).ToList();
+            t.IsBacking ? true : null,
+            t.Effects.Effects.ToDictionary(e => e.Name, e => new EffectData(e.Enabled, (double[])e.Values.Clone())))).ToList();
         ProjectFile.Write(ProjectPath, new ProjectData(1, Engine.SampleRate, Engine.Bpm, tracks, Engine.BeatsPerBar, Engine.BeatUnit));
         RecentProjects.Add(ProjectPath);
     }
@@ -447,6 +470,17 @@ public sealed class Session : IDisposable
             track.Solo = d.Solo;
             track.Gain = d.Gain;
             track.Pan = d.Pan;
+            if (d.Effects is not null)
+            {
+                foreach (var effect in track.Effects.Effects.Where(e => d.Effects.ContainsKey(e.Name)))
+                {
+                    var saved = d.Effects[effect.Name];
+                    effect.Enabled = saved.Enabled;
+                    Array.Copy(saved.Values, effect.Values, Math.Min(saved.Values.Length, effect.Values.Length));
+                }
+
+                track.Effects.Touch();
+            }
             foreach (var c in d.Clips)
             {
                 var path = System.IO.Path.Combine(directory, c.File);
@@ -512,7 +546,8 @@ public sealed class Session : IDisposable
                 m.Solo = false;
             });
             var path = System.IO.Path.Combine(folder, unique + ".wav");
-            Mixer.Export(audio, midi, Engine.SampleRate, path, track.Gain, track.Pan, length, track.Preset);
+            var strip = new ChannelStrip(audio, track.Effects, track.Effects.CloneForProcessing(Engine.SampleRate));
+            Mixer.Export([strip], midi, Engine.SampleRate, path, track.Gain, track.Pan, length, track.Preset);
             written.Add(path);
         }
 
@@ -530,7 +565,7 @@ public sealed class Session : IDisposable
         try
         {
             Mixer.Export(
-                Tracks.SelectMany(t => t.Clips).Select(c => c.Playback).ToList(),
+                Tracks.Where(t => !t.IsMidi).Select(t => new ChannelStrip(t.Clips.Select(c => c.Playback).ToArray(), t.Effects, t.Effects.CloneForProcessing(Engine.SampleRate))).ToList(),
                 Tracks.SelectMany(t => t.MidiClips).ToList(),
                 Engine.SampleRate,
                 wavPath,
