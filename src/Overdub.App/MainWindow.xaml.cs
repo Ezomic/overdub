@@ -49,6 +49,14 @@ public partial class MainWindow : Window
         var drums = new MenuItem { Header = "Drum machine", IsEnabled = _viewModel.DrumTrack is null };
         drums.Click += (_, _) => _viewModel.AddDrumTrack();
         menu.Items.Add(drums);
+        foreach (var role in Enum.GetValues<MachineRole>())
+        {
+            var machineRole = role;
+            var machine = new MenuItem { Header = $"{role} machine (chords)", IsEnabled = _viewModel.HasMachine(machineRole) is false };
+            machine.Click += (_, _) => _viewModel.AddMachineTrack(machineRole);
+            menu.Items.Add(machine);
+        }
+
         var midi = new MenuItem { Header = "MIDI keys (built-in synth)" };
         midi.Click += (_, _) => _viewModel.AddMidiTrack();
         menu.Items.Add(midi);
@@ -139,6 +147,14 @@ public partial class MainWindow : Window
         }
 
         new PianoRollWindow(_viewModel, target.Track, target.Clip) { Owner = this }.Show();
+    }
+
+    private void OnChordsClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: TrackViewModel { Model.Machine: not null } track })
+        {
+            new ChordWindow(_viewModel, this, track.Model).Show();
+        }
     }
 
     private void OnDrumsClick(object sender, RoutedEventArgs e)

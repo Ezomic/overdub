@@ -176,7 +176,16 @@ public sealed class Session : IDisposable
         var drums = Tracks.FirstOrDefault(t => t.IsDrums);
         Engine.DrumGain = drums?.Gain ?? 1f;
         Engine.DrumPan = drums?.Pan ?? 0f;
-        var keys = Tracks.FirstOrDefault(t => t is { IsMidi: true, IsDrums: false });
+        foreach (var role in Enum.GetValues<MachineRole>())
+        {
+            var machine = MachineTrack(role);
+            var lane = Engine.Machines[(int)role];
+            lane.Gain = machine?.Gain ?? 1f;
+            lane.Pan = machine?.Pan ?? 0f;
+            lane.Synth.SetPreset(machine?.Preset);
+        }
+
+        var keys = Tracks.FirstOrDefault(t => t.IsKeys);
         Engine.SynthGain = keys?.Gain ?? 1f;
         Engine.SynthPan = keys?.Pan ?? 0f;
         Engine.Synth.SetPreset(keys?.Preset);
@@ -359,6 +368,54 @@ public sealed class Session : IDisposable
         return track;
     }
 
+    public Track? MachineTrack(MachineRole role) => Tracks.FirstOrDefault(t => t.Machine == role);
+
+    public Track AddMachineTrackUndoable(MachineRole role)
+    {
+        var track = new Track(role == MachineRole.Guitar ? "Guitar machine" : "Bass machine", null)
+        {
+            Machine = role,
+            ColorIndex = _created++,
+            Preset = role == MachineRole.Guitar ? "Pluck" : "Bass",
+            Gain = 0.6f,
+        };
+        track.ChordPatterns.Add(ChordPattern.Starter("A", role));
+        Edit("Add machine track", () => { Tracks.Add(track); ApplyMixerState(); }, () => { Tracks.Remove(track); ApplyMixerState(); }, EditKind.Tracks);
+        return track;
+    }
+
+    public void EditChordPattern(ChordPattern pattern, Action<ChordPattern> change, string name)
+    {
+        var before = pattern.Clone();
+        var after = pattern.Clone();
+        change(after);
+        Edit(
+            name,
+            () =>
+            {
+                pattern.CopyFrom(after);
+                RegeneratePatternClips();
+            },
+            () =>
+            {
+                pattern.CopyFrom(before);
+                RegeneratePatternClips();
+            });
+    }
+
+    public ChordPattern AddChordPattern(Track track)
+    {
+        var pattern = new ChordPattern(((char)('A' + track.ChordPatterns.Count)).ToString(), track.Machine!.Value);
+        Edit("Add chord pattern", () => track.ChordPatterns.Add(pattern), () => track.ChordPatterns.Remove(pattern));
+        return pattern;
+    }
+
+    public void PlaceChordPattern(Track track, ChordPattern pattern, long start)
+    {
+        var clip = pattern.ToClip(Engine.SampleRate, Engine.Bpm, Engine.BeatsPerBar, start);
+        Edit("Place chord pattern", () => track.AddMidiClip(clip), () => track.MidiClips.Remove(clip));
+    }
+
     public Track? DrumTrack => Tracks.FirstOrDefault(t => t.IsDrums);
 
     public Track AddDrumTrackUndoable()
@@ -369,7 +426,7 @@ public sealed class Session : IDisposable
         return track;
     }
 
-    public void RegenerateDrumClips()
+    public void RegeneratePatternClips()
     {
         if (Engine.SampleRate == 0)
         {
@@ -393,6 +450,24 @@ public sealed class Session : IDisposable
                 track.MidiClips[i] = fresh;
             }
         }
+
+        foreach (var track in Tracks.Where(t => t.Machine is not null))
+        {
+            for (var i = 0; i < track.MidiClips.Count; i++)
+            {
+                var clip = track.MidiClips[i];
+                var pattern = track.ChordPatterns.FirstOrDefault(p => p.Id == clip.PatternId);
+                if (pattern is null)
+                {
+                    continue;
+                }
+
+                var fresh = pattern.ToClip(Engine.SampleRate, Engine.Bpm, Engine.BeatsPerBar, clip.Shift);
+                fresh.Mute = clip.Mute;
+                fresh.Solo = clip.Solo;
+                track.MidiClips[i] = fresh;
+            }
+        }
     }
 
     public void EditPattern(Track track, DrumPattern pattern, Action<DrumPattern> change, string name)
@@ -405,12 +480,12 @@ public sealed class Session : IDisposable
             () =>
             {
                 pattern.CopyFrom(after);
-                RegenerateDrumClips();
+                RegeneratePatternClips();
             },
             () =>
             {
                 pattern.CopyFrom(before);
-                RegenerateDrumClips();
+                RegeneratePatternClips();
             });
     }
 
@@ -508,7 +583,12 @@ public sealed class Session : IDisposable
 
             Engine.SetLiveEffects(input, bound?.Effects, bound?.LiveFx);
         }
-        Engine.SetMidiClips(AtPracticeSpeed(Tracks.Where(t => !t.IsDrums).SelectMany(t => t.MidiClips)));
+        Engine.SetMidiClips(AtPracticeSpeed(Tracks.Where(t => t.IsKeys).SelectMany(t => t.MidiClips)));
+        foreach (var role in Enum.GetValues<MachineRole>())
+        {
+            Engine.SetMachineClips(role, AtPracticeSpeed(Tracks.Where(t => t.Machine == role).SelectMany(t => t.MidiClips)));
+        }
+
         Engine.SetDrumClips(AtPracticeSpeed(Tracks.Where(t => t.IsDrums).SelectMany(t => t.MidiClips)));
     }
 
@@ -644,7 +724,9 @@ public sealed class Session : IDisposable
             PluginDataFor(t.Effects.Plugin),
             PluginDataFor(t.Instrument),
             t.IsDrums ? true : null,
-            t.IsDrums ? t.Patterns.Select(p => new PatternData(p.Id, p.Name, p.Bars, p.Encode().ToList())).ToList() : null)).ToList();
+            t.IsDrums ? t.Patterns.Select(p => new PatternData(p.Id, p.Name, p.Bars, p.Encode().ToList())).ToList() : null,
+            t.Machine?.ToString(),
+            t.Machine is null ? null : t.ChordPatterns.Select(p => new ChordPatternData(p.Id, p.Name, p.Bars, (int)p.Style, p.Encode())).ToList())).ToList();
         ProjectFile.Write(ProjectPath, new ProjectData(1, Engine.SampleRate, Engine.Bpm, tracks, Engine.BeatsPerBar, Engine.BeatUnit));
         RecentProjects.Add(ProjectPath);
     }
@@ -711,7 +793,12 @@ public sealed class Session : IDisposable
             var isMidi = d.IsBacking != true && (d.IsMidi ?? (d.Input is null && d.Name == "Keys"));
             int? input = isMidi ? null : d.Input ?? (d.Name == "Bass" ? 1 : 0);
             var backing = d.IsBacking == true;
-            var track = new Track(d.Name, backing ? null : input) { ColorIndex = d.Color ?? loaded.Count, Preset = d.Preset ?? "Lead", IsBacking = backing, IsDrums = d.IsDrums == true };
+            var track = new Track(d.Name, backing ? null : input) { ColorIndex = d.Color ?? loaded.Count, Preset = d.Preset ?? "Lead", IsBacking = backing, IsDrums = d.IsDrums == true, Machine = Enum.TryParse<MachineRole>(d.Machine, out var machineRole) ? machineRole : null };
+            foreach (var p in d.ChordPatterns ?? [])
+            {
+                track.ChordPatterns.Add(ChordPattern.Decode(p.Id, p.Name, track.Machine ?? MachineRole.Guitar, p.Bars, (ChordStyle)p.Style, p.Chords));
+            }
+
             foreach (var p in d.Patterns ?? [])
             {
                 track.Patterns.Add(DrumPattern.Decode(p.Id, p.Name, p.Bars, p.Lanes));
@@ -818,10 +905,14 @@ public sealed class Session : IDisposable
             });
             var path = System.IO.Path.Combine(folder, unique + ".wav");
             var strip = new ChannelStrip(audio, track.Effects, track.Effects.CloneForProcessing(Engine.SampleRate));
-            var instrument = track is { IsMidi: true, IsDrums: false } && track.Instrument.Active ? track.Instrument.CreateCopy(Engine.SampleRate) : null;
+            var instrument = track.IsKeys && track.Instrument.Active ? track.Instrument.CreateCopy(Engine.SampleRate) : null;
             try
             {
-                if (track.IsDrums)
+                if (track.Machine is { } role)
+                {
+                    Mixer.Export([], [], Engine.SampleRate, path, 1f, 0f, length, null, null, null, [new MachineMix(midi, track.Gain, track.Pan, track.Preset)]);
+                }
+                else if (track.IsDrums)
                 {
                     Mixer.Export([], [], Engine.SampleRate, path, 1f, 0f, length, null, null, new DrumMix(midi, track.Gain, track.Pan));
                 }
@@ -852,7 +943,8 @@ public sealed class Session : IDisposable
         var wavPath = AudioEncoder.IsEncoded(path) ? System.IO.Path.GetTempFileName() : path;
         try
         {
-            var keys = Tracks.FirstOrDefault(t => t is { IsMidi: true, IsDrums: false });
+            var keys = Tracks.FirstOrDefault(t => t.IsKeys);
+            var machineMixes = Tracks.Where(t => t.Machine is not null).Select(t => new MachineMix(t.MidiClips.Select(m => m.Copy(0)).ToList(), t.Gain, t.Pan, t.Preset)).ToList();
             var drumTrack = DrumTrack;
             var drumMix = drumTrack is null ? null : new DrumMix(drumTrack.MidiClips.Select(m => m.Copy(0)).ToList(), drumTrack.Gain, drumTrack.Pan);
             var instrument = keys is { Instrument.Active: true } ? keys.Instrument.CreateCopy(Engine.SampleRate) : null;
@@ -861,7 +953,7 @@ public sealed class Session : IDisposable
             {
                 Mixer.Export(
                     strips,
-                    Tracks.Where(t => !t.IsDrums).SelectMany(t => t.MidiClips).ToList(),
+                    Tracks.Where(t => t.IsKeys).SelectMany(t => t.MidiClips).ToList(),
                     Engine.SampleRate,
                     wavPath,
                     Engine.SynthGain,
@@ -869,7 +961,8 @@ public sealed class Session : IDisposable
                     0,
                     Engine.Synth.PresetName,
                     instrument?.Instance,
-                    drumMix);
+                    drumMix,
+                    machineMixes);
             }
             finally
             {

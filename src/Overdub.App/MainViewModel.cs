@@ -117,7 +117,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             if (SetField(ref _bpm, Math.Clamp(value, 20, 300)))
             {
                 _session.Engine.Bpm = _bpm;
-                _session.RegenerateDrumClips();
+                _session.RegeneratePatternClips();
                 _session.PublishClips();
                 GridChanged();
                 RefreshTimeline();
@@ -818,7 +818,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
         var clip = vm.Model;
         var from = vm.Owner.Model;
-        var target = row >= 0 && row < Tracks.Count && Tracks[row].IsMidi && Tracks[row].Model.IsDrums == from.IsDrums ? Tracks[row].Model : from;
+        var target = row >= 0 && row < Tracks.Count && Tracks[row].IsMidi && Tracks[row].Model.Kind == from.Kind ? Tracks[row].Model : from;
         var oldShift = clip.Shift;
         var newShift = oldShift + (SnapSamples(PixelsToSamplesClamped(leftPixels)) - clip.StartSample);
         if (target == from && newShift == oldShift)
@@ -1263,6 +1263,33 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     }
 
     public Track? DrumTrack => _session.DrumTrack;
+
+    public bool HasMachine(MachineRole role) => _session.MachineTrack(role) is not null;
+
+    public bool HasTrack(Track track) => _session.Tracks.Contains(track);
+
+    public void AddMachineTrack(MachineRole role)
+    {
+        if (_session.MachineTrack(role) is not null)
+        {
+            Message = $"There is already a {role.ToString().ToLowerInvariant()} machine track.";
+            return;
+        }
+
+        _session.AddMachineTrackUndoable(role);
+    }
+
+    public ChordPattern AddChordPattern(Track track) => _session.AddChordPattern(track);
+
+    public void EditChordPattern(ChordPattern pattern, Action<ChordPattern> change, string name) => _session.EditChordPattern(pattern, change, name);
+
+    public void PlaceChordPattern(Track track, ChordPattern pattern)
+    {
+        var engine = _session.Engine;
+        var bar = engine.SamplesPerBeat * engine.BeatsPerBar;
+        var start = (long)(Math.Round(engine.Position / bar) * bar);
+        _session.PlaceChordPattern(track, pattern, start);
+    }
 
     public void AddDrumTrack()
     {

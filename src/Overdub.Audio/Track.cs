@@ -16,6 +16,10 @@ public sealed class Track(string name, int? input)
     public bool Armed { get; set; }
     public bool IsBacking { get; init; }
     public bool IsDrums { get; init; }
+    public MachineRole? Machine { get; init; }
+    public bool IsKeys => IsMidi && !IsDrums && Machine is null;
+    public string Kind => IsDrums ? "drums" : Machine?.ToString() ?? "keys";
+    public List<ChordPattern> ChordPatterns { get; } = [];
     public bool IsMidi => Input is null && !IsBacking;
     public List<DrumPattern> Patterns { get; } = [];
     public string Preset { get; set; } = "Lead";
