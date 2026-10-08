@@ -8,7 +8,7 @@ public sealed class AsioEngine : IDisposable
 {
     private readonly float[] _peaks = new float[MaxInputs];
     private AsioOut? _asio;
-    private bool _monitoring = true;
+    private volatile bool _monitoring = true;
 
     public const int MaxInputs = 8;
 
@@ -16,6 +16,8 @@ public sealed class AsioEngine : IDisposable
     public int SampleRate { get; private set; }
     public int InputCount { get; private set; }
     public int BufferSamples { get; private set; }
+
+    public bool SampleTypeSupported { get; private set; } = true;
 
     public double LatencyMilliseconds => SampleRate == 0 ? 0 : BufferSamples * 1000.0 / SampleRate;
 
@@ -73,22 +75,27 @@ public sealed class AsioEngine : IDisposable
 
     private void OnAudioAvailable(object? sender, AsioAudioAvailableEventArgs e)
     {
+        SampleTypeSupported = e.AsioSampleType is AsioSampleType.Int32LSB or AsioSampleType.Float32LSB;
+        if (!SampleTypeSupported)
+        {
+            return;
+        }
+
         var inputs = Math.Min(e.InputBuffers.Length, InputCount);
         for (var channel = 0; channel < inputs; channel++)
         {
             _peaks[channel] = Math.Max(_peaks[channel], MeasurePeak(e.InputBuffers[channel], e.SamplesPerBuffer, e.AsioSampleType));
         }
 
-        if (!_monitoring)
+        if (!_monitoring || inputs == 0)
         {
             return;
         }
 
-        var bytesPerSample = BytesPerSample(e.AsioSampleType);
         for (var channel = 0; channel < e.OutputBuffers.Length; channel++)
         {
             var source = e.InputBuffers[Math.Min(channel, inputs - 1)];
-            CopyMemory(e.OutputBuffers[channel], source, (uint)(e.SamplesPerBuffer * bytesPerSample));
+            CopyMemory(e.OutputBuffers[channel], source, (uint)(e.SamplesPerBuffer * 4));
         }
 
         e.WrittenToOutputBuffers = true;
@@ -113,18 +120,10 @@ public sealed class AsioEngine : IDisposable
                 }
 
                 break;
-            default:
-                throw new NotSupportedException($"ASIO sample type {type} is not supported yet.");
         }
 
         return peak;
     }
-
-    private static int BytesPerSample(AsioSampleType type) => type switch
-    {
-        AsioSampleType.Int32LSB or AsioSampleType.Float32LSB => 4,
-        _ => throw new NotSupportedException($"ASIO sample type {type} is not supported yet."),
-    };
 
     [DllImport("kernel32.dll", EntryPoint = "RtlMoveMemory")]
     private static extern void CopyMemory(IntPtr destination, IntPtr source, uint length);
