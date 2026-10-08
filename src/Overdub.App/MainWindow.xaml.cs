@@ -105,6 +105,8 @@ public partial class MainWindow : Window
         }
     }
 
+    private async void OnSpeedClick(object sender, RoutedEventArgs e) => await _viewModel.CycleSpeedAsync();
+
     private void OnSnapClick(object sender, RoutedEventArgs e) => _viewModel.CycleSnap();
 
     private void OnUndoClick(object sender, RoutedEventArgs e) => _viewModel.Undo();

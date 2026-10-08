@@ -132,7 +132,16 @@ public sealed class AsioEngine : IDisposable
     public int BeatUnit { get; set; } = 4;
 
     public double SamplesPerBeat => SampleRate * 60.0 / Bpm * 4.0 / BeatUnit;
-    public long Position => Volatile.Read(ref _position);
+    public double Speed { get; private set; } = 1.0;
+
+    public long Position => (long)(Volatile.Read(ref _position) * Speed);
+
+    public void SetSpeed(double speed)
+    {
+        var original = Position;
+        Speed = Math.Clamp(speed, 0.25, 2.0);
+        Seek(original);
+    }
     public TimeSpan PositionTime => SampleRate == 0 ? TimeSpan.Zero : TimeSpan.FromSeconds((double)Position / SampleRate);
 
     public bool MetronomeEnabled
@@ -148,6 +157,8 @@ public sealed class AsioEngine : IDisposable
     }
 
     public IReadOnlyList<PlaybackTrack> Tracks => _tracks;
+
+    public IReadOnlyList<MidiClip> MidiClips => _midi;
 
     public void SetChannels(IEnumerable<ChannelStrip> channels)
     {
@@ -244,7 +255,7 @@ public sealed class AsioEngine : IDisposable
 
     public void Seek(long sample)
     {
-        Volatile.Write(ref _position, Math.Max(0, sample));
+        Volatile.Write(ref _position, (long)(Math.Max(0, sample) / Speed));
         Synth.AllNotesOff();
     }
 
@@ -472,24 +483,29 @@ public sealed class AsioEngine : IDisposable
         var channels = _channels;
         var midi = _midi;
         var anySolo = Mixer.AnySolo(tracks, midi);
-        var loopOn = LoopEnabled && LoopEnd > LoopStart;
-        var punchOn = PunchEnabled && PunchOut > PunchIn;
+        var speed = Speed;
+        var loopStart = (long)(LoopStart / speed);
+        var loopEnd = (long)(LoopEnd / speed);
+        var punchIn = (long)(PunchIn / speed);
+        var punchOut = (long)(PunchOut / speed);
+        var loopOn = LoopEnabled && loopEnd > loopStart;
+        var punchOn = PunchEnabled && punchOut > punchIn;
         var done = 0;
         while (done < frames)
         {
             var chunk = frames - done;
-            if (loopOn && position < LoopEnd)
+            if (loopOn && position < loopEnd)
             {
-                chunk = (int)Math.Min(chunk, LoopEnd - position);
+                chunk = (int)Math.Min(chunk, loopEnd - position);
             }
 
-            if (punchOn && position < PunchIn)
+            if (punchOn && position < punchIn)
             {
-                chunk = (int)Math.Min(chunk, PunchIn - position);
+                chunk = (int)Math.Min(chunk, punchIn - position);
             }
-            else if (punchOn && position < PunchOut)
+            else if (punchOn && position < punchOut)
             {
-                chunk = (int)Math.Min(chunk, PunchOut - position);
+                chunk = (int)Math.Min(chunk, punchOut - position);
             }
 
             Mixer.MixChannels(channels, anySolo, position, _mixL, _mixR, chunk, done, _fxScratch);
@@ -499,7 +515,7 @@ public sealed class AsioEngine : IDisposable
                 MixClick(position, chunk, done);
             }
 
-            var gate = IsRecording && (!punchOn || (position >= PunchIn && position < PunchOut));
+            var gate = IsRecording && (!punchOn || (position >= punchIn && position < punchOut));
             RecordGateOpen = gate;
             if (gate)
             {
@@ -508,7 +524,7 @@ public sealed class AsioEngine : IDisposable
 
             position += chunk;
             done += chunk;
-            if (loopOn && position == LoopEnd)
+            if (loopOn && position == loopEnd)
             {
                 if (IsRecording)
                 {
@@ -518,11 +534,11 @@ public sealed class AsioEngine : IDisposable
                     }
                 }
 
-                position = LoopStart;
+                position = loopStart;
                 Synth.AllNotesOff();
             }
 
-            if (punchOn && IsRecording && position >= PunchOut)
+            if (punchOn && IsRecording && position >= punchOut)
             {
                 PunchCompleted = true;
             }
@@ -587,7 +603,7 @@ public sealed class AsioEngine : IDisposable
 
     private void MixClick(long position, int frames, int destOffset)
     {
-        var samplesPerBeat = SamplesPerBeat;
+        var samplesPerBeat = SamplesPerBeat / Speed;
         var clickLength = SampleRate / 50;
         for (var i = 0; i < frames; i++)
         {

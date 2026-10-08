@@ -30,6 +30,7 @@
 
         <Border Grid.Row="0" HorizontalAlignment="Right" Padding="0,10,14,10">
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <Button Style="{StaticResource TransportButton}" Width="Auto" Height="24" FontSize="12" Padding="10,0" Margin="0,0,14,0" Content="{Binding SpeedLabel}" Click="OnSpeedClick" Focusable="False" ToolTip="Practice speed: slow the music down without changing its pitch" />
                 <TextBlock Text="BPM" Foreground="{StaticResource TextDim}" VerticalAlignment="Center" Margin="0,0,8,0" />
                 <TextBox Text="{Binding Bpm, UpdateSourceTrigger=LostFocus, StringFormat=0}" Width="52" Height="26" VerticalContentAlignment="Center"
                          HorizontalContentAlignment="Center" Background="{StaticResource Bg}" Foreground="{StaticResource Text}"

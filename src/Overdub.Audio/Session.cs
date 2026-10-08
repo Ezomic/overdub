@@ -22,6 +22,7 @@ public sealed class Session : IDisposable
     public AsioEngine Engine { get; } = new();
     public MidiInput Midi { get; } = new();
     public EditHistory History { get; } = new();
+    public double PracticeSpeed { get; private set; } = 1.0;
     public List<Track> Tracks { get; } = [];
 
     public Track AddTrack(string name, int? input)
@@ -48,6 +49,11 @@ public sealed class Session : IDisposable
 
     public void StartRecording()
     {
+        if (PracticeSpeed != 1.0)
+        {
+            throw new InvalidOperationException("Set the practice speed back to 100% to record.");
+        }
+
         _take++;
         _recordingPaths.Clear();
         var inputs = new Dictionary<int, string>();
@@ -346,6 +352,53 @@ public sealed class Session : IDisposable
         Edit("Remove track", () => { Tracks.Remove(track); ApplyMixerState(); }, () => { Tracks.Insert(index, track); ApplyMixerState(); }, EditKind.Tracks);
     }
 
+    public void PrepareSpeed(double speed)
+    {
+        if (speed == 1.0)
+        {
+            return;
+        }
+
+        foreach (var view in Tracks.Where(t => !t.IsMidi).SelectMany(t => t.EffectiveClips()))
+        {
+            TimeStretcher.Get(view.Samples, view.Right, view.Offset, view.Length, speed);
+        }
+    }
+
+    public void ApplySpeed(double speed)
+    {
+        var wasPlaying = Engine.IsPlaying;
+        Engine.Pause();
+        PracticeSpeed = speed;
+        Engine.SetSpeed(speed);
+        PublishClips();
+        if (wasPlaying)
+        {
+            Engine.Play();
+        }
+    }
+
+    private IReadOnlyList<PlaybackTrack> AtPracticeSpeed(IReadOnlyList<PlaybackTrack> views)
+    {
+        if (PracticeSpeed == 1.0)
+        {
+            return views;
+        }
+
+        return views.Select(view =>
+        {
+            var (left, right) = TimeStretcher.Get(view.Samples, view.Right, view.Offset, view.Length, PracticeSpeed);
+            return new PlaybackTrack(left, (long)Math.Round(view.StartSample / PracticeSpeed))
+            {
+                Right = right,
+                Gain = view.Gain,
+                Pan = view.Pan,
+                Mute = view.Mute,
+                Solo = view.Solo,
+            };
+        }).ToList();
+    }
+
     public void PublishClips()
     {
         var rate = Engine.SampleRate;
@@ -357,7 +410,7 @@ public sealed class Session : IDisposable
                 track.PlaybackFx.Configure(rate);
             }
 
-            strips.Add(new ChannelStrip(track.EffectiveClips(), track.Effects, track.PlaybackFx));
+            strips.Add(new ChannelStrip(AtPracticeSpeed(track.EffectiveClips()), track.Effects, track.PlaybackFx));
         }
 
         Engine.SetChannels(strips);
@@ -371,7 +424,7 @@ public sealed class Session : IDisposable
 
             Engine.SetLiveEffects(input, bound?.Effects, bound?.LiveFx);
         }
-        Engine.SetMidiClips(Tracks.SelectMany(t => t.MidiClips));
+        Engine.SetMidiClips(PracticeSpeed == 1.0 ? Tracks.SelectMany(t => t.MidiClips) : Tracks.SelectMany(t => t.MidiClips).Select(c => c.Scaled(1 / PracticeSpeed)));
     }
 
     public event Action<byte, byte>? NoteActivity;
@@ -558,6 +611,8 @@ public sealed class Session : IDisposable
         Tracks.AddRange(loaded);
         _created = loaded.Count == 0 ? 0 : loaded.Max(t => t.ColorIndex) + 1;
         Directory = directory;
+        PracticeSpeed = 1.0;
+        Engine.SetSpeed(1.0);
         PublishClips();
         ApplyMixerState();
         Engine.BeatsPerBar = data.BeatsPerBar;

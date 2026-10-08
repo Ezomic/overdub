@@ -329,6 +329,43 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    private static readonly int[] SpeedSteps = [100, 90, 80, 70, 60, 50];
+    private int _speedPercent = 100;
+    private bool _preparingSpeed;
+
+    public string SpeedLabel => _preparingSpeed ? "Speed..." : $"Speed {_speedPercent}%";
+
+    public async Task CycleSpeedAsync()
+    {
+        if (IsRecording || _preparingSpeed || _session.Engine.SampleRate == 0)
+        {
+            return;
+        }
+
+        var next = SpeedSteps[(Array.IndexOf(SpeedSteps, _speedPercent) + 1) % SpeedSteps.Length];
+        _preparingSpeed = true;
+        OnPropertyChanged(nameof(SpeedLabel));
+        Message = "";
+        Notice = next == 100 ? "" : "Preparing practice speed...";
+        try
+        {
+            var speed = next / 100.0;
+            await Task.Run(() => _session.PrepareSpeed(speed));
+            _session.ApplySpeed(speed);
+            _speedPercent = next;
+            Notice = next == 100 ? "Normal speed" : $"Practice speed {next}%, pitch unchanged. Recording is off until you return to 100%.";
+        }
+        catch (Exception ex)
+        {
+            Message = ex.Message;
+        }
+        finally
+        {
+            _preparingSpeed = false;
+            OnPropertyChanged(nameof(SpeedLabel));
+        }
+    }
+
     public string CountInLabel => _session.Engine.CountInBars switch
     {
         0 => "Count-in: off",
@@ -430,6 +467,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         {
             _session.Engine.StopTransport();
             Bpm = _session.Load(path);
+            _speedPercent = 100;
+            OnPropertyChanged(nameof(SpeedLabel));
             RebuildTracks();
             RefreshTimeline();
             OnPropertyChanged(nameof(Metronome));
@@ -1296,6 +1335,12 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         if (engine.SampleRate == 0)
         {
             Message = "Connect your Komplete Audio and restart Overdub.";
+            return;
+        }
+
+        if (_speedPercent != 100 && !IsRecording)
+        {
+            Message = "Practice speed is on. Set it back to 100% to record.";
             return;
         }
 
