@@ -294,6 +294,7 @@ public sealed class Session : IDisposable
             t.IsMidi,
             t.ColorIndex)).ToList();
         ProjectFile.Write(ProjectPath, new ProjectData(1, Engine.SampleRate, Engine.Bpm, tracks, Engine.BeatsPerBar, Engine.BeatUnit));
+        RecentProjects.Add(ProjectPath);
     }
 
     public double Load(string projectPath)
@@ -340,6 +341,7 @@ public sealed class Session : IDisposable
         Engine.BeatsPerBar = data.BeatsPerBar;
         Engine.BeatUnit = data.BeatUnit;
         History.Clear();
+        RecentProjects.Add(projectPath);
         return data.Bpm;
     }
 

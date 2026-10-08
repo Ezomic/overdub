@@ -4,8 +4,7 @@ namespace Overdub.Audio;
 
 public static class LatencyStore
 {
-    private static string FilePath => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Overdub", "latency.json");
+    private static string FilePath => Path.Combine(AppPaths.SettingsDirectory, "latency.json");
 
     public static int? Load(string key) => ReadAll().TryGetValue(key, out var samples) ? samples : null;
 
