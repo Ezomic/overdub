@@ -12,7 +12,8 @@ public sealed class Track(string name, int? input)
     public int ColorIndex { get; set; }
     public int? Input { get; } = input;
     public bool Armed { get; set; }
-    public bool IsMidi => Input is null;
+    public bool IsBacking { get; init; }
+    public bool IsMidi => Input is null && !IsBacking;
     public string Preset { get; set; } = "Lead";
     public List<Clip> Clips { get; } = [];
     public List<MidiClip> MidiClips { get; } = [];

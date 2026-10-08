@@ -73,9 +73,11 @@ public static class Mixer
             var to = Math.Min(position + frames, track.EndSample);
             for (var at = from; at < to; at++)
             {
-                var sample = track.Samples[track.Offset + (at - track.StartSample)];
+                var index = track.Offset + (at - track.StartSample);
+                var sample = track.Samples[index];
+                var other = track.Right is { } r ? r[index] : sample;
                 left[destOffset + (int)(at - position)] += sample * gl;
-                right[destOffset + (int)(at - position)] += sample * gr;
+                right[destOffset + (int)(at - position)] += other * gr;
             }
         }
     }

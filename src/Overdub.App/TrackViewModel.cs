@@ -194,10 +194,10 @@ public sealed class TrackViewModel(Track model, Brush color, Action onMixChanged
 
         onRemove(this);
     }
-    public bool HasInput => true;
+    public bool HasInput => !Model.IsBacking;
     public bool IsMidi => Model.IsMidi;
     public bool IsAudio => !Model.IsMidi;
-    public string InputText => Model.Input is { } input ? $"Input {input + 1}, instrument" : "MIDI, built-in synth";
+    public string InputText => Model.IsBacking ? "Imported audio" : Model.Input is { } input ? $"Input {input + 1}, instrument" : "MIDI, built-in synth";
     public ObservableCollection<MidiClipViewModel> MidiClips { get; } = [];
     public System.Windows.Input.ICommand? CycleMidi { get; set; }
 

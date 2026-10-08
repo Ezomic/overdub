@@ -30,6 +30,11 @@ public sealed class Clip
         for (var i = 0; i < length; i++)
         {
             var value = Math.Abs(Playback.Samples[offset + i]);
+            if (Playback.Right is { } right)
+            {
+                value = Math.Max(value, Math.Abs(right[offset + i]));
+            }
+
             if (value > peaks[i / PeakBlock])
             {
                 peaks[i / PeakBlock] = value;
@@ -41,6 +46,7 @@ public sealed class Clip
 
     public Clip Copy(long start, long offset, long length) => new(Path, new PlaybackTrack(Playback.Samples, start)
     {
+        Right = Playback.Right,
         Offset = offset,
         Length = length,
         Gain = Playback.Gain,

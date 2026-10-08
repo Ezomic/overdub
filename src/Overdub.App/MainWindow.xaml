@@ -63,14 +63,9 @@
                 </StackPanel>
                 <TextBlock Grid.Column="1" Text="{Binding RegionText}" Foreground="{StaticResource TextDim}" FontSize="12" VerticalAlignment="Center" Margin="12,0,12,0" TextTrimming="CharacterEllipsis" />
                 <StackPanel Grid.Column="2" Orientation="Horizontal">
-                    <Button Style="{StaticResource TransportButton}" Width="Auto" Height="24" FontSize="12" Padding="10,0" Margin="0,0,8,0" Content="Analyze" Click="OnAnalyzeClick" Focusable="False" ToolTip="Detect the tempo and key of the selected clip" />
-                    <Button Style="{StaticResource TransportButton}" Width="Auto" Height="24" FontSize="12" Padding="10,0" Margin="0,0,8,0" Content="Tuner" Click="OnTunerClick" Focusable="False" ToolTip="Tune a guitar or bass from the live input" />
-                    <Button Style="{StaticResource TransportButton}" Width="Auto" Height="24" FontSize="12" Padding="10,0" Margin="0,0,8,0" Content="Keyboard" Click="OnKeyboardClick" Focusable="False" ToolTip="Play the Keys track from an on-screen keyboard" />
-                    <Button Style="{StaticResource TransportButton}" Width="Auto" Height="24" FontSize="12" Padding="10,0" Margin="0,0,8,0" Content="Latency" Click="OnLatencyClick" Focusable="False" ToolTip="Measure the round-trip latency with a loopback cable" />
-                    <Button Style="{StaticResource TransportButton}" Width="64" Height="24" FontSize="12" Margin="0,0,8,0" Content="Stems" Click="OnStemsClick" Focusable="False" ToolTip="Export each track as its own WAV" />
-                    <Button Style="{StaticResource TransportButton}" Width="64" Height="24" FontSize="12" Margin="0,0,8,0" Content="Open" Click="OnOpenClick" Focusable="False" ToolTip="Open a project" />
-                    <Button Style="{StaticResource TransportButton}" Width="64" Height="24" FontSize="12" Margin="0,0,8,0" Content="Save" Click="OnSaveClick" Focusable="False" ToolTip="Save the project" />
-                    <Button Style="{StaticResource TransportButton}" Width="64" Height="24" FontSize="12" Margin="0" Content="Export" Click="OnExportClick" Focusable="False" ToolTip="Export a stereo mixdown as WAV, MP3 or FLAC" />
+                    <Button x:Name="ToolsButton" Style="{StaticResource TransportButton}" Width="Auto" Height="24" FontSize="12" Padding="10,0" Margin="0,0,8,0" Content="Tools ▾" Click="OnToolsClick" Focusable="False" ToolTip="Tuner, keyboard, analysis and latency" />
+                    <Button x:Name="FileButton" Style="{StaticResource TransportButton}" Width="Auto" Height="24" FontSize="12" Padding="10,0" Margin="0,0,8,0" Content="File ▾" Click="OnFileClick" Focusable="False" ToolTip="Open, import and export" />
+                    <Button Style="{StaticResource TransportButton}" Width="64" Height="24" FontSize="12" Margin="0" Content="Save" Click="OnSaveClick" Focusable="False" ToolTip="Save the project" />
                 </StackPanel>
             </Grid>
         </Border>

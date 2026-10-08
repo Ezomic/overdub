@@ -12,6 +12,7 @@ public sealed class PlaybackTrack
     }
 
     public float[] Samples { get; }
+    public float[]? Right { get; init; }
     public long StartSample { get; set; }
     public long Offset { get; set; }
     public long Length { get; set; }
@@ -21,7 +22,7 @@ public sealed class PlaybackTrack
     public bool Mute { get; set; }
     public bool Solo { get; set; }
 
-    public static PlaybackTrack FromWav(string path, long startSample, int expectedSampleRate)
+    public static PlaybackTrack FromWav(string path, long startSample, int expectedSampleRate, bool keepStereo = false)
     {
         using var reader = new AudioFileReader(path);
         if (reader.WaveFormat.SampleRate != expectedSampleRate)
@@ -32,7 +33,25 @@ public sealed class PlaybackTrack
         var channels = reader.WaveFormat.Channels;
         var interleaved = new float[reader.Length / sizeof(float)];
         var read = ((ISampleProvider)reader).Read(interleaved.AsSpan());
-        var frames = read / channels;
+        return FromInterleaved(interleaved, read, channels, startSample, keepStereo);
+    }
+
+    public static PlaybackTrack FromInterleaved(float[] interleaved, int count, int channels, long startSample, bool keepStereo)
+    {
+        var frames = count / channels;
+        if (keepStereo && channels >= 2)
+        {
+            var left = new float[frames];
+            var right = new float[frames];
+            for (var i = 0; i < frames; i++)
+            {
+                left[i] = interleaved[i * channels];
+                right[i] = interleaved[(i * channels) + 1];
+            }
+
+            return new PlaybackTrack(left, startSample) { Right = right };
+        }
+
         var mono = new float[frames];
         for (var i = 0; i < frames; i++)
         {
