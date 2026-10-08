@@ -80,12 +80,13 @@ public static class Mixer
         }
     }
 
-    public static void Export(IReadOnlyList<PlaybackTrack> tracks, IReadOnlyList<MidiClip> midi, int sampleRate, string path, float synthGain = 1f, float synthPan = 0f)
+    public static void Export(IReadOnlyList<PlaybackTrack> tracks, IReadOnlyList<MidiClip> midi, int sampleRate, string path, float synthGain = 1f, float synthPan = 0f, long minLength = 0)
     {
         var tail = sampleRate;
         var length = Math.Max(
             tracks.Select(t => t.EndSample).DefaultIfEmpty(0).Max(),
             midi.Where(c => c.Events.Length > 0).Select(c => c.EndSample + tail).DefaultIfEmpty(0).Max());
+        length = Math.Max(length, minLength);
         if (length == 0)
         {
             throw new InvalidOperationException("Nothing to export yet. Record something first.");

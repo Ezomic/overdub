@@ -45,6 +45,7 @@
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
                     <Button Style="{StaticResource TransportButton}" Width="Auto" Height="24" FontSize="12" Padding="10,0" Margin="0,0,8,0" Content="Tuner" Click="OnTunerClick" Focusable="False" ToolTip="Tune a guitar or bass from the live input" />
                     <Button Style="{StaticResource TransportButton}" Width="Auto" Height="24" FontSize="12" Padding="10,0" Margin="0,0,8,0" Content="Latency" Click="OnLatencyClick" Focusable="False" ToolTip="Measure the round-trip latency with a loopback cable" />
+                    <Button Style="{StaticResource TransportButton}" Width="64" Height="24" FontSize="12" Margin="0,0,8,0" Content="Stems" Click="OnStemsClick" Focusable="False" ToolTip="Export each track as its own WAV" />
                     <Button Style="{StaticResource TransportButton}" Width="64" Height="24" FontSize="12" Margin="0,0,8,0" Content="Open" Click="OnOpenClick" Focusable="False" ToolTip="Open a project" />
                     <Button Style="{StaticResource TransportButton}" Width="64" Height="24" FontSize="12" Margin="0,0,8,0" Content="Save" Click="OnSaveClick" Focusable="False" ToolTip="Save the project" />
                     <Button Style="{StaticResource TransportButton}" Width="64" Height="24" FontSize="12" Margin="0" Content="Export" Click="OnExportClick" Focusable="False" ToolTip="Export a stereo WAV mixdown" />
@@ -58,7 +59,7 @@
                     <Button Style="{StaticResource TransportButton}" Width="Auto" Height="24" FontSize="12" Padding="10,0" Margin="12,0,4,0" Content="Split" Click="OnSplitClick" Focusable="False" ToolTip="Split the clip at the playhead (S)" />
                     <Button Style="{StaticResource TransportButton}" Width="Auto" Height="24" FontSize="12" Padding="10,0" Margin="0,0,4,0" Content="Duplicate" Click="OnDuplicateClick" Focusable="False" ToolTip="Duplicate the selected clip (Ctrl+D)" />
                     <Button Style="{StaticResource TransportButton}" Width="Auto" Height="24" FontSize="12" Padding="10,0" Margin="0,0,4,0" Content="Delete" Click="OnDeleteClick" Focusable="False" ToolTip="Delete the selected clip (Delete)" />
-                    <TextBlock Text="{Binding RegionText}" Foreground="{StaticResource TextDim}" FontSize="12" VerticalAlignment="Center" Margin="8,0,0,0" />
+                    <TextBlock Text="{Binding RegionText}" Foreground="{StaticResource TextDim}" FontSize="12" VerticalAlignment="Center" Margin="8,0,8,0" TextTrimming="CharacterEllipsis" />
                 </StackPanel>
             </DockPanel>
         </Border>

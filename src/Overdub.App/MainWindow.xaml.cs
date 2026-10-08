@@ -188,6 +188,19 @@ public partial class MainWindow : Window
         }
     }
 
+    private void OnStemsClick(object sender, RoutedEventArgs e)
+    {
+        var dialog = new Microsoft.Win32.OpenFolderDialog
+        {
+            Title = "Choose a folder for the stems",
+            InitialDirectory = Directory.Exists(_viewModel.ProjectFolder) ? _viewModel.ProjectFolder : null,
+        };
+        if (dialog.ShowDialog(this) == true)
+        {
+            _viewModel.ExportStems(dialog.FolderName);
+        }
+    }
+
     private void OnExportClick(object sender, RoutedEventArgs e)
     {
         var dialog = new Microsoft.Win32.SaveFileDialog
