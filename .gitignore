@@ -482,3 +482,6 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# *.app (macOS bundles) also matches the Overdub.App project folder
+!Overdub.App/
