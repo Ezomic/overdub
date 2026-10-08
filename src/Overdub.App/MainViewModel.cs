@@ -1312,6 +1312,14 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    public void ApplyDrumPreset(DrumPattern pattern, string name)
+    {
+        if (DrumTrack is { } track)
+        {
+            _session.EditPattern(track, pattern, p => p.ApplyPreset(name), $"Drum preset: {name}");
+        }
+    }
+
     public void SetDrumBars(DrumPattern pattern, int bars)
     {
         if (DrumTrack is { } track)
