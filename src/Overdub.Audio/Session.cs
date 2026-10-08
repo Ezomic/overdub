@@ -49,6 +49,8 @@ public sealed class Session : IDisposable
 
     public bool HasArmedMidi => Tracks.Any(t => t is { Armed: true, IsMidi: true });
 
+    public bool WaitForInput { get; set; }
+
     public void StartRecording()
     {
         if (PracticeSpeed != 1.0)
@@ -73,7 +75,12 @@ public sealed class Session : IDisposable
             _midiBuffer = _midiTrack is null ? null : [];
         }
 
-        Engine.StartRecording(inputs);
+        Engine.StartRecording(inputs, WaitForInput);
+        if (WaitForInput)
+        {
+            return;
+        }
+
         if (Engine.CountInBars > 0)
         {
             Engine.BeginCountIn();
@@ -512,6 +519,11 @@ public sealed class Session : IDisposable
         NoteActivity?.Invoke(note, velocity);
         if (velocity > 0)
         {
+            if (_midiBuffer is not null)
+            {
+                Engine.ReleaseWait();
+            }
+
             Engine.Synth.NoteOn(note, velocity);
             _midiActivity = Math.Max(_midiActivity, velocity);
         }

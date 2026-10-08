@@ -36,6 +36,7 @@ public sealed class AsioEngine : IDisposable
     private volatile bool _playing;
     private LatencyProbe? _probe;
     private volatile bool _countingIn;
+    private volatile bool _waitingForInput;
     private long _countInPos;
     private long _countInEnd;
     private double _countInLead;
@@ -119,6 +120,17 @@ public sealed class AsioEngine : IDisposable
 
     public bool IsPlaying => _playing;
     public bool IsCountingIn => _countingIn;
+    public bool IsWaitingForInput => _waitingForInput;
+    public float TriggerThreshold { get; set; } = 0.01f;
+
+    public void ReleaseWait()
+    {
+        if (_waitingForInput)
+        {
+            _waitingForInput = false;
+            _playing = true;
+        }
+    }
 
     public int TunerInput
     {
@@ -284,7 +296,7 @@ public sealed class AsioEngine : IDisposable
         return clipped;
     }
 
-    public void StartRecording(IReadOnlyDictionary<int, string> pathsByInput)
+    public void StartRecording(IReadOnlyDictionary<int, string> pathsByInput, bool waitForInput = false)
     {
         if (_asio is null)
         {
@@ -311,12 +323,14 @@ public sealed class AsioEngine : IDisposable
 
         PunchCompleted = false;
         IsRecording = true;
+        _waitingForInput = waitForInput;
     }
 
     public IReadOnlyList<string> StopRecording()
     {
         IsRecording = false;
         _countingIn = false;
+        _waitingForInput = false;
         PunchCompleted = false;
         RecordGateOpen = false;
         lock (_wrapsLock)
@@ -418,6 +432,11 @@ public sealed class AsioEngine : IDisposable
             }
         }
 
+        if (_waitingForInput)
+        {
+            CheckTrigger(frames);
+        }
+
         Array.Clear(_mixL, 0, frames);
         Array.Clear(_mixR, 0, frames);
         Array.Clear(_synthBuf, 0, frames);
@@ -434,8 +453,8 @@ public sealed class AsioEngine : IDisposable
         }
         else
         {
-            RecordGateOpen = IsRecording;
-            if (IsRecording)
+            RecordGateOpen = IsRecording && !_waitingForInput;
+            if (IsRecording && !_waitingForInput)
             {
                 WriteRecorders(0, frames, Position);
             }
@@ -562,6 +581,28 @@ public sealed class AsioEngine : IDisposable
         }
 
         Interlocked.CompareExchange(ref _position, position, startPosition);
+    }
+
+    private void CheckTrigger(int frames)
+    {
+        var threshold = TriggerThreshold;
+        for (var channel = 0; channel < MaxInputs; channel++)
+        {
+            if (_recorders[channel] is null)
+            {
+                continue;
+            }
+
+            var buffer = _inputBufs[channel];
+            for (var i = 0; i < frames; i++)
+            {
+                if (Math.Abs(buffer[i]) > threshold)
+                {
+                    ReleaseWait();
+                    return;
+                }
+            }
+        }
     }
 
     private void WriteRecorders(int offset, int count, long position)
