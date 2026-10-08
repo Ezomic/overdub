@@ -2,6 +2,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using Overdub.Audio;
 
 namespace Overdub.App;
 
@@ -176,6 +177,38 @@ public partial class MainWindow : Window
     private void OnSaveClick(object sender, RoutedEventArgs e) => _viewModel.Save();
 
     private void OnOpenClick(object sender, RoutedEventArgs e)
+    {
+        var recent = RecentProjects.Load();
+        if (recent.Count == 0)
+        {
+            BrowseForProject();
+            return;
+        }
+
+        var menu = new ContextMenu
+        {
+            PlacementTarget = (UIElement)sender,
+            Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom,
+        };
+        foreach (var path in recent)
+        {
+            var item = new MenuItem
+            {
+                Header = $"{Path.GetFileName(Path.GetDirectoryName(path))}  ({File.GetLastWriteTime(path):d MMM HH:mm})",
+                ToolTip = path,
+            };
+            item.Click += (_, _) => _viewModel.Open(path);
+            menu.Items.Add(item);
+        }
+
+        menu.Items.Add(new Separator());
+        var browse = new MenuItem { Header = "Browse..." };
+        browse.Click += (_, _) => BrowseForProject();
+        menu.Items.Add(browse);
+        menu.IsOpen = true;
+    }
+
+    private void BrowseForProject()
     {
         var dialog = new Microsoft.Win32.OpenFileDialog
         {
