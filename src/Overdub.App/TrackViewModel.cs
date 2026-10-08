@@ -291,6 +291,19 @@ public sealed class TrackViewModel(Track model, Brush color, Action onMixChanged
         onEdit("Change sound", () => ApplyPreset(next), () => ApplyPreset(old), null);
     });
 
+    public IReadOnlyList<string> PresetOptions => Model.Machine is { } role ? PluckSynth.Names(role) : SynthPatch.All.Select(p => p.Name).ToList();
+
+    public void SetPreset(string preset)
+    {
+        var old = Model.Preset;
+        if (string.Equals(old, preset, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        onEdit("Change sound", () => ApplyPreset(preset), () => ApplyPreset(old), null);
+    }
+
     private void ApplyPreset(string preset)
     {
         Model.Preset = preset;

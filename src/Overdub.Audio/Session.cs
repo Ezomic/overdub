@@ -182,7 +182,7 @@ public sealed class Session : IDisposable
             var lane = Engine.Machines[(int)role];
             lane.Gain = machine?.Gain ?? 1f;
             lane.Pan = machine?.Pan ?? 0f;
-            lane.Synth.SetPreset(machine?.Preset);
+            lane.SetPreset(machine?.Preset);
         }
 
         var keys = Tracks.FirstOrDefault(t => t.IsKeys);
@@ -376,7 +376,7 @@ public sealed class Session : IDisposable
         {
             Machine = role,
             ColorIndex = _created++,
-            Preset = role == MachineRole.Guitar ? "Pluck" : "Bass",
+            Preset = PluckSynth.DefaultName(role),
             Gain = 0.6f,
         };
         track.ChordPatterns.Add(ChordPattern.Starter("A", role));
@@ -796,6 +796,11 @@ public sealed class Session : IDisposable
             int? input = isMidi ? null : d.Input ?? (d.Name == "Bass" ? 1 : 0);
             var backing = d.IsBacking == true;
             var track = new Track(d.Name, backing ? null : input) { ColorIndex = d.Color ?? loaded.Count, Preset = d.Preset ?? "Lead", IsBacking = backing, IsDrums = d.IsDrums == true, Machine = Enum.TryParse<MachineRole>(d.Machine, out var machineRole) ? machineRole : null };
+            if (track.Machine is { } migrateRole && PluckSynth.Find(track.Preset) is null && track.Preset is not ("Synth pluck" or "Synth bass"))
+            {
+                track.Preset = PluckSynth.DefaultName(migrateRole);
+            }
+
             foreach (var p in d.ChordPatterns ?? [])
             {
                 track.ChordPatterns.Add(ChordPattern.Decode(p.Id, p.Name, track.Machine ?? MachineRole.Guitar, p.Bars, (ChordStyle)p.Style, p.Chords));
@@ -912,7 +917,7 @@ public sealed class Session : IDisposable
             {
                 if (track.Machine is { } role)
                 {
-                    Mixer.Export([], [], Engine.SampleRate, path, 1f, 0f, length, null, null, null, [new MachineMix(midi, track.Gain, track.Pan, track.Preset)]);
+                    Mixer.Export([], [], Engine.SampleRate, path, 1f, 0f, length, null, null, null, [new MachineMix(role, midi, track.Gain, track.Pan, track.Preset)]);
                 }
                 else if (track.IsDrums)
                 {
@@ -946,7 +951,7 @@ public sealed class Session : IDisposable
         try
         {
             var keys = Tracks.FirstOrDefault(t => t.IsKeys);
-            var machineMixes = Tracks.Where(t => t.Machine is not null).Select(t => new MachineMix(t.MidiClips.Select(m => m.Copy(0)).ToList(), t.Gain, t.Pan, t.Preset)).ToList();
+            var machineMixes = Tracks.Where(t => t.Machine is not null).Select(t => new MachineMix(t.Machine!.Value, t.MidiClips.Select(m => m.Copy(0)).ToList(), t.Gain, t.Pan, t.Preset)).ToList();
             var drumTrack = DrumTrack;
             var drumMix = drumTrack is null ? null : new DrumMix(drumTrack.MidiClips.Select(m => m.Copy(0)).ToList(), drumTrack.Gain, drumTrack.Pan);
             var instrument = keys is { Instrument.Active: true } ? keys.Instrument.CreateCopy(Engine.SampleRate) : null;

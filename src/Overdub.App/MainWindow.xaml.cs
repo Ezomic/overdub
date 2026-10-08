@@ -149,6 +149,25 @@ public partial class MainWindow : Window
         new PianoRollWindow(_viewModel, target.Track, target.Clip) { Owner = this }.Show();
     }
 
+    private void OnPresetClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { DataContext: TrackViewModel track } target)
+        {
+            return;
+        }
+
+        var menu = new ContextMenu { PlacementTarget = target, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom };
+        foreach (var option in track.PresetOptions)
+        {
+            var name = option;
+            var item = new MenuItem { Header = name, IsCheckable = true, IsChecked = string.Equals(name, track.Preset, StringComparison.OrdinalIgnoreCase) };
+            item.Click += (_, _) => track.SetPreset(name);
+            menu.Items.Add(item);
+        }
+
+        menu.IsOpen = true;
+    }
+
     private void OnChordsClick(object sender, RoutedEventArgs e)
     {
         if (sender is FrameworkElement { DataContext: TrackViewModel { Model.Machine: not null } track })
