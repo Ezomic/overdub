@@ -20,6 +20,11 @@ public sealed class AsioEngine : IDisposable
     private readonly MidiSequencer _sequencer = new();
     private long _position;
     private volatile bool _playing;
+    private volatile bool _countingIn;
+    private long _countInPos;
+    private long _countInEnd;
+    private double _countInLead;
+    private int _countInBeats;
     private volatile bool _metronomeEnabled;
     private double _bpm = 120;
     private AsioOut? _asio;
@@ -84,6 +89,9 @@ public sealed class AsioEngine : IDisposable
     public long RecordStartSample { get; private set; }
 
     public bool IsPlaying => _playing;
+    public bool IsCountingIn => _countingIn;
+    public int CountInBars { get; set; }
+    public int BeatsPerBar { get; set; } = 4;
     public long Position => Volatile.Read(ref _position);
     public TimeSpan PositionTime => SampleRate == 0 ? TimeSpan.Zero : TimeSpan.FromSeconds((double)Position / SampleRate);
 
@@ -107,9 +115,23 @@ public sealed class AsioEngine : IDisposable
 
     public void Play() => _playing = true;
 
+    public void BeginCountIn()
+    {
+        var samplesPerBeat = SampleRate * 60.0 / Bpm;
+        var beats = CountInBars * BeatsPerBar;
+        var length = beats * samplesPerBeat;
+        var buffer = Math.Max(1, BufferSamples);
+        _countInBeats = beats;
+        _countInEnd = (long)Math.Ceiling(length / buffer) * buffer;
+        _countInLead = _countInEnd - length;
+        _countInPos = 0;
+        _countingIn = true;
+    }
+
     public void Pause()
     {
         _playing = false;
+        _countingIn = false;
         Synth.AllNotesOff();
     }
 
@@ -122,6 +144,7 @@ public sealed class AsioEngine : IDisposable
     public void StopTransport()
     {
         _playing = false;
+        _countingIn = false;
         Seek(0);
     }
 
@@ -157,6 +180,7 @@ public sealed class AsioEngine : IDisposable
     public IReadOnlyList<string> StopRecording()
     {
         IsRecording = false;
+        _countingIn = false;
         var paths = new List<string>();
         for (var i = 0; i < _recorders.Length; i++)
         {
@@ -212,7 +236,11 @@ public sealed class AsioEngine : IDisposable
             var peak = ConvertToFloat(e.InputBuffers[channel], frames, e.AsioSampleType, _scratch);
             _peaks[channel] = Math.Max(_peaks[channel], peak);
             _clipped[channel] |= peak >= 0.999f;
-            _recorders[channel]?.Write(_scratch, frames);
+            if (!_countingIn)
+            {
+                _recorders[channel]?.Write(_scratch, frames);
+            }
+
             if (_monitoring)
             {
                 for (var i = 0; i < frames; i++)
@@ -226,7 +254,11 @@ public sealed class AsioEngine : IDisposable
         Array.Clear(_mixR, 0, frames);
         Array.Clear(_synthBuf, 0, frames);
         var midiPlayed = false;
-        if (_playing)
+        if (_countingIn)
+        {
+            RenderCountIn(frames);
+        }
+        else if (_playing)
         {
             var position = Volatile.Read(ref _position);
             var tracks = _tracks;
@@ -278,6 +310,45 @@ public sealed class AsioEngine : IDisposable
         _outInt = new int[frames];
     }
 
+    private void RenderCountIn(int frames)
+    {
+        var samplesPerBeat = SampleRate * 60.0 / Bpm;
+        var clickLength = SampleRate / 50;
+        for (var i = 0; i < frames; i++)
+        {
+            var t = _countInPos + i - _countInLead;
+            if (t < 0)
+            {
+                continue;
+            }
+
+            var beat = (long)(t / samplesPerBeat);
+            if (beat >= _countInBeats)
+            {
+                continue;
+            }
+
+            var offset = (int)(t - (beat * samplesPerBeat));
+            if (offset >= clickLength)
+            {
+                continue;
+            }
+
+            var frequency = beat % BeatsPerBar == 0 ? 1500.0 : 1000.0;
+            var envelope = 1f - ((float)offset / clickLength);
+            var click = (float)Math.Sin(2 * Math.PI * frequency * offset / SampleRate) * envelope * 0.4f;
+            _mixL[i] += click;
+            _mixR[i] += click;
+        }
+
+        _countInPos += frames;
+        if (_countInPos >= _countInEnd)
+        {
+            _countingIn = false;
+            _playing = true;
+        }
+    }
+
     private void MixClick(long position, int frames)
     {
         var samplesPerBeat = SampleRate * 60.0 / Bpm;
@@ -292,7 +363,7 @@ public sealed class AsioEngine : IDisposable
                 continue;
             }
 
-            var frequency = beat % 4 == 0 ? 1500.0 : 1000.0;
+            var frequency = beat % BeatsPerBar == 0 ? 1500.0 : 1000.0;
             var envelope = 1f - ((float)offset / clickLength);
             var click = (float)Math.Sin(2 * Math.PI * frequency * offset / SampleRate) * envelope * 0.4f;
             _mixL[i] += click;

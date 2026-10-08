@@ -118,6 +118,19 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    public string CountInLabel => _session.Engine.CountInBars switch
+    {
+        0 => "Count-in: off",
+        1 => "Count-in: 1 bar",
+        _ => $"Count-in: {_session.Engine.CountInBars} bars",
+    };
+
+    public void CycleCountIn()
+    {
+        _session.Engine.CountInBars = (_session.Engine.CountInBars + 1) % 3;
+        OnPropertyChanged(nameof(CountInLabel));
+    }
+
     public bool Metronome
     {
         get => _session.Engine.MetronomeEnabled;
