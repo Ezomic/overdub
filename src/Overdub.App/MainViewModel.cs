@@ -368,10 +368,11 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     private IReadOnlyList<Overdub.Audio.Vst3.Vst3PluginInfo>? _plugins;
 
-    public Task<IReadOnlyList<Overdub.Audio.Vst3.Vst3PluginInfo>> ScanPluginsAsync() =>
-        _plugins is not null
-            ? Task.FromResult(_plugins)
-            : Task.Run(() => _plugins = Overdub.Audio.Vst3.Vst3Scanner.Scan().Where(p => p.IsEffect).OrderBy(p => p.Name).ToList());
+    public async Task<IReadOnlyList<Overdub.Audio.Vst3.Vst3PluginInfo>> ScanPluginsAsync(bool instruments)
+    {
+        _plugins ??= await Task.Run(() => Overdub.Audio.Vst3.Vst3Scanner.Scan().OrderBy(p => p.Name).ToList());
+        return _plugins.Where(p => p.IsInstrument == instruments).ToList();
+    }
 
     public async Task AssignPluginAsync(TrackViewModel track, Overdub.Audio.Vst3.Vst3PluginInfo? info)
     {
@@ -394,8 +395,9 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public void SetPluginEnabled(TrackViewModel track, bool enabled)
     {
-        track.Model.Effects.Plugin.Enabled = enabled;
+        track.Model.PluginSlot.Enabled = enabled;
         track.Model.Effects.Touch();
+        _session.ApplyMixerState();
         track.RaiseEffectsChanged();
     }
 

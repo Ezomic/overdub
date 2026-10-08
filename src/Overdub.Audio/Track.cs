@@ -18,6 +18,8 @@ public sealed class Track(string name, int? input)
     public bool IsMidi => Input is null && !IsBacking;
     public string Preset { get; set; } = "Lead";
     public EffectChain Effects { get; } = new();
+    public Vst3.PluginSlot Instrument { get; } = new();
+    public Vst3.PluginSlot PluginSlot => IsMidi ? Instrument : Effects.Plugin;
     public EffectChain PlaybackFx { get; } = new();
     public EffectChain LiveFx { get; } = new();
     public List<Clip> Clips { get; } = [];

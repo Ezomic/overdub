@@ -22,7 +22,7 @@ public partial class EffectsWindow : Window
         _main = main;
         _track = track;
         InitializeComponent();
-        Title = $"Effects: {track.Name}";
+        Title = track.Model.IsMidi ? $"Instrument: {track.Name}" : $"Effects: {track.Name}";
         Build();
         _track.EffectsChanged += Sync;
         Closed += (_, _) => _track.EffectsChanged -= Sync;
@@ -36,7 +36,7 @@ public partial class EffectsWindow : Window
         DockPanel.SetDock(_pluginOn, Dock.Right);
         _pluginOn.Click += (_, _) => _main.SetPluginEnabled(_track, _pluginOn.IsChecked == true);
         header.Children.Add(_pluginOn);
-        header.Children.Add(new TextBlock { Text = "VST3 plugin", FontSize = 15, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center });
+        header.Children.Add(new TextBlock { Text = _track.Model.IsMidi ? "VST3 instrument" : "VST3 plugin", FontSize = 15, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center });
         Panels.Children.Add(header);
         var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 20) };
         var choose = new Button { Content = "Choose...", Style = (Style)FindResource("TransportButton"), Width = 96, Height = 26, FontSize = 12, Padding = new Thickness(12, 0, 12, 0), Focusable = false, Margin = new Thickness(0, 0, 8, 0) };
@@ -44,7 +44,7 @@ public partial class EffectsWindow : Window
         _pluginEdit = new Button { Content = "Open editor", Style = (Style)FindResource("TransportButton"), Width = 96, Height = 26, FontSize = 12, Padding = new Thickness(12, 0, 12, 0), Focusable = false, Margin = new Thickness(0, 0, 8, 0) };
         _pluginEdit.Click += (_, _) =>
         {
-            var slot = _track.Effects.Plugin;
+            var slot = _track.Model.PluginSlot;
             if (!PluginEditorWindow.Show(this, $"{slot.Info?.Name}: {_track.Name}", slot, _main.PluginStateChanged))
             {
                 _main.ReportProblem("This plugin has no editor window.");
@@ -67,7 +67,7 @@ public partial class EffectsWindow : Window
     private async Task ChoosePluginAsync()
     {
         var picker = new PluginPickerWindow(this);
-        if (picker.PickFrom(_main.ScanPluginsAsync()) && picker.Selected is { } info)
+        if (picker.PickFrom(_main.ScanPluginsAsync(_track.Model.IsMidi)) && picker.Selected is { } info)
         {
             await _main.AssignPluginAsync(_track, info);
             Sync();
@@ -76,9 +76,10 @@ public partial class EffectsWindow : Window
 
     private void Build()
     {
-        if (_track.CanHaveEffects)
+        BuildPluginRow();
+        if (_track.Model.IsMidi)
         {
-            BuildPluginRow();
+            return;
         }
 
         var effects = _track.Effects.Effects;
@@ -145,7 +146,7 @@ public partial class EffectsWindow : Window
 
     private void Sync()
     {
-        var plugin = _track.Effects.Plugin;
+        var plugin = _track.Model.PluginSlot;
         _pluginName.Text = plugin.Error ?? plugin.Info?.Name ?? "None";
         _pluginEdit.IsEnabled = plugin.Instance is not null;
         _pluginClear.IsEnabled = plugin.Info is not null;
@@ -153,7 +154,7 @@ public partial class EffectsWindow : Window
         _pluginOn.IsChecked = plugin.Enabled;
         _syncing = true;
         var effects = _track.Effects.Effects;
-        for (var e = 0; e < effects.Count; e++)
+        for (var e = 0; e < _toggles.Count; e++)
         {
             _toggles[e].IsChecked = effects[e].Enabled;
         }

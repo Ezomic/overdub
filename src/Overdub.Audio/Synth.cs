@@ -23,12 +23,18 @@ public sealed class Synth
     private bool _pedal;
     private double _bend = 1.0;
     private SynthPatch _patch = SynthPatch.All[0];
+    private Vst3.Vst3Plugin? _instrument;
+    private readonly bool[] _pluginHeld = new bool[128];
+    private float[] _pluginLeft = new float[4096];
+    private float[] _pluginRight = new float[4096];
 
     public string PresetName => _patch.Name;
 
     public void SetPreset(string? name) => _patch = SynthPatch.Named(name);
 
     public float Volume { get; set; } = 0.35f;
+
+    public Vst3.Vst3Plugin? Instrument { get => Volatile.Read(ref _instrument); set => Volatile.Write(ref _instrument, value); }
 
     public void Configure(int sampleRate) => _sampleRate = sampleRate;
 
@@ -44,6 +50,12 @@ public sealed class Synth
 
     public void Render(float[] destination, int offset, int frames)
     {
+        if (Instrument is { } plugin)
+        {
+            RenderPlugin(plugin, destination, offset, frames);
+            return;
+        }
+
         while (_commands.TryDequeue(out var command))
         {
             Apply(command.Kind, command.A, command.B);
@@ -58,6 +70,49 @@ public sealed class Synth
             }
 
             RenderVoice(ref voice, destination, offset, frames);
+        }
+    }
+
+    private void RenderPlugin(Vst3.Vst3Plugin plugin, float[] destination, int offset, int frames)
+    {
+        while (_commands.TryDequeue(out var command))
+        {
+            switch (command.Kind)
+            {
+                case Command.NoteOn:
+                    _pluginHeld[command.A] = true;
+                    plugin.NoteOn(command.A, command.B);
+                    break;
+                case Command.NoteOff:
+                    _pluginHeld[command.A] = false;
+                    plugin.NoteOff(command.A);
+                    break;
+                case Command.AllOff:
+                    for (var note = 0; note < _pluginHeld.Length; note++)
+                    {
+                        if (_pluginHeld[note])
+                        {
+                            _pluginHeld[note] = false;
+                            plugin.NoteOff(note);
+                        }
+                    }
+
+                    break;
+            }
+        }
+
+        for (var done = 0; done < frames;)
+        {
+            var chunk = Math.Min(frames - done, _pluginLeft.Length);
+            Array.Clear(_pluginLeft, 0, chunk);
+            Array.Clear(_pluginRight, 0, chunk);
+            plugin.Process(_pluginLeft, _pluginRight, chunk);
+            for (var i = 0; i < chunk; i++)
+            {
+                destination[offset + done + i] += (_pluginLeft[i] + _pluginRight[i]) * 0.5f;
+            }
+
+            done += chunk;
         }
     }
 

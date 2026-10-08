@@ -12,7 +12,7 @@ public sealed record MidiEventData(long At, int Note, int Velocity, int Kind = 0
 
 public sealed record MidiClipData(List<MidiEventData> Events);
 
-public sealed record TrackData(string Name, bool Mute, bool Solo, float Gain, List<ClipData> Clips, List<MidiClipData>? MidiClips = null, float Pan = 0f, int? Input = null, bool? IsMidi = null, int? Color = null, string? Preset = null, bool? IsBacking = null, Dictionary<string, EffectData>? Effects = null, List<CompData>? Comp = null, PluginData? Plugin = null);
+public sealed record TrackData(string Name, bool Mute, bool Solo, float Gain, List<ClipData> Clips, List<MidiClipData>? MidiClips = null, float Pan = 0f, int? Input = null, bool? IsMidi = null, int? Color = null, string? Preset = null, bool? IsBacking = null, Dictionary<string, EffectData>? Effects = null, List<CompData>? Comp = null, PluginData? Plugin = null, PluginData? Instrument = null);
 
 public sealed record PluginData(string Path, string ClassId, string Name, string Vendor, string Category, string SubCategories, bool Enabled, string? Component, string? Controller);
 
