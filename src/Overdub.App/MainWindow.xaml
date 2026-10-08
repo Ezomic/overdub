@@ -10,15 +10,6 @@
     </Window.InputBindings>
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
-        <DrawingBrush x:Key="SecondGrid" TileMode="Tile" Viewport="0,0,80,124" ViewportUnits="Absolute" Viewbox="0,0,80,124" ViewboxUnits="Absolute">
-            <DrawingBrush.Drawing>
-                <GeometryDrawing Brush="#303035">
-                    <GeometryDrawing.Geometry>
-                        <RectangleGeometry Rect="0,0,1,124" />
-                    </GeometryDrawing.Geometry>
-                </GeometryDrawing>
-            </DrawingBrush.Drawing>
-        </DrawingBrush>
     </Window.Resources>
     <Grid>
         <Grid.RowDefinitions>
@@ -65,6 +56,7 @@
                 <StackPanel Orientation="Horizontal">
                     <ToggleButton Style="{StaticResource Chip}" IsChecked="{Binding LoopOn}" Content="Loop" ToolTip="Loop the region; recording makes one take per pass" Focusable="False" />
                     <ToggleButton Style="{StaticResource Chip}" IsChecked="{Binding PunchOn}" Content="Punch" ToolTip="Record only inside the region" Focusable="False" />
+                    <Button Style="{StaticResource TransportButton}" Width="Auto" Height="24" FontSize="12" Padding="10,0" Margin="4,0,4,0" Content="{Binding SnapLabel}" Click="OnSnapClick" Focusable="False" ToolTip="Snap regions and clips to the grid" />
                     <TextBlock Text="{Binding RegionText}" Foreground="{StaticResource TextDim}" FontSize="12" VerticalAlignment="Center" Margin="8,0,0,0" />
                 </StackPanel>
             </DockPanel>
@@ -154,13 +146,13 @@
                         <RowDefinition Height="26" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
-                    <local:RulerControl x:Name="Ruler" Grid.Row="0" Cursor="IBeam" ToolTip="Drag to set a region, click to move the playhead, double-click to clear"
+                    <local:RulerControl x:Name="Ruler" Grid.Row="0" TimeGrid="{Binding Grid}" Cursor="IBeam" ToolTip="Drag to set a region, click to move the playhead, double-click to clear"
                                         MouseLeftButtonDown="OnRulerDown" MouseMove="OnRulerMove" MouseLeftButtonUp="OnRulerUp" />
                     <ItemsControl Grid.Row="1" ItemsSource="{Binding Tracks}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
                                 <Border Height="124" Background="{StaticResource Lane}" BorderBrush="{StaticResource Border}" BorderThickness="0,0,0,1">
-                                    <Border Background="{StaticResource SecondGrid}">
+                                    <Border Background="{Binding DataContext.GridBrush, RelativeSource={RelativeSource AncestorType=Window}}">
                                       <Grid>
                                         <ItemsControl ItemsSource="{Binding MidiClips}">
                                             <ItemsControl.ItemsPanel>

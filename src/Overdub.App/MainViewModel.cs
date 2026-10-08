@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Windows.Input;
+using System.Windows;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Overdub.Audio;
@@ -114,6 +115,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             if (SetField(ref _bpm, Math.Clamp(value, 20, 300)))
             {
                 _session.Engine.Bpm = _bpm;
+                GridChanged();
             }
         }
     }
@@ -188,8 +190,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
-        var start = SnapToBeat(PixelsToSamples(Math.Min(fromPixel, toPixel)));
-        var end = SnapToBeat(PixelsToSamples(Math.Max(fromPixel, toPixel)));
+        var start = SnapSamples(PixelsToSamples(Math.Min(fromPixel, toPixel)));
+        var end = SnapSamples(PixelsToSamples(Math.Max(fromPixel, toPixel)));
         if (end - start < engine.SamplesPerBeat * 0.5)
         {
             ClearRegion();
@@ -228,10 +230,80 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     private long PixelsToSamples(double pixels) => (long)(Math.Max(0, pixels) / Timeline.PixelsPerSecond * _session.Engine.SampleRate);
 
-    private long SnapToBeat(long samples)
+    private enum SnapMode
     {
-        var beat = _session.Engine.SamplesPerBeat;
-        return (long)(Math.Round(samples / beat) * beat);
+        Beat,
+        Bar,
+        Off,
+    }
+
+    private SnapMode _snap = SnapMode.Beat;
+
+    public string SnapLabel => _snap switch
+    {
+        SnapMode.Beat => "Snap: beat",
+        SnapMode.Bar => "Snap: bar",
+        _ => "Snap: off",
+    };
+
+    public void CycleSnap()
+    {
+        _snap = (SnapMode)(((int)_snap + 1) % 3);
+        OnPropertyChanged(nameof(SnapLabel));
+    }
+
+    public long SnapSamples(long samples)
+    {
+        var engine = _session.Engine;
+        var step = _snap switch
+        {
+            SnapMode.Beat => engine.SamplesPerBeat,
+            SnapMode.Bar => engine.SamplesPerBeat * engine.BeatsPerBar,
+            _ => 0,
+        };
+        return step <= 0 ? samples : (long)(Math.Round(samples / step) * step);
+    }
+
+    public GridInfo Grid => new(
+        _session.Engine.SampleRate == 0 ? 0 : _session.Engine.SamplesPerBeat / _session.Engine.SampleRate * Timeline.PixelsPerSecond,
+        _session.Engine.BeatsPerBar);
+
+    public Brush GridBrush
+    {
+        get
+        {
+            var grid = Grid;
+            if (grid.PixelsPerBeat < 1)
+            {
+                return Brushes.Transparent;
+            }
+
+            var barWidth = grid.PixelsPerBeat * grid.BeatsPerBar;
+            var group = new DrawingGroup();
+            for (var beat = 0; beat < grid.BeatsPerBar; beat++)
+            {
+                var color = beat == 0 ? Color.FromRgb(0x44, 0x44, 0x4B) : Color.FromRgb(0x2A, 0x2A, 0x2F);
+                group.Children.Add(new GeometryDrawing(new SolidColorBrush(color), null, new RectangleGeometry(new Rect(beat * grid.PixelsPerBeat, 0, 1, 124))));
+            }
+
+            group.Children.Add(new GeometryDrawing(Brushes.Transparent, null, new RectangleGeometry(new Rect(0, 0, barWidth, 124))));
+            var brush = new DrawingBrush(group)
+            {
+                TileMode = TileMode.Tile,
+                Viewport = new Rect(0, 0, barWidth, 124),
+                ViewportUnits = BrushMappingMode.Absolute,
+                Viewbox = new Rect(0, 0, barWidth, 124),
+                ViewboxUnits = BrushMappingMode.Absolute,
+            };
+            brush.Freeze();
+            return brush;
+        }
+    }
+
+    private void GridChanged()
+    {
+        OnPropertyChanged(nameof(Grid));
+        OnPropertyChanged(nameof(GridBrush));
     }
 
     private static string Clock(long samples, int rate = 44100) => $"{(int)(samples / rate / 60)}:{samples / (double)rate % 60:00.0}";
@@ -244,6 +316,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         var index = Array.IndexOf(Signatures, (engine.BeatsPerBar, engine.BeatUnit));
         (engine.BeatsPerBar, engine.BeatUnit) = Signatures[(index + 1) % Signatures.Length];
         OnPropertyChanged(nameof(SignatureLabel));
+        GridChanged();
     }
 
     public void Tap()
@@ -325,6 +398,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             RefreshTimeline();
             OnPropertyChanged(nameof(Metronome));
             OnPropertyChanged(nameof(SignatureLabel));
+            GridChanged();
             Message = "";
             Notice = $"Opened {Path.GetFileName(Path.GetDirectoryName(path))}";
         }
@@ -413,6 +487,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             engine.Start();
             _driver = driver;
             UpdateStatus();
+            GridChanged();
         }
         catch (Exception ex)
         {
