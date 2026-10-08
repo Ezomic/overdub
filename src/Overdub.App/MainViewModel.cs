@@ -358,6 +358,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         Status = $"{_driver}  ·  {engine.SampleRate / 1000.0:0.#} kHz  ·  {engine.BufferSamples} samples  ·  {engine.LatencyMilliseconds:0.0} ms  ·  latency {kind} {engine.CompensationSamples} samples";
     }
 
+    public AsioEngine Engine => _session.Engine;
+
     public int AudioInputCount => Math.Max(1, _session.Engine.InputCount);
 
     public string LatencySummary

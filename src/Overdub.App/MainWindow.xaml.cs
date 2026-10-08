@@ -104,6 +104,8 @@ public partial class MainWindow : Window
         }
     }
 
+    private void OnTunerClick(object sender, RoutedEventArgs e) => new TunerWindow(_viewModel) { Owner = this }.Show();
+
     private void OnLatencyClick(object sender, RoutedEventArgs e) => new LatencyWindow(_viewModel) { Owner = this }.ShowDialog();
 
     private double? _rulerDragStart;

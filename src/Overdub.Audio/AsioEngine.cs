@@ -14,6 +14,9 @@ public sealed class AsioEngine : IDisposable
     private readonly List<long> _wraps = [];
     private readonly object _wrapsLock = new();
     private long _recordedFrames;
+    private readonly float[] _tunerRing = new float[8192];
+    private int _tunerWrite;
+    private volatile int _tunerChannel = -1;
     private float[] _monitor = new float[4096];
     private float[] _mixL = new float[4096];
     private float[] _mixR = new float[4096];
@@ -102,6 +105,12 @@ public sealed class AsioEngine : IDisposable
 
     public bool IsPlaying => _playing;
     public bool IsCountingIn => _countingIn;
+
+    public int TunerInput
+    {
+        get => _tunerChannel;
+        set => _tunerChannel = value;
+    }
     public bool LoopEnabled { get; set; }
     public long LoopStart { get; set; }
     public long LoopEnd { get; set; }
@@ -150,6 +159,26 @@ public sealed class AsioEngine : IDisposable
         _countInLead = _countInEnd - length;
         _countInPos = 0;
         _countingIn = true;
+    }
+
+    public void CopyTunerWindow(float[] destination)
+    {
+        var write = Volatile.Read(ref _tunerWrite);
+        for (var i = 0; i < destination.Length; i++)
+        {
+            destination[i] = _tunerRing[(write - destination.Length + i) & (_tunerRing.Length - 1)];
+        }
+    }
+
+    private void PushTuner(float[] buffer, int frames)
+    {
+        var write = _tunerWrite;
+        for (var i = 0; i < frames; i++)
+        {
+            _tunerRing[(write + i) & (_tunerRing.Length - 1)] = buffer[i];
+        }
+
+        Volatile.Write(ref _tunerWrite, write + frames);
     }
 
     public async Task<int?> MeasureLatencyAsync(int input, CancellationToken cancellation = default)
@@ -312,6 +341,11 @@ public sealed class AsioEngine : IDisposable
             var peak = ConvertToFloat(e.InputBuffers[channel], frames, e.AsioSampleType, buffer);
             _peaks[channel] = Math.Max(_peaks[channel], peak);
             _clipped[channel] |= peak >= 0.999f;
+            if (channel == _tunerChannel)
+            {
+                PushTuner(buffer, frames);
+            }
+
             if (_monitoring)
             {
                 for (var i = 0; i < frames; i++)
