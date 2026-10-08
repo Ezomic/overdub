@@ -193,7 +193,7 @@ public sealed class Session : IDisposable
             t.Input,
             t.IsMidi,
             t.ColorIndex)).ToList();
-        ProjectFile.Write(ProjectPath, new ProjectData(1, Engine.SampleRate, Engine.Bpm, tracks));
+        ProjectFile.Write(ProjectPath, new ProjectData(1, Engine.SampleRate, Engine.Bpm, tracks, Engine.BeatsPerBar, Engine.BeatUnit));
     }
 
     public double Load(string projectPath)
@@ -230,6 +230,8 @@ public sealed class Session : IDisposable
         Directory = directory;
         PublishClips();
         ApplyMixerState();
+        Engine.BeatsPerBar = data.BeatsPerBar;
+        Engine.BeatUnit = data.BeatUnit;
         return data.Bpm;
     }
 

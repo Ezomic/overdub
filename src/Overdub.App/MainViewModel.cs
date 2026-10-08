@@ -118,6 +118,29 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    private static readonly (int Beats, int Unit)[] Signatures = [(4, 4), (3, 4), (2, 4), (5, 4), (6, 8), (7, 8), (9, 8), (12, 8)];
+
+    private readonly TapTempo _tapTempo = new();
+    private readonly System.Diagnostics.Stopwatch _clock = System.Diagnostics.Stopwatch.StartNew();
+
+    public string SignatureLabel => $"{_session.Engine.BeatsPerBar}/{_session.Engine.BeatUnit}";
+
+    public void CycleSignature()
+    {
+        var engine = _session.Engine;
+        var index = Array.IndexOf(Signatures, (engine.BeatsPerBar, engine.BeatUnit));
+        (engine.BeatsPerBar, engine.BeatUnit) = Signatures[(index + 1) % Signatures.Length];
+        OnPropertyChanged(nameof(SignatureLabel));
+    }
+
+    public void Tap()
+    {
+        if (_tapTempo.Tap(_clock.ElapsedMilliseconds) is { } bpm)
+        {
+            Bpm = Math.Round(bpm);
+        }
+    }
+
     public string CountInLabel => _session.Engine.CountInBars switch
     {
         0 => "Count-in: off",
@@ -188,6 +211,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             RebuildTracks();
             RefreshTimeline();
             OnPropertyChanged(nameof(Metronome));
+            OnPropertyChanged(nameof(SignatureLabel));
             Message = "";
             Notice = $"Opened {Path.GetFileName(Path.GetDirectoryName(path))}";
         }
@@ -434,9 +458,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
         var time = engine.PositionTime;
         Time = $"{(int)time.TotalMinutes:00}:{time.Seconds:00}.{time.Milliseconds:000}";
-        var samplesPerBeat = engine.SampleRate * 60.0 / engine.Bpm;
-        var beat = (long)(engine.Position / samplesPerBeat);
-        Bar = $"Bar {(beat / 4) + 1} · Beat {(beat % 4) + 1}";
+        var beat = (long)(engine.Position / engine.SamplesPerBeat);
+        Bar = $"Bar {(beat / engine.BeatsPerBar) + 1} · Beat {(beat % engine.BeatsPerBar) + 1}";
         PlayheadX = time.TotalSeconds * Timeline.PixelsPerSecond;
         foreach (var track in Tracks)
         {
