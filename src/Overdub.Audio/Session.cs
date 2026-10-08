@@ -5,6 +5,7 @@ public sealed class Session : IDisposable
     private readonly Dictionary<Track, string> _recordingPaths = [];
     private readonly object _midiLock = new();
     private int _take;
+    private int _created;
     private Track? _midiTrack;
     private List<MidiEvent>? _midiBuffer;
     private volatile int _midiActivity;
@@ -20,6 +21,24 @@ public sealed class Session : IDisposable
     public MidiInput Midi { get; } = new();
     public List<Track> Tracks { get; } = [];
 
+    public Track AddTrack(string name, int? input)
+    {
+        var track = new Track(name, input) { ColorIndex = _created++ };
+        Tracks.Add(track);
+        ApplyMixerState();
+        return track;
+    }
+
+    public void RemoveTrack(Track track)
+    {
+        Tracks.Remove(track);
+        PublishClips();
+        ApplyMixerState();
+    }
+
+    private static string SafeName(string name) =>
+        string.Concat(name.Select(c => System.IO.Path.GetInvalidFileNameChars().Contains(c) ? '_' : c));
+
     public bool CanRecord => Tracks.Any(t => t is { Armed: true, Input: not null }) || HasArmedMidi;
 
     public bool HasArmedMidi => Tracks.Any(t => t is { Armed: true, IsMidi: true });
@@ -32,7 +51,7 @@ public sealed class Session : IDisposable
         foreach (var track in Tracks.Where(t => t is { Armed: true, Input: not null }))
         {
             System.IO.Directory.CreateDirectory(Directory);
-            var path = System.IO.Path.Combine(Directory, $"{track.Name}-take{_take}.wav");
+            var path = System.IO.Path.Combine(Directory, $"{SafeName(track.Name)}-{track.Id}-take{_take}.wav");
             _recordingPaths[track] = path;
             inputs[track.Input!.Value] = path;
         }
@@ -157,7 +176,10 @@ public sealed class Session : IDisposable
             t.Gain,
             t.Clips.Select(c => new ClipData(System.IO.Path.GetRelativePath(Directory, c.Path), c.StartSample)).ToList(),
             t.MidiClips.Select(m => new MidiClipData(m.Events.Select(e => new MidiEventData(e.At, e.Note, e.Velocity)).ToList())).ToList(),
-            t.Pan)).ToList();
+            t.Pan,
+            t.Input,
+            t.IsMidi,
+            t.ColorIndex)).ToList();
         ProjectFile.Write(ProjectPath, new ProjectData(1, Engine.SampleRate, Engine.Bpm, tracks));
     }
 
@@ -165,42 +187,33 @@ public sealed class Session : IDisposable
     {
         var data = ProjectFile.Read(projectPath);
         var directory = System.IO.Path.GetDirectoryName(System.IO.Path.GetFullPath(projectPath))!;
-        var clips = new List<(Track Track, TrackData Data, List<Clip> Clips)>();
-        foreach (var trackData in data.Tracks)
+        var loaded = new List<Track>();
+        foreach (var d in data.Tracks)
         {
-            var track = Tracks.FirstOrDefault(t => t.Name == trackData.Name);
-            if (track is null)
+            var isMidi = d.IsMidi ?? (d.Input is null && d.Name == "Keys");
+            int? input = isMidi ? null : d.Input ?? (d.Name == "Bass" ? 1 : 0);
+            var track = new Track(d.Name, input) { ColorIndex = d.Color ?? loaded.Count };
+            track.Mute = d.Mute;
+            track.Solo = d.Solo;
+            track.Gain = d.Gain;
+            track.Pan = d.Pan;
+            foreach (var c in d.Clips)
             {
-                continue;
+                var path = System.IO.Path.Combine(directory, c.File);
+                track.AddClip(new Clip(path, PlaybackTrack.FromWav(path, c.StartSample, Engine.SampleRate)));
             }
 
-            var loaded = trackData.Clips
-                .Select(c => new Clip(
-                    System.IO.Path.Combine(directory, c.File),
-                    PlaybackTrack.FromWav(System.IO.Path.Combine(directory, c.File), c.StartSample, Engine.SampleRate)))
-                .ToList();
-            clips.Add((track, trackData, loaded));
-        }
-
-        foreach (var track in Tracks)
-        {
-            track.Clips.Clear();
-            track.MidiClips.Clear();
-        }
-
-        foreach (var (track, trackData, loaded) in clips)
-        {
-            track.Mute = trackData.Mute;
-            track.Solo = trackData.Solo;
-            track.Gain = trackData.Gain;
-            track.Pan = trackData.Pan;
-            loaded.ForEach(track.AddClip);
-            foreach (var midi in trackData.MidiClips ?? [])
+            foreach (var midi in d.MidiClips ?? [])
             {
                 track.AddMidiClip(new MidiClip(midi.Events.Select(e => new MidiEvent(e.At, (byte)e.Note, (byte)e.Velocity))));
             }
+
+            loaded.Add(track);
         }
 
+        Tracks.Clear();
+        Tracks.AddRange(loaded);
+        _created = loaded.Count == 0 ? 0 : loaded.Max(t => t.ColorIndex) + 1;
         Directory = directory;
         PublishClips();
         ApplyMixerState();
