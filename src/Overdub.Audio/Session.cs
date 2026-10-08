@@ -35,7 +35,7 @@ public sealed class Session : IDisposable
 
     public void StopRecording()
     {
-        var start = Engine.RecordStartSample;
+        var start = Math.Max(0, Engine.RecordStartSample - Engine.CompensationSamples);
         Engine.StopRecording();
         foreach (var (track, path) in _recordingPaths)
         {
