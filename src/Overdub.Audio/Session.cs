@@ -166,7 +166,10 @@ public sealed class Session : IDisposable
 
     public void ApplyMixerState()
     {
-        var keys = Tracks.FirstOrDefault(t => t.IsMidi);
+        var drums = Tracks.FirstOrDefault(t => t.IsDrums);
+        Engine.DrumGain = drums?.Gain ?? 1f;
+        Engine.DrumPan = drums?.Pan ?? 0f;
+        var keys = Tracks.FirstOrDefault(t => t is { IsMidi: true, IsDrums: false });
         Engine.SynthGain = keys?.Gain ?? 1f;
         Engine.SynthPan = keys?.Pan ?? 0f;
         Engine.Synth.SetPreset(keys?.Preset);
@@ -349,6 +352,74 @@ public sealed class Session : IDisposable
         return track;
     }
 
+    public Track? DrumTrack => Tracks.FirstOrDefault(t => t.IsDrums);
+
+    public Track AddDrumTrackUndoable()
+    {
+        var track = new Track("Drums", null) { IsDrums = true, ColorIndex = _created++ };
+        track.Patterns.Add(DrumPattern.Starter("A"));
+        Edit("Add drum track", () => { Tracks.Add(track); ApplyMixerState(); }, () => { Tracks.Remove(track); ApplyMixerState(); }, EditKind.Tracks);
+        return track;
+    }
+
+    public void RegenerateDrumClips()
+    {
+        if (Engine.SampleRate == 0)
+        {
+            return;
+        }
+
+        foreach (var track in Tracks.Where(t => t.IsDrums))
+        {
+            for (var i = 0; i < track.MidiClips.Count; i++)
+            {
+                var clip = track.MidiClips[i];
+                var pattern = track.Patterns.FirstOrDefault(p => p.Id == clip.PatternId);
+                if (pattern is null)
+                {
+                    continue;
+                }
+
+                var fresh = pattern.ToClip(Engine.SampleRate, Engine.Bpm, clip.Shift);
+                fresh.Mute = clip.Mute;
+                fresh.Solo = clip.Solo;
+                track.MidiClips[i] = fresh;
+            }
+        }
+    }
+
+    public void EditPattern(Track track, DrumPattern pattern, Action<DrumPattern> change, string name)
+    {
+        var before = pattern.Clone();
+        var after = pattern.Clone();
+        change(after);
+        Edit(
+            name,
+            () =>
+            {
+                pattern.CopyFrom(after);
+                RegenerateDrumClips();
+            },
+            () =>
+            {
+                pattern.CopyFrom(before);
+                RegenerateDrumClips();
+            });
+    }
+
+    public DrumPattern AddPattern(Track track)
+    {
+        var pattern = new DrumPattern(((char)('A' + track.Patterns.Count)).ToString());
+        Edit("Add drum pattern", () => track.Patterns.Add(pattern), () => track.Patterns.Remove(pattern));
+        return pattern;
+    }
+
+    public void PlacePattern(Track track, DrumPattern pattern, long start)
+    {
+        var clip = pattern.ToClip(Engine.SampleRate, Engine.Bpm, start);
+        Edit("Place drum pattern", () => track.AddMidiClip(clip), () => track.MidiClips.Remove(clip));
+    }
+
     public void RemoveTrackUndoable(Track track)
     {
         var index = Tracks.IndexOf(track);
@@ -380,6 +451,8 @@ public sealed class Session : IDisposable
             Engine.Play();
         }
     }
+
+    private IEnumerable<MidiClip> AtPracticeSpeed(IEnumerable<MidiClip> clips) => PracticeSpeed == 1.0 ? clips : clips.Select(c => c.Scaled(1 / PracticeSpeed));
 
     private IReadOnlyList<PlaybackTrack> AtPracticeSpeed(IReadOnlyList<PlaybackTrack> views)
     {
@@ -428,7 +501,8 @@ public sealed class Session : IDisposable
 
             Engine.SetLiveEffects(input, bound?.Effects, bound?.LiveFx);
         }
-        Engine.SetMidiClips(PracticeSpeed == 1.0 ? Tracks.SelectMany(t => t.MidiClips) : Tracks.SelectMany(t => t.MidiClips).Select(c => c.Scaled(1 / PracticeSpeed)));
+        Engine.SetMidiClips(AtPracticeSpeed(Tracks.Where(t => !t.IsDrums).SelectMany(t => t.MidiClips)));
+        Engine.SetDrumClips(AtPracticeSpeed(Tracks.Where(t => t.IsDrums).SelectMany(t => t.MidiClips)));
     }
 
     public event Action<byte, byte>? NoteActivity;
@@ -546,7 +620,7 @@ public sealed class Session : IDisposable
             t.Solo,
             t.Gain,
             t.Clips.Select(c => new ClipData(System.IO.Path.GetRelativePath(Directory, c.Path), c.StartSample, c.Playback.Offset, c.Length, c.Lane)).ToList(),
-            t.MidiClips.Select(m => new MidiClipData(m.Events.Select(e => new MidiEventData(e.At + m.Shift, e.Note, e.Velocity, (int)e.Kind, e.Value)).ToList())).ToList(),
+            t.MidiClips.Select(m => new MidiClipData(m.Events.Select(e => new MidiEventData(e.At + m.Shift, e.Note, e.Velocity, (int)e.Kind, e.Value)).ToList(), m.PatternId)).ToList(),
             t.Pan,
             t.Input,
             t.IsMidi,
@@ -556,7 +630,9 @@ public sealed class Session : IDisposable
             t.Effects.Effects.ToDictionary(e => e.Name, e => new EffectData(e.Enabled, (double[])e.Values.Clone())),
             t.Comp.Select(c => new CompData(c.Start, c.End, c.Lane)).ToList(),
             PluginDataFor(t.Effects.Plugin),
-            PluginDataFor(t.Instrument))).ToList();
+            PluginDataFor(t.Instrument),
+            t.IsDrums ? true : null,
+            t.IsDrums ? t.Patterns.Select(p => new PatternData(p.Id, p.Name, p.Bars, p.Encode().ToList())).ToList() : null)).ToList();
         ProjectFile.Write(ProjectPath, new ProjectData(1, Engine.SampleRate, Engine.Bpm, tracks, Engine.BeatsPerBar, Engine.BeatUnit));
         RecentProjects.Add(ProjectPath);
     }
@@ -623,7 +699,12 @@ public sealed class Session : IDisposable
             var isMidi = d.IsBacking != true && (d.IsMidi ?? (d.Input is null && d.Name == "Keys"));
             int? input = isMidi ? null : d.Input ?? (d.Name == "Bass" ? 1 : 0);
             var backing = d.IsBacking == true;
-            var track = new Track(d.Name, backing ? null : input) { ColorIndex = d.Color ?? loaded.Count, Preset = d.Preset ?? "Lead", IsBacking = backing };
+            var track = new Track(d.Name, backing ? null : input) { ColorIndex = d.Color ?? loaded.Count, Preset = d.Preset ?? "Lead", IsBacking = backing, IsDrums = d.IsDrums == true };
+            foreach (var p in d.Patterns ?? [])
+            {
+                track.Patterns.Add(DrumPattern.Decode(p.Id, p.Name, p.Bars, p.Lanes));
+            }
+
             track.Mute = d.Mute;
             track.Solo = d.Solo;
             track.Gain = d.Gain;
@@ -670,7 +751,9 @@ public sealed class Session : IDisposable
 
             foreach (var midi in d.MidiClips ?? [])
             {
-                track.AddMidiClip(new MidiClip(midi.Events.Select(e => new MidiEvent(e.At, (byte)e.Note, (byte)e.Velocity, (MidiKind)e.Kind, e.Value))));
+                var events = midi.Events.Select(e => new MidiEvent(e.At, (byte)e.Note, (byte)e.Velocity, (MidiKind)e.Kind, e.Value)).ToList();
+                var origin = midi.Pattern is null || events.Count == 0 ? 0 : events.Min(e => e.At);
+                track.AddMidiClip(new MidiClip(events.Select(e => e with { At = e.At - origin }), origin) { PatternId = midi.Pattern });
             }
 
             loaded.Add(track);
@@ -723,10 +806,17 @@ public sealed class Session : IDisposable
             });
             var path = System.IO.Path.Combine(folder, unique + ".wav");
             var strip = new ChannelStrip(audio, track.Effects, track.Effects.CloneForProcessing(Engine.SampleRate));
-            var instrument = track.IsMidi && track.Instrument.Active ? track.Instrument.CreateCopy(Engine.SampleRate) : null;
+            var instrument = track is { IsMidi: true, IsDrums: false } && track.Instrument.Active ? track.Instrument.CreateCopy(Engine.SampleRate) : null;
             try
             {
-                Mixer.Export([strip], midi, Engine.SampleRate, path, track.Gain, track.Pan, length, track.Preset, instrument?.Instance);
+                if (track.IsDrums)
+                {
+                    Mixer.Export([], [], Engine.SampleRate, path, 1f, 0f, length, null, null, new DrumMix(midi, track.Gain, track.Pan));
+                }
+                else
+                {
+                    Mixer.Export([strip], midi, Engine.SampleRate, path, track.Gain, track.Pan, length, track.Preset, instrument?.Instance);
+                }
             }
             finally
             {
@@ -750,21 +840,24 @@ public sealed class Session : IDisposable
         var wavPath = AudioEncoder.IsEncoded(path) ? System.IO.Path.GetTempFileName() : path;
         try
         {
-            var keys = Tracks.FirstOrDefault(t => t.IsMidi);
+            var keys = Tracks.FirstOrDefault(t => t is { IsMidi: true, IsDrums: false });
+            var drumTrack = DrumTrack;
+            var drumMix = drumTrack is null ? null : new DrumMix(drumTrack.MidiClips.Select(m => m.Copy(0)).ToList(), drumTrack.Gain, drumTrack.Pan);
             var instrument = keys is { Instrument.Active: true } ? keys.Instrument.CreateCopy(Engine.SampleRate) : null;
             var strips = Tracks.Where(t => !t.IsMidi).Select(t => new ChannelStrip(t.EffectiveClips(), t.Effects, t.Effects.CloneForProcessing(Engine.SampleRate))).ToList();
             try
             {
                 Mixer.Export(
                     strips,
-                    Tracks.SelectMany(t => t.MidiClips).ToList(),
+                    Tracks.Where(t => !t.IsDrums).SelectMany(t => t.MidiClips).ToList(),
                     Engine.SampleRate,
                     wavPath,
                     Engine.SynthGain,
                     Engine.SynthPan,
                     0,
                     Engine.Synth.PresetName,
-                    instrument?.Instance);
+                    instrument?.Instance,
+                    drumMix);
             }
             finally
             {

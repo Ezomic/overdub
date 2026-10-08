@@ -133,13 +133,13 @@ public static class Mixer
         }
     }
 
-    public static void Export(IReadOnlyList<ChannelStrip> channels, IReadOnlyList<MidiClip> midi, int sampleRate, string path, float synthGain = 1f, float synthPan = 0f, long minLength = 0, string? preset = null, Vst3.Vst3Plugin? instrument = null)
+    public static void Export(IReadOnlyList<ChannelStrip> channels, IReadOnlyList<MidiClip> midi, int sampleRate, string path, float synthGain = 1f, float synthPan = 0f, long minLength = 0, string? preset = null, Vst3.Vst3Plugin? instrument = null, DrumMix? drums = null)
     {
         var tracks = channels.SelectMany(c => c.Clips).ToList();
         var tail = sampleRate;
         var length = Math.Max(
             tracks.Select(t => t.EndSample).DefaultIfEmpty(0).Max(),
-            midi.Where(c => c.Events.Length > 0).Select(c => c.EndSample + tail).DefaultIfEmpty(0).Max());
+            midi.Concat(drums?.Clips ?? []).Where(c => c.Events.Length > 0).Select(c => c.EndSample + tail).DefaultIfEmpty(0).Max());
         length = Math.Max(length, minLength);
         if (length == 0)
         {
@@ -152,11 +152,16 @@ public static class Mixer
         synth.SetPreset(preset);
         synth.Instrument = instrument;
         var sequencer = new MidiSequencer();
-        var anySolo = AnySolo(tracks, midi);
+        var drumKit = new DrumKit();
+        drumKit.Configure(sampleRate);
+        var drumSequencer = new MidiSequencer();
+        var drumClips = drums?.Clips ?? [];
+        var anySolo = AnySolo(tracks, midi) || AnySolo([], drumClips);
         var scratch = new MixScratch();
         var left = new float[block];
         var right = new float[block];
         var synthBuf = new float[block];
+        var drumBuf = new float[block];
         var stereo = new float[block * 2];
         using var writer = new WaveFileWriter(path, WaveFormat.CreateIeeeFloatWaveFormat(sampleRate, 2));
         for (long position = 0; position < length; position += block)
@@ -165,9 +170,16 @@ public static class Mixer
             Array.Clear(left, 0, block);
             Array.Clear(right, 0, block);
             Array.Clear(synthBuf, 0, block);
+            Array.Clear(drumBuf, 0, block);
             MixChannels(channels, anySolo, position, left, right, frames, 0, scratch);
             sequencer.Render(synth, midi, anySolo, position, synthBuf, frames);
             AddPanned(synthBuf, synthGain, synthPan, left, right, frames);
+            if (drums is not null)
+            {
+                drumSequencer.Render(drumKit, drumClips, anySolo, position, drumBuf, frames);
+                AddPanned(drumBuf, drums.Gain, drums.Pan, left, right, frames);
+            }
+
             for (var i = 0; i < frames; i++)
             {
                 stereo[i * 2] = SoftLimit(left[i]);
@@ -178,3 +190,5 @@ public static class Mixer
         }
     }
 }
+
+public sealed record DrumMix(IReadOnlyList<MidiClip> Clips, float Gain, float Pan);

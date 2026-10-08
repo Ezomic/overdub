@@ -117,7 +117,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             if (SetField(ref _bpm, Math.Clamp(value, 20, 300)))
             {
                 _session.Engine.Bpm = _bpm;
+                _session.RegenerateDrumClips();
+                _session.PublishClips();
                 GridChanged();
+                RefreshTimeline();
             }
         }
     }
@@ -801,7 +804,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
         var clip = vm.Model;
         var from = vm.Owner.Model;
-        var target = row >= 0 && row < Tracks.Count && Tracks[row].IsMidi ? Tracks[row].Model : from;
+        var target = row >= 0 && row < Tracks.Count && Tracks[row].IsMidi && Tracks[row].Model.IsDrums == from.IsDrums ? Tracks[row].Model : from;
         var oldShift = clip.Shift;
         var newShift = oldShift + (SnapSamples(PixelsToSamplesClamped(leftPixels)) - clip.StartSample);
         if (target == from && newShift == oldShift)
@@ -1244,6 +1247,60 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     {
         _session.AddTrackUndoable(UniqueName($"Input {input + 1}"), input);
     }
+
+    public Track? DrumTrack => _session.DrumTrack;
+
+    public void AddDrumTrack()
+    {
+        if (DrumTrack is not null)
+        {
+            Message = "There is already a drum track.";
+            return;
+        }
+
+        _session.AddDrumTrackUndoable();
+    }
+
+    public DrumPattern AddDrumPattern() => _session.AddPattern(DrumTrack!);
+
+    public void SetDrumStep(DrumPattern pattern, int lane, int step, byte level)
+    {
+        if (DrumTrack is { } track && pattern.Get(lane, step) != level)
+        {
+            _session.EditPattern(track, pattern, p => p.Set(lane, step, level), "Edit drum pattern");
+        }
+    }
+
+    public void SetDrumBars(DrumPattern pattern, int bars)
+    {
+        if (DrumTrack is { } track)
+        {
+            _session.EditPattern(track, pattern, p => p.SetBars(bars), "Change pattern length");
+        }
+    }
+
+    public void ClearDrumPattern(DrumPattern pattern)
+    {
+        if (DrumTrack is { } track && !pattern.IsEmpty)
+        {
+            _session.EditPattern(track, pattern, p => p.Clear(), "Clear drum pattern");
+        }
+    }
+
+    public void PlaceDrumPattern(DrumPattern pattern)
+    {
+        if (DrumTrack is not { } track)
+        {
+            return;
+        }
+
+        var engine = _session.Engine;
+        var bar = engine.SamplesPerBeat * engine.BeatsPerBar;
+        var start = (long)(Math.Round(engine.Position / bar) * bar);
+        _session.PlacePattern(track, pattern, start);
+    }
+
+    public void AuditionDrum(int lane, int velocity) => _session.Engine.Drums.NoteOn(DrumKit.Lanes[lane].Note, velocity);
 
     public void AddMidiTrack()
     {

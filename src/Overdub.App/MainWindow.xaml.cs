@@ -46,6 +46,9 @@ public partial class MainWindow : Window
             menu.Items.Add(item);
         }
 
+        var drums = new MenuItem { Header = "Drum machine", IsEnabled = _viewModel.DrumTrack is null };
+        drums.Click += (_, _) => _viewModel.AddDrumTrack();
+        menu.Items.Add(drums);
         var midi = new MenuItem { Header = "MIDI keys (built-in synth)" };
         midi.Click += (_, _) => _viewModel.AddMidiTrack();
         menu.Items.Add(midi);
@@ -136,6 +139,14 @@ public partial class MainWindow : Window
         }
 
         new PianoRollWindow(_viewModel, target.Track, target.Clip) { Owner = this }.Show();
+    }
+
+    private void OnDrumsClick(object sender, RoutedEventArgs e)
+    {
+        if (_viewModel.DrumTrack is not null)
+        {
+            new DrumWindow(_viewModel, this).Show();
+        }
     }
 
     private void OnEffectsClick(object sender, RoutedEventArgs e)

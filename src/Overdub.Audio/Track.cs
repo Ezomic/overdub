@@ -15,7 +15,9 @@ public sealed class Track(string name, int? input)
     public int? Input { get; } = input;
     public bool Armed { get; set; }
     public bool IsBacking { get; init; }
+    public bool IsDrums { get; init; }
     public bool IsMidi => Input is null && !IsBacking;
+    public List<DrumPattern> Patterns { get; } = [];
     public string Preset { get; set; } = "Lead";
     public EffectChain Effects { get; } = new();
     public Vst3.PluginSlot Instrument { get; } = new();

@@ -2,7 +2,7 @@ using System.Collections.Concurrent;
 
 namespace Overdub.Audio;
 
-public sealed class Synth
+public sealed class Synth : INoteTarget
 {
     private const int MaxVoices = 16;
     private const double BendSemitones = 2.0;
