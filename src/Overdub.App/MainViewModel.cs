@@ -779,6 +779,51 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         Notice = $"Quantized to {QuantizeGridLabel}";
     }
 
+    public sealed record AnalysisReport(string Title, TempoResult? Tempo, KeyResult? Key, string Message);
+
+    private object? ClipAtPlayheadOrFirst()
+    {
+        var position = _session.Engine.Position;
+        var audio = Tracks.SelectMany(t => t.Model.Clips).ToList();
+        var midi = Tracks.SelectMany(t => t.Model.MidiClips).ToList();
+        return (object?)audio.FirstOrDefault(c => position >= c.StartSample && position < c.EndSample)
+            ?? midi.FirstOrDefault(c => position >= c.StartSample && position < c.EndSample)
+            ?? (object?)audio.FirstOrDefault()
+            ?? midi.FirstOrDefault();
+    }
+
+    public async Task<AnalysisReport> AnalyzeSelectionAsync()
+    {
+        var rate = _session.Engine.SampleRate;
+        if (rate == 0)
+        {
+            return new AnalysisReport("No audio device", null, null, "Open an audio device first.");
+        }
+
+        var target = _selection ?? ClipAtPlayheadOrFirst();
+        switch (target)
+        {
+            case Clip clip:
+            {
+                var playback = clip.Playback;
+                var samples = new float[playback.Length];
+                Array.Copy(playback.Samples, playback.Offset, samples, 0, samples.Length);
+                var (tempo, key) = await Task.Run(() => (AudioAnalyzer.DetectTempo(samples, rate), AudioAnalyzer.DetectKey(samples, rate)));
+                var message = tempo is null && key is null ? "That clip is too short to analyze. Try at least ten seconds." : "";
+                return new AnalysisReport("Audio clip", tempo, key, message);
+            }
+
+            case MidiClip midi:
+            {
+                var key = AudioAnalyzer.DetectKey(midi.Notes());
+                return new AnalysisReport("MIDI clip", null, key, key is null ? "There are no notes to analyze." : "Tempo can only be detected from audio.");
+            }
+
+            default:
+                return new AnalysisReport("Nothing to analyze", null, null, "Record or import something first, or click a clip.");
+        }
+    }
+
     public void DeleteSelection()
     {
         if (IsRecording || _selection is null)

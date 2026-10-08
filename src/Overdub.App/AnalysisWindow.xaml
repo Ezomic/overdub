@@ -1,0 +1,14 @@
+<Window x:Class="Overdub.App.AnalysisWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Analyze clip" Icon="Assets/overdub.ico" Width="440" SizeToContent="Height" ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner" Background="{StaticResource Bg}" Foreground="{StaticResource Text}" FontFamily="Segoe UI" FontSize="13">
+    <StackPanel Margin="20">
+        <TextBlock x:Name="Heading" FontSize="16" FontWeight="SemiBold" Text="Analyzing..." />
+        <TextBlock x:Name="TempoLine" Margin="0,14,0,0" TextWrapping="Wrap" />
+        <StackPanel x:Name="TempoButtons" Orientation="Horizontal" Margin="0,8,0,0" />
+        <TextBlock x:Name="KeyLine" Margin="0,14,0,0" TextWrapping="Wrap" />
+        <TextBlock x:Name="Note" Margin="0,14,0,0" TextWrapping="Wrap" Foreground="{StaticResource TextDim}" FontSize="12" />
+        <Button Style="{StaticResource TransportButton}" Width="Auto" Height="28" Padding="14,0" Margin="0,18,0,0" HorizontalAlignment="Right" Content="Close" Click="OnClose" />
+    </StackPanel>
+</Window>
