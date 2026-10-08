@@ -123,6 +123,119 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private readonly TapTempo _tapTempo = new();
     private readonly System.Diagnostics.Stopwatch _clock = System.Diagnostics.Stopwatch.StartNew();
 
+    private static readonly Brush LoopBrush = Hex("#334C9AFF");
+    private static readonly Brush PunchBrush = Hex("#33E5484D");
+    private long _regionStart;
+    private long _regionEnd;
+    private bool _loopOn;
+    private bool _punchOn;
+
+    public bool HasRegion => _regionEnd > _regionStart;
+    public double RegionX => SamplesToPixels(_regionStart);
+    public double RegionWidth => Math.Max(0, SamplesToPixels(_regionEnd) - RegionX);
+    public Brush RegionBrush => _punchOn ? PunchBrush : LoopBrush;
+
+    public string RegionText
+    {
+        get
+        {
+            var engine = _session.Engine;
+            if (!HasRegion || engine.SampleRate == 0)
+            {
+                return "No region. Drag on the ruler to set one, double-click it to clear.";
+            }
+
+            var bars = (_regionEnd - _regionStart) / (engine.SamplesPerBeat * engine.BeatsPerBar);
+            return $"Region {Clock(_regionStart)} to {Clock(_regionEnd)}, {bars:0.##} bars";
+        }
+    }
+
+    public bool LoopOn
+    {
+        get => _loopOn;
+        set
+        {
+            _loopOn = value;
+            if (value)
+            {
+                _punchOn = false;
+            }
+
+            RegionChanged();
+        }
+    }
+
+    public bool PunchOn
+    {
+        get => _punchOn;
+        set
+        {
+            _punchOn = value;
+            if (value)
+            {
+                _loopOn = false;
+            }
+
+            RegionChanged();
+        }
+    }
+
+    public void SetRegion(double fromPixel, double toPixel)
+    {
+        var engine = _session.Engine;
+        if (engine.SampleRate == 0)
+        {
+            return;
+        }
+
+        var start = SnapToBeat(PixelsToSamples(Math.Min(fromPixel, toPixel)));
+        var end = SnapToBeat(PixelsToSamples(Math.Max(fromPixel, toPixel)));
+        if (end - start < engine.SamplesPerBeat * 0.5)
+        {
+            ClearRegion();
+            return;
+        }
+
+        _regionStart = start;
+        _regionEnd = end;
+        RegionChanged();
+    }
+
+    public void ClearRegion()
+    {
+        _regionStart = 0;
+        _regionEnd = 0;
+        RegionChanged();
+    }
+
+    private void RegionChanged()
+    {
+        var engine = _session.Engine;
+        engine.LoopEnabled = _loopOn && HasRegion;
+        engine.LoopStart = _regionStart;
+        engine.LoopEnd = _regionEnd;
+        engine.PunchEnabled = _punchOn && HasRegion;
+        engine.PunchIn = _regionStart;
+        engine.PunchOut = _regionEnd;
+        foreach (var name in new[] { nameof(LoopOn), nameof(PunchOn), nameof(HasRegion), nameof(RegionX), nameof(RegionWidth), nameof(RegionBrush), nameof(RegionText) })
+        {
+            OnPropertyChanged(name);
+        }
+    }
+
+    private double SamplesToPixels(long samples) =>
+        _session.Engine.SampleRate == 0 ? 0 : (double)samples / _session.Engine.SampleRate * Timeline.PixelsPerSecond;
+
+    private long PixelsToSamples(double pixels) => (long)(Math.Max(0, pixels) / Timeline.PixelsPerSecond * _session.Engine.SampleRate);
+
+    private long SnapToBeat(long samples)
+    {
+        var beat = _session.Engine.SamplesPerBeat;
+        return (long)(Math.Round(samples / beat) * beat);
+    }
+
+    private static string Clock(long samples, int rate = 44100) => $"{(int)(samples / rate / 60)}:{samples / (double)rate % 60:00.0}";
+
     public string SignatureLabel => $"{_session.Engine.BeatsPerBar}/{_session.Engine.BeatUnit}";
 
     public void CycleSignature()
@@ -422,6 +535,22 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
+        var engineNow = _session.Engine;
+        if (_punchOn)
+        {
+            if (!HasRegion)
+            {
+                Message = "Drag on the ruler to set the punch range first.";
+                return;
+            }
+
+            engineNow.Seek(Math.Max(0, _regionStart - (long)(engineNow.SamplesPerBeat * engineNow.BeatsPerBar)));
+        }
+        else if (_loopOn && HasRegion)
+        {
+            engineNow.Seek(_regionStart);
+        }
+
         Message = "";
         _session.StartRecording();
         IsRecording = true;
@@ -461,6 +590,12 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         var beat = (long)(engine.Position / engine.SamplesPerBeat);
         Bar = $"Bar {(beat / engine.BeatsPerBar) + 1} · Beat {(beat % engine.BeatsPerBar) + 1}";
         PlayheadX = time.TotalSeconds * Timeline.PixelsPerSecond;
+        if (IsRecording && engine.PunchCompleted)
+        {
+            FinishRecording();
+            Notice = "Punch recorded";
+        }
+
         foreach (var track in Tracks)
         {
             track.UpdateMeter(engine);

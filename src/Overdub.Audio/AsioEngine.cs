@@ -10,6 +10,10 @@ public sealed class AsioEngine : IDisposable
     private readonly bool[] _clipped = new bool[MaxInputs];
     private readonly InputRecorder?[] _recorders = new InputRecorder?[MaxInputs];
     private float[] _scratch = new float[4096];
+    private readonly float[][] _inputBufs = new float[MaxInputs][];
+    private readonly List<long> _wraps = [];
+    private readonly object _wrapsLock = new();
+    private long _recordedFrames;
     private float[] _monitor = new float[4096];
     private float[] _mixL = new float[4096];
     private float[] _mixR = new float[4096];
@@ -90,6 +94,15 @@ public sealed class AsioEngine : IDisposable
 
     public bool IsPlaying => _playing;
     public bool IsCountingIn => _countingIn;
+    public bool LoopEnabled { get; set; }
+    public long LoopStart { get; set; }
+    public long LoopEnd { get; set; }
+    public bool PunchEnabled { get; set; }
+    public long PunchIn { get; set; }
+    public long PunchOut { get; set; }
+    public bool PunchCompleted { get; private set; }
+    public IReadOnlyList<long> LastRecordingWraps { get; private set; } = [];
+    public bool RecordGateOpen { get; private set; }
     public int CountInBars { get; set; }
     public int BeatsPerBar { get; set; } = 4;
     public int BeatUnit { get; set; } = 4;
@@ -177,6 +190,13 @@ public sealed class AsioEngine : IDisposable
         }
 
         RecordStartSample = Position;
+        _recordedFrames = 0;
+        lock (_wrapsLock)
+        {
+            _wraps.Clear();
+        }
+
+        PunchCompleted = false;
         IsRecording = true;
     }
 
@@ -184,6 +204,13 @@ public sealed class AsioEngine : IDisposable
     {
         IsRecording = false;
         _countingIn = false;
+        PunchCompleted = false;
+        RecordGateOpen = false;
+        lock (_wrapsLock)
+        {
+            LastRecordingWraps = _wraps.ToArray();
+        }
+
         var paths = new List<string>();
         for (var i = 0; i < _recorders.Length; i++)
         {
@@ -236,19 +263,15 @@ public sealed class AsioEngine : IDisposable
 
         for (var channel = 0; channel < inputs; channel++)
         {
-            var peak = ConvertToFloat(e.InputBuffers[channel], frames, e.AsioSampleType, _scratch);
+            var buffer = _inputBufs[channel];
+            var peak = ConvertToFloat(e.InputBuffers[channel], frames, e.AsioSampleType, buffer);
             _peaks[channel] = Math.Max(_peaks[channel], peak);
             _clipped[channel] |= peak >= 0.999f;
-            if (!_countingIn)
-            {
-                _recorders[channel]?.Write(_scratch, frames);
-            }
-
             if (_monitoring)
             {
                 for (var i = 0; i < frames; i++)
                 {
-                    _monitor[i] += _scratch[i];
+                    _monitor[i] += buffer[i];
                 }
             }
         }
@@ -263,19 +286,16 @@ public sealed class AsioEngine : IDisposable
         }
         else if (_playing)
         {
-            var position = Volatile.Read(ref _position);
-            var tracks = _tracks;
-            var midi = _midi;
-            var anySolo = Mixer.AnySolo(tracks, midi);
-            Mixer.Mix(tracks, anySolo, position, _mixL, _mixR, frames);
-            _sequencer.Render(Synth, midi, anySolo, position, _synthBuf, frames);
+            PlaySegments(frames);
             midiPlayed = true;
-            if (_metronomeEnabled)
+        }
+        else
+        {
+            RecordGateOpen = IsRecording;
+            if (IsRecording)
             {
-                MixClick(position, frames);
+                WriteRecorders(0, frames, Position);
             }
-
-            Interlocked.Add(ref _position, frames);
         }
 
         if (!midiPlayed)
@@ -300,9 +320,14 @@ public sealed class AsioEngine : IDisposable
 
     private void EnsureBuffers(int frames)
     {
-        if (_scratch.Length >= frames)
+        if (_scratch.Length >= frames && _inputBufs[0]?.Length >= frames)
         {
             return;
+        }
+
+        for (var i = 0; i < MaxInputs; i++)
+        {
+            _inputBufs[i] = new float[Math.Max(frames, 4096)];
         }
 
         _scratch = new float[frames];
@@ -311,6 +336,87 @@ public sealed class AsioEngine : IDisposable
         _mixR = new float[frames];
         _synthBuf = new float[frames];
         _outInt = new int[frames];
+    }
+
+    private void PlaySegments(int frames)
+    {
+        var startPosition = Volatile.Read(ref _position);
+        var position = startPosition;
+        var tracks = _tracks;
+        var midi = _midi;
+        var anySolo = Mixer.AnySolo(tracks, midi);
+        var loopOn = LoopEnabled && LoopEnd > LoopStart;
+        var punchOn = PunchEnabled && PunchOut > PunchIn;
+        var done = 0;
+        while (done < frames)
+        {
+            var chunk = frames - done;
+            if (loopOn && position < LoopEnd)
+            {
+                chunk = (int)Math.Min(chunk, LoopEnd - position);
+            }
+
+            if (punchOn && position < PunchIn)
+            {
+                chunk = (int)Math.Min(chunk, PunchIn - position);
+            }
+            else if (punchOn && position < PunchOut)
+            {
+                chunk = (int)Math.Min(chunk, PunchOut - position);
+            }
+
+            Mixer.Mix(tracks, anySolo, position, _mixL, _mixR, chunk, done);
+            _sequencer.Render(Synth, midi, anySolo, position, _synthBuf, chunk, done);
+            if (_metronomeEnabled)
+            {
+                MixClick(position, chunk, done);
+            }
+
+            var gate = IsRecording && (!punchOn || (position >= PunchIn && position < PunchOut));
+            RecordGateOpen = gate;
+            if (gate)
+            {
+                WriteRecorders(done, chunk, position);
+            }
+
+            position += chunk;
+            done += chunk;
+            if (loopOn && position == LoopEnd)
+            {
+                if (IsRecording)
+                {
+                    lock (_wrapsLock)
+                    {
+                        _wraps.Add(_recordedFrames);
+                    }
+                }
+
+                position = LoopStart;
+                Synth.AllNotesOff();
+            }
+
+            if (punchOn && IsRecording && position >= PunchOut)
+            {
+                PunchCompleted = true;
+            }
+        }
+
+        Interlocked.CompareExchange(ref _position, position, startPosition);
+    }
+
+    private void WriteRecorders(int offset, int count, long position)
+    {
+        if (_recordedFrames == 0)
+        {
+            RecordStartSample = position;
+        }
+
+        for (var channel = 0; channel < MaxInputs; channel++)
+        {
+            _recorders[channel]?.Write(_inputBufs[channel], offset, count);
+        }
+
+        _recordedFrames += count;
     }
 
     private void RenderCountIn(int frames)
@@ -352,7 +458,7 @@ public sealed class AsioEngine : IDisposable
         }
     }
 
-    private void MixClick(long position, int frames)
+    private void MixClick(long position, int frames, int destOffset)
     {
         var samplesPerBeat = SamplesPerBeat;
         var clickLength = SampleRate / 50;
@@ -369,8 +475,8 @@ public sealed class AsioEngine : IDisposable
             var frequency = beat % BeatsPerBar == 0 ? 1500.0 : 1000.0;
             var envelope = 1f - ((float)offset / clickLength);
             var click = (float)Math.Sin(2 * Math.PI * frequency * offset / SampleRate) * envelope * 0.4f;
-            _mixL[i] += click;
-            _mixR[i] += click;
+            _mixL[destOffset + i] += click;
+            _mixR[destOffset + i] += click;
         }
     }
 

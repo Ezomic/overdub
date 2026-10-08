@@ -104,6 +104,53 @@ public partial class MainWindow : Window
         }
     }
 
+    private double? _rulerDragStart;
+
+    private void OnRulerDown(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        if (e.ClickCount == 2)
+        {
+            _viewModel.ClearRegion();
+            return;
+        }
+
+        _rulerDragStart = e.GetPosition(Ruler).X;
+        Ruler.CaptureMouse();
+    }
+
+    private void OnRulerMove(object sender, MouseEventArgs e)
+    {
+        if (_rulerDragStart is { } start && e.LeftButton == MouseButtonState.Pressed)
+        {
+            var x = e.GetPosition(Ruler).X;
+            if (Math.Abs(x - start) >= 4)
+            {
+                _viewModel.SetRegion(start, x);
+            }
+        }
+    }
+
+    private void OnRulerUp(object sender, MouseButtonEventArgs e)
+    {
+        if (_rulerDragStart is not { } start)
+        {
+            return;
+        }
+
+        _rulerDragStart = null;
+        Ruler.ReleaseMouseCapture();
+        var x = e.GetPosition(Ruler).X;
+        if (Math.Abs(x - start) < 4)
+        {
+            _viewModel.SeekToPixel(x);
+        }
+        else
+        {
+            _viewModel.SetRegion(start, x);
+        }
+    }
+
     private void OnTapClick(object sender, RoutedEventArgs e) => _viewModel.Tap();
 
     private void OnSignatureClick(object sender, RoutedEventArgs e) => _viewModel.CycleSignature();
