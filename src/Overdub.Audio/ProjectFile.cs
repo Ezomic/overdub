@@ -10,9 +10,11 @@ public sealed record EffectData(bool Enabled, double[] Values);
 
 public sealed record MidiEventData(long At, int Note, int Velocity, int Kind = 0, int Value = 0);
 
-public sealed record MidiClipData(List<MidiEventData> Events);
+public sealed record MidiClipData(List<MidiEventData> Events, string? Pattern = null);
 
-public sealed record TrackData(string Name, bool Mute, bool Solo, float Gain, List<ClipData> Clips, List<MidiClipData>? MidiClips = null, float Pan = 0f, int? Input = null, bool? IsMidi = null, int? Color = null, string? Preset = null, bool? IsBacking = null, Dictionary<string, EffectData>? Effects = null, List<CompData>? Comp = null, PluginData? Plugin = null, PluginData? Instrument = null);
+public sealed record PatternData(string Id, string Name, int Bars, List<string> Lanes);
+
+public sealed record TrackData(string Name, bool Mute, bool Solo, float Gain, List<ClipData> Clips, List<MidiClipData>? MidiClips = null, float Pan = 0f, int? Input = null, bool? IsMidi = null, int? Color = null, string? Preset = null, bool? IsBacking = null, Dictionary<string, EffectData>? Effects = null, List<CompData>? Comp = null, PluginData? Plugin = null, PluginData? Instrument = null, bool? IsDrums = null, List<PatternData>? Patterns = null);
 
 public sealed record PluginData(string Path, string ClassId, string Name, string Vendor, string Category, string SubCategories, bool Enabled, string? Component, string? Controller);
 

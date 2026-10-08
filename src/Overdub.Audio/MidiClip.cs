@@ -25,6 +25,7 @@ public sealed class MidiClip
     public long Shift { get; set; }
     public bool Mute { get; set; }
     public bool Solo { get; set; }
+    public string? PatternId { get; init; }
 
     public long StartSample => Events.Length == 0 ? 0 : Events[0].At + Shift;
     public long EndSample => Events.Length == 0 ? 0 : Events[^1].At + Shift;
@@ -95,7 +96,7 @@ public sealed class MidiClip
     public MidiClip Scaled(double factor) =>
         new(Events.Select(e => e with { At = (long)Math.Round(e.At * factor) }), (long)Math.Round(Shift * factor)) { Mute = Mute, Solo = Solo };
 
-    public MidiClip Copy(long shiftBy) => new(Events, Shift + shiftBy) { Mute = Mute, Solo = Solo };
+    public MidiClip Copy(long shiftBy) => new(Events, Shift + shiftBy) { Mute = Mute, Solo = Solo, PatternId = PatternId };
 
     public MidiClip Quantize(long grid, double strength = 1.0)
     {

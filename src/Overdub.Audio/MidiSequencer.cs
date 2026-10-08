@@ -4,7 +4,7 @@ public sealed class MidiSequencer
 {
     private readonly List<(int Offset, MidiEvent Event)> _due = [];
 
-    public void Render(Synth synth, IReadOnlyList<MidiClip> clips, bool anySolo, long position, float[] destination, int frames, int destOffset = 0)
+    public void Render(INoteTarget synth, IReadOnlyList<MidiClip> clips, bool anySolo, long position, float[] destination, int frames, int destOffset = 0)
     {
         _due.Clear();
         foreach (var clip in clips)
