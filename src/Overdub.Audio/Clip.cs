@@ -11,6 +11,7 @@ public sealed class Clip
     }
 
     public string Path { get; }
+    public int Lane { get; set; }
     public PlaybackTrack Playback { get; }
 
     public long StartSample
@@ -53,5 +54,8 @@ public sealed class Clip
         Pan = Playback.Pan,
         Mute = Playback.Mute,
         Solo = Playback.Solo,
-    });
+    })
+    {
+        Lane = Lane,
+    };
 }

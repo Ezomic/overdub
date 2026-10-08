@@ -9,6 +9,16 @@ public static class Timeline
     public const double PixelsPerSecond = 80;
 }
 
+public sealed class StripViewModel(double left, double top, double width, double height, Brush fill, double opacity)
+{
+    public double Left { get; } = left;
+    public double Top { get; } = top;
+    public double Width { get; } = width;
+    public double Height { get; } = height;
+    public Brush Fill { get; } = fill;
+    public double Opacity { get; } = opacity;
+}
+
 public sealed class ClipViewModel : ObservableObject
 {
     private double _left;
@@ -22,8 +32,15 @@ public sealed class ClipViewModel : ObservableObject
         Brush = brush;
         Owner = owner;
         Peaks = clip.ComputePeaks();
+        var lanes = owner.Model.LaneCount;
+        var multi = lanes > 1;
+        Top = multi ? TrackViewModel.RowTop(lanes, clip.Lane) + 14 : 8;
+        ClipHeight = multi ? 40 : 108;
         Reset();
     }
+
+    public double Top { get; }
+    public double ClipHeight { get; }
 
     public Clip Model { get; }
     public int SampleRate { get; }
@@ -195,6 +212,13 @@ public sealed class TrackViewModel(Track model, Brush color, Action onMixChanged
         onRemove(this);
     }
     public bool HasInput => !Model.IsBacking;
+    public int LaneCount => Model.LaneCount;
+    public bool IsMultiLane => LaneCount > 1;
+    public double RowHeight => IsMultiLane ? Math.Max(124, 10 + (LaneCount * 58)) : 124;
+    public string TakesText => $"{LaneCount} takes: drag a strip to choose which plays";
+    public ObservableCollection<StripViewModel> Strips { get; } = [];
+
+    public static double RowTop(int lanes, int lane) => 6 + ((lanes - 1 - lane) * 58);
     public bool IsMidi => Model.IsMidi;
     public bool IsAudio => !Model.IsMidi;
     public string InputText => Model.IsBacking ? "Imported audio" : Model.Input is { } input ? $"Input {input + 1}, instrument" : "MIDI, built-in synth";
@@ -430,6 +454,28 @@ public sealed class TrackViewModel(Track model, Brush color, Action onMixChanged
         {
             Clips.Add(new ClipViewModel(clip, sampleRate, Color, this));
         }
+
+        Strips.Clear();
+        if (Model.LaneCount > 1)
+        {
+            var scale = Timeline.PixelsPerSecond / sampleRate;
+            var dim = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x3A, 0x3A, 0x42));
+            dim.Freeze();
+            for (var lane = 0; lane < Model.LaneCount; lane++)
+            {
+                Strips.Add(new StripViewModel(0, RowTop(Model.LaneCount, lane), 100000, 12, dim, 0.6));
+            }
+
+            foreach (var range in Model.ActiveRanges())
+            {
+                Strips.Add(new StripViewModel(range.Start * scale, RowTop(Model.LaneCount, range.Lane), Math.Max(2, (range.End - range.Start) * scale), 12, this.Color, 1.0));
+            }
+        }
+
+        OnPropertyChanged(nameof(LaneCount));
+        OnPropertyChanged(nameof(IsMultiLane));
+        OnPropertyChanged(nameof(RowHeight));
+        OnPropertyChanged(nameof(TakesText));
 
         MidiClips.Clear();
         foreach (var clip in Model.MidiClips)

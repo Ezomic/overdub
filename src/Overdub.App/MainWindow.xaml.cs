@@ -326,9 +326,34 @@ public partial class MainWindow : Window
         }
     }
 
+    private (TrackViewModel Track, int Lane)? _compGesture;
+    private double _compStart;
+
     private void OnLaneMouseDown(object sender, MouseButtonEventArgs e)
     {
+        var point = e.GetPosition(LaneArea);
+        if (_viewModel.StripAt(point.Y) is { } strip)
+        {
+            _compGesture = (strip.Track, strip.Lane);
+            _compStart = point.X;
+            LaneArea.CaptureMouse();
+            e.Handled = true;
+            return;
+        }
+
         _viewModel.Select(null);
-        _viewModel.SeekToPixel(e.GetPosition(LaneArea).X);
+        _viewModel.SeekToPixel(point.X);
+    }
+
+    private void OnLaneMouseUp(object sender, MouseButtonEventArgs e)
+    {
+        if (_compGesture is not { } gesture)
+        {
+            return;
+        }
+
+        _compGesture = null;
+        LaneArea.ReleaseMouseCapture();
+        _viewModel.CompTake(gesture.Track, gesture.Lane, _compStart, e.GetPosition(LaneArea).X);
     }
 }
