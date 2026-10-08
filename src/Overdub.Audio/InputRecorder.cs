@@ -22,7 +22,14 @@ internal sealed class InputRecorder : IDisposable
     {
         var copy = new float[count];
         Array.Copy(samples, copy, count);
-        _queue.TryAdd(copy);
+        try
+        {
+            _queue.TryAdd(copy);
+        }
+        catch (InvalidOperationException)
+        {
+            // The audio callback can race StopRecording and add after the queue completed.
+        }
     }
 
     public void Dispose()
