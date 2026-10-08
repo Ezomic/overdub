@@ -57,7 +57,7 @@ public static class Mixer
         }
     }
 
-    public static void Mix(IReadOnlyList<PlaybackTrack> tracks, bool anySolo, long position, float[] left, float[] right, int frames)
+    public static void Mix(IReadOnlyList<PlaybackTrack> tracks, bool anySolo, long position, float[] left, float[] right, int frames, int destOffset = 0)
     {
         foreach (var track in tracks)
         {
@@ -74,8 +74,8 @@ public static class Mixer
             for (var at = from; at < to; at++)
             {
                 var sample = track.Samples[at - track.StartSample];
-                left[at - position] += sample * gl;
-                right[at - position] += sample * gr;
+                left[destOffset + (int)(at - position)] += sample * gl;
+                right[destOffset + (int)(at - position)] += sample * gr;
             }
         }
     }

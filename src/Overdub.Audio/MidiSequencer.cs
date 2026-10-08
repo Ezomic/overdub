@@ -4,7 +4,7 @@ public sealed class MidiSequencer
 {
     private readonly List<(int Offset, byte Note, byte Velocity)> _due = [];
 
-    public void Render(Synth synth, IReadOnlyList<MidiClip> clips, bool anySolo, long position, float[] destination, int frames)
+    public void Render(Synth synth, IReadOnlyList<MidiClip> clips, bool anySolo, long position, float[] destination, int frames, int destOffset = 0)
     {
         _due.Clear();
         foreach (var clip in clips)
@@ -23,11 +23,11 @@ public sealed class MidiSequencer
 
         _due.Sort((a, b) => a.Offset.CompareTo(b.Offset));
 
-        var cursor = 0;
+        var cursor = destOffset;
         foreach (var (offset, note, velocity) in _due)
         {
-            synth.Render(destination, cursor, offset - cursor);
-            cursor = offset;
+            synth.Render(destination, cursor, destOffset + offset - cursor);
+            cursor = destOffset + offset;
             if (velocity > 0)
             {
                 synth.NoteOn(note, velocity);
@@ -38,7 +38,7 @@ public sealed class MidiSequencer
             }
         }
 
-        synth.Render(destination, cursor, frames - cursor);
+        synth.Render(destination, cursor, destOffset + frames - cursor);
     }
 
     private static int FirstAtOrAfter(MidiEvent[] events, long position)

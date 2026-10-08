@@ -18,10 +18,10 @@ internal sealed class InputRecorder : IDisposable
 
     public string Path => _writer.Filename;
 
-    public void Write(float[] samples, int count)
+    public void Write(float[] samples, int offset, int count)
     {
         var copy = new float[count];
-        Array.Copy(samples, copy, count);
+        Array.Copy(samples, offset, copy, 0, count);
         try
         {
             _queue.TryAdd(copy);

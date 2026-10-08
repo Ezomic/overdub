@@ -76,7 +76,9 @@ public sealed class Session : IDisposable
     public void StopRecording()
     {
         var start = Math.Max(0, Engine.RecordStartSample - Engine.CompensationSamples);
+        var trim = (int)Math.Max(0, Engine.CompensationSamples - Engine.RecordStartSample);
         Engine.StopRecording();
+        var wraps = Engine.LastRecordingWraps;
         FinishMidiRecording();
         foreach (var (track, path) in _recordingPaths)
         {
@@ -87,7 +89,20 @@ public sealed class Session : IDisposable
                 continue;
             }
 
-            track.AddClip(new Clip(path, playback));
+            if (wraps.Count == 0)
+            {
+                if (trim > 0 && trim < playback.Samples.Length)
+                {
+                    var trimmed = playback.Samples[trim..];
+                    WriteWav(path, trimmed, 0, trimmed.Length);
+                    playback = new PlaybackTrack(trimmed, start);
+                }
+
+                track.AddClip(new Clip(path, playback));
+                continue;
+            }
+
+            SplitPasses(track, path, playback.Samples, start, wraps, trim);
         }
 
         _recordingPaths.Clear();
@@ -110,6 +125,41 @@ public sealed class Session : IDisposable
         var keys = Tracks.FirstOrDefault(t => t.IsMidi);
         Engine.SynthGain = keys?.Gain ?? 1f;
         Engine.SynthPan = keys?.Pan ?? 0f;
+    }
+
+    private void WriteWav(string path, float[] samples, int from, int length)
+    {
+        using var writer = new NAudio.Wave.WaveFileWriter(path, NAudio.Wave.WaveFormat.CreateIeeeFloatWaveFormat(Engine.SampleRate, 1));
+        writer.WriteSamples(samples, from, length);
+    }
+
+    private void SplitPasses(Track track, string path, float[] samples, long firstStart, IReadOnlyList<long> wraps, int trim)
+    {
+        var compensation = Engine.CompensationSamples;
+        var bounds = new List<long> { Math.Min(trim, samples.Length) };
+        bounds.AddRange(wraps.Select(w => Math.Min(samples.Length, w + compensation)));
+        bounds.Add(samples.Length);
+        var pass = 0;
+        for (var i = 0; i + 1 < bounds.Count; i++)
+        {
+            var from = (int)bounds[i];
+            var length = (int)(bounds[i + 1] - from);
+            if (length <= 0)
+            {
+                continue;
+            }
+
+            pass++;
+            var passPath = System.IO.Path.ChangeExtension(path, null) + $"-pass{pass}.wav";
+            WriteWav(passPath, samples, from, length);
+
+            var startSample = i == 0 ? firstStart : Engine.LoopStart;
+            var slice = new float[length];
+            Array.Copy(samples, from, slice, 0, length);
+            track.AddClip(new Clip(passPath, new PlaybackTrack(slice, startSample)));
+        }
+
+        File.Delete(path);
     }
 
     private void PublishClips()
