@@ -343,6 +343,48 @@ public sealed class Session : IDisposable
         return data.Bpm;
     }
 
+    public IReadOnlyList<string> ExportStems(string folder)
+    {
+        System.IO.Directory.CreateDirectory(folder);
+        var tail = Tracks.Any(t => t.MidiClips.Count > 0) ? Engine.SampleRate : 0;
+        var length = Math.Max(LengthSamples, 0) + tail;
+        var written = new List<string>();
+        var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var track in Tracks.Where(t => t.Clips.Count > 0 || t.MidiClips.Count > 0))
+        {
+            var name = SafeName(track.Name);
+            var unique = name;
+            for (var n = 2; !used.Add(unique); n++)
+            {
+                unique = $"{name}-{n}";
+            }
+
+            var audio = track.Clips.Select(c => new PlaybackTrack(c.Playback.Samples, c.Playback.StartSample)
+            {
+                Offset = c.Playback.Offset,
+                Length = c.Playback.Length,
+                Gain = track.Gain,
+                Pan = track.Pan,
+            }).ToList();
+            var midi = track.MidiClips.Select(m => m.Copy(0)).ToList();
+            midi.ForEach(m =>
+            {
+                m.Mute = false;
+                m.Solo = false;
+            });
+            var path = System.IO.Path.Combine(folder, unique + ".wav");
+            Mixer.Export(audio, midi, Engine.SampleRate, path, track.Gain, track.Pan, length);
+            written.Add(path);
+        }
+
+        if (written.Count == 0)
+        {
+            throw new InvalidOperationException("Nothing to export yet. Record something first.");
+        }
+
+        return written;
+    }
+
     public void ExportMixdown(string path) =>
         Mixer.Export(
             Tracks.SelectMany(t => t.Clips).Select(c => c.Playback).ToList(),

@@ -145,7 +145,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             var engine = _session.Engine;
             if (!HasRegion || engine.SampleRate == 0)
             {
-                return "No region. Drag on the ruler to set one, double-click it to clear.";
+                return "No region. Drag on the ruler to set one.";
             }
 
             var bars = (_regionEnd - _regionStart) / (engine.SamplesPerBeat * engine.BeatsPerBar);
@@ -360,6 +360,20 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             _session.ExportMixdown(path);
             Message = "";
             Notice = $"Exported {Path.GetFileName(path)}";
+        }
+        catch (Exception ex)
+        {
+            Message = ex.Message;
+        }
+    }
+
+    public void ExportStems(string folder)
+    {
+        try
+        {
+            var files = _session.ExportStems(folder);
+            Message = "";
+            Notice = $"Exported {files.Count} stems to {folder}";
         }
         catch (Exception ex)
         {
