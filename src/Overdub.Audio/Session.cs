@@ -73,6 +73,13 @@ public sealed class Session : IDisposable
         Tracks.SelectMany(t => t.Clips).Select(c => c.StartSample + c.Length).DefaultIfEmpty(0).Max(),
         Tracks.SelectMany(t => t.MidiClips).Select(c => c.EndSample).DefaultIfEmpty(0).Max());
 
+    public void ApplyMixerState()
+    {
+        var keys = Tracks.FirstOrDefault(t => t.IsMidi);
+        Engine.SynthGain = keys?.Gain ?? 1f;
+        Engine.SynthPan = keys?.Pan ?? 0f;
+    }
+
     private void PublishClips()
     {
         Engine.SetTracks(Tracks.SelectMany(t => t.Clips).Select(c => c.Playback));
@@ -149,7 +156,8 @@ public sealed class Session : IDisposable
             t.Solo,
             t.Gain,
             t.Clips.Select(c => new ClipData(System.IO.Path.GetRelativePath(Directory, c.Path), c.StartSample)).ToList(),
-            t.MidiClips.Select(m => new MidiClipData(m.Events.Select(e => new MidiEventData(e.At, e.Note, e.Velocity)).ToList())).ToList())).ToList();
+            t.MidiClips.Select(m => new MidiClipData(m.Events.Select(e => new MidiEventData(e.At, e.Note, e.Velocity)).ToList())).ToList(),
+            t.Pan)).ToList();
         ProjectFile.Write(ProjectPath, new ProjectData(1, Engine.SampleRate, Engine.Bpm, tracks));
     }
 
@@ -185,6 +193,7 @@ public sealed class Session : IDisposable
             track.Mute = trackData.Mute;
             track.Solo = trackData.Solo;
             track.Gain = trackData.Gain;
+            track.Pan = trackData.Pan;
             loaded.ForEach(track.AddClip);
             foreach (var midi in trackData.MidiClips ?? [])
             {
@@ -194,6 +203,7 @@ public sealed class Session : IDisposable
 
         Directory = directory;
         PublishClips();
+        ApplyMixerState();
         return data.Bpm;
     }
 
@@ -202,7 +212,9 @@ public sealed class Session : IDisposable
             Tracks.SelectMany(t => t.Clips).Select(c => c.Playback).ToList(),
             Tracks.SelectMany(t => t.MidiClips).ToList(),
             Engine.SampleRate,
-            path);
+            path,
+            Engine.SynthGain,
+            Engine.SynthPan);
 
     public void Dispose()
     {

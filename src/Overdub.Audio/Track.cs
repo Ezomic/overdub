@@ -5,6 +5,7 @@ public sealed class Track(string name, int? input)
     private bool _mute;
     private bool _solo;
     private float _gain = 1f;
+    private float _pan;
 
     public string Name { get; } = name;
     public int? Input { get; } = input;
@@ -45,11 +46,22 @@ public sealed class Track(string name, int? input)
         }
     }
 
+    public float Pan
+    {
+        get => _pan;
+        set
+        {
+            _pan = Math.Clamp(value, -1f, 1f);
+            Apply(c => c.Playback.Pan = _pan);
+        }
+    }
+
     public void AddClip(Clip clip)
     {
         clip.Playback.Mute = _mute;
         clip.Playback.Solo = _solo;
         clip.Playback.Gain = _gain;
+        clip.Playback.Pan = _pan;
         Clips.Add(clip);
     }
 

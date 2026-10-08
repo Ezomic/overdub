@@ -10,11 +10,11 @@
     </Window.InputBindings>
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
-        <DrawingBrush x:Key="SecondGrid" TileMode="Tile" Viewport="0,0,80,96" ViewportUnits="Absolute" Viewbox="0,0,80,96" ViewboxUnits="Absolute">
+        <DrawingBrush x:Key="SecondGrid" TileMode="Tile" Viewport="0,0,80,124" ViewportUnits="Absolute" Viewbox="0,0,80,124" ViewboxUnits="Absolute">
             <DrawingBrush.Drawing>
                 <GeometryDrawing Brush="#303035">
                     <GeometryDrawing.Geometry>
-                        <RectangleGeometry Rect="0,0,1,96" />
+                        <RectangleGeometry Rect="0,0,1,124" />
                     </GeometryDrawing.Geometry>
                 </GeometryDrawing>
             </DrawingBrush.Drawing>
@@ -54,14 +54,14 @@
 
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="220" />
+                <ColumnDefinition Width="270" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
             <ItemsControl Grid.Column="0" ItemsSource="{Binding Tracks}">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                        <Border Height="96" Background="{StaticResource Panel}" BorderBrush="{StaticResource Border}" BorderThickness="0,0,1,1">
+                        <Border Height="124" Background="{StaticResource Panel}" BorderBrush="{StaticResource Border}" BorderThickness="0,0,1,1">
                             <Grid>
                                 <Border Width="4" HorizontalAlignment="Left" Background="{Binding Color}" />
                                 <StackPanel Margin="16,10,12,8">
@@ -75,7 +75,21 @@
                                         <ToggleButton Style="{StaticResource Chip}" Content="M" IsChecked="{Binding Mute}" ToolTip="Mute" Focusable="False" />
                                         <ToggleButton Style="{StaticResource Chip}" Content="S" IsChecked="{Binding Solo}" ToolTip="Solo" Focusable="False" />
                                     </StackPanel>
-                                    <ProgressBar Maximum="1" Value="{Binding Level, Mode=OneWay}" Height="5" Margin="0,10,0,0" BorderThickness="0"
+                                    <Grid Margin="0,6,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="Vol" FontSize="10" Foreground="{StaticResource TextDim}" VerticalAlignment="Center" />
+                                        <Slider Grid.Column="1" Minimum="0" Maximum="1.5" Value="{Binding Gain}" Margin="4,0,10,0" Tag="1" VerticalAlignment="Center"
+                                                ToolTip="{Binding GainText}" MouseDoubleClick="OnSliderReset" Focusable="False" />
+                                        <TextBlock Grid.Column="2" Text="Pan" FontSize="10" Foreground="{StaticResource TextDim}" VerticalAlignment="Center" />
+                                        <Slider Grid.Column="3" Minimum="-1" Maximum="1" Value="{Binding Pan}" Margin="4,0,0,0" Tag="0" VerticalAlignment="Center"
+                                                ToolTip="{Binding PanText}" MouseDoubleClick="OnSliderReset" Focusable="False" />
+                                    </Grid>
+                                    <ProgressBar Maximum="1" Value="{Binding Level, Mode=OneWay}" Height="5" Margin="0,8,0,0" BorderThickness="0"
                                                  Background="{StaticResource Well}" Foreground="{StaticResource Good}">
                                         <ProgressBar.Style>
                                             <Style TargetType="ProgressBar">
@@ -99,7 +113,7 @@
                     <ItemsControl ItemsSource="{Binding Tracks}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Border Height="96" Background="{StaticResource Lane}" BorderBrush="{StaticResource Border}" BorderThickness="0,0,0,1">
+                                <Border Height="124" Background="{StaticResource Lane}" BorderBrush="{StaticResource Border}" BorderThickness="0,0,0,1">
                                     <Border Background="{StaticResource SecondGrid}">
                                       <Grid>
                                         <ItemsControl ItemsSource="{Binding MidiClips}">
@@ -116,7 +130,7 @@
                                             </ItemsControl.ItemContainerStyle>
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
-                                                    <Grid Width="{Binding Width}" Height="80">
+                                                    <Grid Width="{Binding Width}" Height="108">
                                                         <Border Background="{Binding Brush}" Opacity="0.2" CornerRadius="4" />
                                                         <Border BorderBrush="{Binding Brush}" BorderThickness="1" CornerRadius="4" Opacity="0.7" />
                                                         <local:RectsControl Rects="{Binding Notes}" Brush="{Binding Brush}" />
@@ -138,7 +152,7 @@
                                             </ItemsControl.ItemContainerStyle>
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
-                                                    <Grid Width="{Binding Width}" Height="80">
+                                                    <Grid Width="{Binding Width}" Height="108">
                                                         <Border Background="{Binding Brush}" Opacity="0.2" CornerRadius="4" />
                                                         <Border BorderBrush="{Binding Brush}" BorderThickness="1" CornerRadius="4" Opacity="0.7" />
                                                         <local:WaveformControl Peaks="{Binding Peaks}" Brush="{Binding Brush}" Margin="1" />

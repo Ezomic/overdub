@@ -21,6 +21,14 @@ public partial class MainWindow : Window
         Closed += (_, _) => _viewModel.Dispose();
     }
 
+    private void OnSliderReset(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is System.Windows.Controls.Slider slider && double.TryParse((string)slider.Tag, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var value))
+        {
+            slider.Value = value;
+        }
+    }
+
     private void OnSaveClick(object sender, RoutedEventArgs e) => _viewModel.Save();
 
     private void OnOpenClick(object sender, RoutedEventArgs e)

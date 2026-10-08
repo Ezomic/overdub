@@ -13,6 +13,7 @@ public sealed class PlaybackTrack
     public float[] Samples { get; }
     public long StartSample { get; }
     public float Gain { get; set; } = 1f;
+    public float Pan { get; set; }
     public bool Mute { get; set; }
     public bool Solo { get; set; }
 

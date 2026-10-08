@@ -39,7 +39,25 @@ public static class Mixer
         return false;
     }
 
-    public static void Mix(IReadOnlyList<PlaybackTrack> tracks, bool anySolo, long position, float[] destination, int frames)
+    public static void PanGains(float pan, out float left, out float right)
+    {
+        left = Math.Min(1f, 1f - pan);
+        right = Math.Min(1f, 1f + pan);
+    }
+
+    public static void AddPanned(float[] source, float gain, float pan, float[] left, float[] right, int frames)
+    {
+        PanGains(pan, out var gl, out var gr);
+        gl *= gain;
+        gr *= gain;
+        for (var i = 0; i < frames; i++)
+        {
+            left[i] += source[i] * gl;
+            right[i] += source[i] * gr;
+        }
+    }
+
+    public static void Mix(IReadOnlyList<PlaybackTrack> tracks, bool anySolo, long position, float[] left, float[] right, int frames)
     {
         foreach (var track in tracks)
         {
@@ -48,16 +66,21 @@ public static class Mixer
                 continue;
             }
 
+            PanGains(track.Pan, out var gl, out var gr);
+            gl *= track.Gain;
+            gr *= track.Gain;
             var from = Math.Max(position, track.StartSample);
             var to = Math.Min(position + frames, track.StartSample + track.Samples.Length);
             for (var at = from; at < to; at++)
             {
-                destination[at - position] += track.Samples[at - track.StartSample] * track.Gain;
+                var sample = track.Samples[at - track.StartSample];
+                left[at - position] += sample * gl;
+                right[at - position] += sample * gr;
             }
         }
     }
 
-    public static void Export(IReadOnlyList<PlaybackTrack> tracks, IReadOnlyList<MidiClip> midi, int sampleRate, string path)
+    public static void Export(IReadOnlyList<PlaybackTrack> tracks, IReadOnlyList<MidiClip> midi, int sampleRate, string path, float synthGain = 1f, float synthPan = 0f)
     {
         var tail = sampleRate;
         var length = Math.Max(
@@ -73,20 +96,24 @@ public static class Mixer
         synth.Configure(sampleRate);
         var sequencer = new MidiSequencer();
         var anySolo = AnySolo(tracks, midi);
-        var mono = new float[block];
+        var left = new float[block];
+        var right = new float[block];
+        var synthBuf = new float[block];
         var stereo = new float[block * 2];
         using var writer = new WaveFileWriter(path, WaveFormat.CreateIeeeFloatWaveFormat(sampleRate, 2));
         for (long position = 0; position < length; position += block)
         {
             var frames = (int)Math.Min(block, length - position);
-            Array.Clear(mono, 0, block);
-            Mix(tracks, anySolo, position, mono, frames);
-            sequencer.Render(synth, midi, anySolo, position, mono, frames);
+            Array.Clear(left, 0, block);
+            Array.Clear(right, 0, block);
+            Array.Clear(synthBuf, 0, block);
+            Mix(tracks, anySolo, position, left, right, frames);
+            sequencer.Render(synth, midi, anySolo, position, synthBuf, frames);
+            AddPanned(synthBuf, synthGain, synthPan, left, right, frames);
             for (var i = 0; i < frames; i++)
             {
-                var value = SoftLimit(mono[i]);
-                stereo[i * 2] = value;
-                stereo[(i * 2) + 1] = value;
+                stereo[i * 2] = SoftLimit(left[i]);
+                stereo[(i * 2) + 1] = SoftLimit(right[i]);
             }
 
             writer.WriteSamples(stereo, 0, frames * 2);
