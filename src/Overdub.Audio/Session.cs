@@ -160,6 +160,7 @@ public sealed class Session : IDisposable
         var keys = Tracks.FirstOrDefault(t => t.IsMidi);
         Engine.SynthGain = keys?.Gain ?? 1f;
         Engine.SynthPan = keys?.Pan ?? 0f;
+        Engine.Synth.SetPreset(keys?.Preset);
     }
 
     private void WriteWav(string path, float[] samples, int from, int length)
@@ -338,7 +339,8 @@ public sealed class Session : IDisposable
             t.Pan,
             t.Input,
             t.IsMidi,
-            t.ColorIndex)).ToList();
+            t.ColorIndex,
+            t.Preset)).ToList();
         ProjectFile.Write(ProjectPath, new ProjectData(1, Engine.SampleRate, Engine.Bpm, tracks, Engine.BeatsPerBar, Engine.BeatUnit));
         RecentProjects.Add(ProjectPath);
     }
@@ -352,7 +354,7 @@ public sealed class Session : IDisposable
         {
             var isMidi = d.IsMidi ?? (d.Input is null && d.Name == "Keys");
             int? input = isMidi ? null : d.Input ?? (d.Name == "Bass" ? 1 : 0);
-            var track = new Track(d.Name, input) { ColorIndex = d.Color ?? loaded.Count };
+            var track = new Track(d.Name, input) { ColorIndex = d.Color ?? loaded.Count, Preset = d.Preset ?? "Lead" };
             track.Mute = d.Mute;
             track.Solo = d.Solo;
             track.Gain = d.Gain;
@@ -421,7 +423,7 @@ public sealed class Session : IDisposable
                 m.Solo = false;
             });
             var path = System.IO.Path.Combine(folder, unique + ".wav");
-            Mixer.Export(audio, midi, Engine.SampleRate, path, track.Gain, track.Pan, length);
+            Mixer.Export(audio, midi, Engine.SampleRate, path, track.Gain, track.Pan, length, track.Preset);
             written.Add(path);
         }
 
@@ -444,7 +446,9 @@ public sealed class Session : IDisposable
                 Engine.SampleRate,
                 wavPath,
                 Engine.SynthGain,
-                Engine.SynthPan);
+                Engine.SynthPan,
+                0,
+                Engine.Synth.PresetName);
             if (wavPath != path)
             {
                 AudioEncoder.Convert(wavPath, path);

@@ -201,6 +201,24 @@ public sealed class TrackViewModel(Track model, Brush color, Action onMixChanged
     public ObservableCollection<MidiClipViewModel> MidiClips { get; } = [];
     public System.Windows.Input.ICommand? CycleMidi { get; set; }
 
+    public string Preset => Model.Preset;
+
+    private RelayCommand? _cyclePreset;
+
+    public System.Windows.Input.ICommand CyclePreset => _cyclePreset ??= new RelayCommand(() =>
+    {
+        var old = Model.Preset;
+        var next = SynthPatch.Next(old);
+        onEdit("Change sound", () => ApplyPreset(next), () => ApplyPreset(old), null);
+    });
+
+    private void ApplyPreset(string preset)
+    {
+        Model.Preset = preset;
+        onMixChanged();
+        OnPropertyChanged(nameof(Preset));
+    }
+
     public string MidiLabel
     {
         get => _midiLabel;
