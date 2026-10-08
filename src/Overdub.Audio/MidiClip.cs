@@ -51,6 +51,9 @@ public sealed class MidiClip
         return notes;
     }
 
+    public IEnumerable<int> PitchesAt(long position) =>
+        Notes().Where(n => n.Start <= position && position < n.End).Select(n => (int)n.Pitch);
+
     public MidiClip Copy(long shiftBy) => new(Events, Shift + shiftBy) { Mute = Mute, Solo = Solo };
 
     public MidiClip Quantize(long grid, double strength = 1.0)

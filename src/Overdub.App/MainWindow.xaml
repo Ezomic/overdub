@@ -22,6 +22,7 @@
                 <Button Style="{StaticResource TransportButton}" Command="{Binding RecordCommand}" Content="●" Foreground="{StaticResource Danger}" ToolTip="Record (R)" />
                 <TextBlock Text="{Binding Time}" FontFamily="Consolas" FontSize="24" VerticalAlignment="Center" Margin="14,0,16,0" />
                 <TextBlock Text="{Binding Bar}" Foreground="{StaticResource TextDim}" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding ChordText}" FontSize="20" FontWeight="SemiBold" Foreground="{StaticResource Good}" VerticalAlignment="Center" Margin="18,0,0,0" ToolTip="Chord being played" />
                 <TextBlock Text="● Recording" Foreground="{StaticResource Danger}" VerticalAlignment="Center" Margin="18,0,0,0"
                            Visibility="{Binding IsRecording, Converter={StaticResource BoolToVis}}" />
             </StackPanel>

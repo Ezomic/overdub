@@ -41,6 +41,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         Tracks = [];
         RebuildTracks();
         _session.History.Changed += OnHistoryChanged;
+        _session.NoteActivity += OnNoteForChord;
 
         PlayCommand = new RelayCommand(TogglePlay);
         StopCommand = new RelayCommand(Stop);
@@ -856,6 +857,49 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public AsioEngine Engine => _session.Engine;
 
+    private readonly System.Windows.Threading.Dispatcher _dispatcher = Dispatcher.CurrentDispatcher;
+    private readonly HashSet<int> _heldNotes = [];
+    private string _chord = "";
+
+    public string ChordText
+    {
+        get => _chord;
+        private set => SetField(ref _chord, value);
+    }
+
+    private void OnNoteForChord(byte note, byte velocity)
+    {
+        if (!_dispatcher.CheckAccess())
+        {
+            _dispatcher.BeginInvoke(() => OnNoteForChord(note, velocity));
+            return;
+        }
+
+        if (velocity > 0)
+        {
+            _heldNotes.Add(note);
+        }
+        else
+        {
+            _heldNotes.Remove(note);
+        }
+
+        RefreshChord();
+    }
+
+    private void RefreshChord()
+    {
+        var pitches = _heldNotes.AsEnumerable();
+        var engine = _session.Engine;
+        if (engine.IsPlaying)
+        {
+            var position = engine.Position;
+            pitches = pitches.Concat(Tracks.SelectMany(t => t.Model.MidiClips).Where(c => !c.Mute).SelectMany(c => c.PitchesAt(position)));
+        }
+
+        ChordText = ChordDetector.Name(pitches) ?? "";
+    }
+
     public bool ScreenKeyboardOpen { get; set; }
 
     public event Action<byte, byte>? NoteActivity
@@ -1153,6 +1197,11 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         var beat = (long)(engine.Position / engine.SamplesPerBeat);
         Bar = $"Bar {(beat / engine.BeatsPerBar) + 1} · Beat {(beat % engine.BeatsPerBar) + 1}";
         PlayheadX = time.TotalSeconds * Timeline.PixelsPerSecond;
+        if (engine.IsPlaying || ChordText.Length > 0)
+        {
+            RefreshChord();
+        }
+
         if (IsRecording && engine.PunchCompleted)
         {
             FinishRecording();
