@@ -1283,12 +1283,12 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public void EditChordPattern(ChordPattern pattern, Action<ChordPattern> change, string name) => _session.EditChordPattern(pattern, change, name);
 
-    public void PlaceChordPattern(Track track, ChordPattern pattern)
+    public void PlaceChordPattern(Track track, ChordPattern pattern, int repeats = 1)
     {
         var engine = _session.Engine;
         var bar = engine.SamplesPerBeat * engine.BeatsPerBar;
         var start = (long)(Math.Round(engine.Position / bar) * bar);
-        _session.PlaceChordPattern(track, pattern, start);
+        _session.PlaceChordPattern(track, pattern, start, repeats);
     }
 
     public void AddDrumTrack()
@@ -1336,7 +1336,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
     }
 
-    public void PlaceDrumPattern(DrumPattern pattern)
+    public void PlaceDrumPattern(DrumPattern pattern, int repeats = 1)
     {
         if (DrumTrack is not { } track)
         {
@@ -1346,7 +1346,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         var engine = _session.Engine;
         var bar = engine.SamplesPerBeat * engine.BeatsPerBar;
         var start = (long)(Math.Round(engine.Position / bar) * bar);
-        _session.PlacePattern(track, pattern, start);
+        _session.PlacePattern(track, pattern, start, repeats);
     }
 
     public void AuditionDrum(int lane, int velocity) => _session.Engine.Drums.NoteOn(DrumKit.Lanes[lane].Note, velocity);

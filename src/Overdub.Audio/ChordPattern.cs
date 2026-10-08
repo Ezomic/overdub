@@ -236,7 +236,8 @@ public sealed class ChordPattern
             }
         }
 
-        return events.ToArray();
+        var total = LengthSamples(sampleRate, bpm, beatsPerBar);
+        return events.Select(e => e.At > total ? e with { At = total } : e).ToArray();
     }
 
     private static double Beat(int sampleRate, double bpm) => sampleRate * 60.0 / bpm;
