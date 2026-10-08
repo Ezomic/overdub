@@ -733,6 +733,51 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             });
     }
 
+    private static readonly int[] Divisions = [4, 8, 16, 32];
+    private int _quantizeIndex = 2;
+
+    public string QuantizeGridLabel => $"1/{Divisions[_quantizeIndex]}";
+
+    public void CycleQuantizeGrid()
+    {
+        _quantizeIndex = (_quantizeIndex + 1) % Divisions.Length;
+        OnPropertyChanged(nameof(QuantizeGridLabel));
+    }
+
+    public void QuantizeSelection()
+    {
+        if (IsRecording)
+        {
+            return;
+        }
+
+        if (_selection is not MidiClip clip || Tracks.Select(t => t.Model).FirstOrDefault(t => t.MidiClips.Contains(clip)) is not { } track)
+        {
+            Message = "Select a MIDI clip first.";
+            return;
+        }
+
+        var engine = _session.Engine;
+        var grid = (long)(engine.SamplesPerBeat * engine.BeatUnit / Divisions[_quantizeIndex]);
+        var quantized = clip.Quantize(grid);
+        var index = track.MidiClips.IndexOf(clip);
+        _selection = quantized;
+        Message = "";
+        _session.Edit(
+            "Quantize",
+            () =>
+            {
+                track.MidiClips.Remove(clip);
+                track.InsertMidiClip(index, quantized);
+            },
+            () =>
+            {
+                track.MidiClips.Remove(quantized);
+                track.InsertMidiClip(index, clip);
+            });
+        Notice = $"Quantized to {QuantizeGridLabel}";
+    }
+
     public void DeleteSelection()
     {
         if (IsRecording || _selection is null)

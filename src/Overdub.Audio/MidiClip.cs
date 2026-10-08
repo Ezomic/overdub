@@ -53,6 +53,53 @@ public sealed class MidiClip
 
     public MidiClip Copy(long shiftBy) => new(Events, Shift + shiftBy) { Mute = Mute, Solo = Solo };
 
+    public MidiClip Quantize(long grid, double strength = 1.0)
+    {
+        if (grid <= 0)
+        {
+            return Copy(0);
+        }
+
+        var result = new List<MidiEvent>();
+        var open = new Dictionary<byte, (long Start, byte Velocity)>();
+        var moved = new Dictionary<byte, Queue<long>>();
+        foreach (var e in Events.OrderBy(e => e.At))
+        {
+            if (e.Kind != MidiKind.Note)
+            {
+                result.Add(e);
+                continue;
+            }
+
+            if (e.Velocity > 0)
+            {
+                var absolute = e.At + Shift;
+                var target = (long)(Math.Round((double)absolute / grid) * grid);
+                var start = absolute + (long)Math.Round((target - absolute) * strength);
+                open[e.Note] = (e.At, e.Velocity);
+                if (!moved.TryGetValue(e.Note, out var queue))
+                {
+                    moved[e.Note] = queue = new Queue<long>();
+                }
+
+                queue.Enqueue(start - Shift - e.At);
+                result.Add(e with { At = e.At + (start - absolute) });
+                continue;
+            }
+
+            if (!open.Remove(e.Note, out _))
+            {
+                result.Add(e);
+                continue;
+            }
+
+            var offset = moved[e.Note].Dequeue();
+            result.Add(e with { At = e.At + offset });
+        }
+
+        return new MidiClip(result, Shift) { Mute = Mute, Solo = Solo };
+    }
+
     public (MidiClip? Left, MidiClip? Right) Split(long position)
     {
         var local = position - Shift;
