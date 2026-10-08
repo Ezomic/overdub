@@ -10,6 +10,14 @@ public sealed class AsioEngine : IDisposable
     private readonly bool[] _clipped = new bool[MaxInputs];
     private readonly InputRecorder?[] _recorders = new InputRecorder?[MaxInputs];
     private float[] _scratch = new float[4096];
+    private float[] _monitor = new float[4096];
+    private float[] _mix = new float[4096];
+    private int[] _outInt = new int[4096];
+    private PlaybackTrack[] _tracks = [];
+    private long _position;
+    private volatile bool _playing;
+    private volatile bool _metronomeEnabled;
+    private double _bpm = 120;
     private AsioOut? _asio;
     private volatile bool _monitoring = true;
 
@@ -59,6 +67,39 @@ public sealed class AsioEngine : IDisposable
     }
 
     public bool IsRecording { get; private set; }
+    public long RecordStartSample { get; private set; }
+
+    public bool IsPlaying => _playing;
+    public long Position => Volatile.Read(ref _position);
+    public TimeSpan PositionTime => SampleRate == 0 ? TimeSpan.Zero : TimeSpan.FromSeconds((double)Position / SampleRate);
+
+    public bool MetronomeEnabled
+    {
+        get => _metronomeEnabled;
+        set => _metronomeEnabled = value;
+    }
+
+    public double Bpm
+    {
+        get => Volatile.Read(ref _bpm);
+        set => Volatile.Write(ref _bpm, Math.Clamp(value, 20, 300));
+    }
+
+    public IReadOnlyList<PlaybackTrack> Tracks => _tracks;
+
+    public void SetTracks(IEnumerable<PlaybackTrack> tracks) => _tracks = tracks.ToArray();
+
+    public void Play() => _playing = true;
+
+    public void Pause() => _playing = false;
+
+    public void Seek(long sample) => Volatile.Write(ref _position, Math.Max(0, sample));
+
+    public void StopTransport()
+    {
+        _playing = false;
+        Seek(0);
+    }
 
     public bool ReadClipped(int input)
     {
@@ -85,6 +126,7 @@ public sealed class AsioEngine : IDisposable
             _recorders[input] = new InputRecorder(path, SampleRate);
         }
 
+        RecordStartSample = Position;
         IsRecording = true;
     }
 
@@ -136,31 +178,118 @@ public sealed class AsioEngine : IDisposable
         }
 
         var inputs = Math.Min(e.InputBuffers.Length, InputCount);
-        if (_scratch.Length < e.SamplesPerBuffer)
-        {
-            _scratch = new float[e.SamplesPerBuffer];
-        }
+        var frames = e.SamplesPerBuffer;
+        EnsureBuffers(frames);
+        Array.Clear(_monitor, 0, frames);
 
         for (var channel = 0; channel < inputs; channel++)
         {
-            var peak = ConvertToFloat(e.InputBuffers[channel], e.SamplesPerBuffer, e.AsioSampleType, _scratch);
+            var peak = ConvertToFloat(e.InputBuffers[channel], frames, e.AsioSampleType, _scratch);
             _peaks[channel] = Math.Max(_peaks[channel], peak);
             _clipped[channel] |= peak >= 0.999f;
-            _recorders[channel]?.Write(_scratch, e.SamplesPerBuffer);
+            _recorders[channel]?.Write(_scratch, frames);
+            if (_monitoring)
+            {
+                for (var i = 0; i < frames; i++)
+                {
+                    _monitor[i] += _scratch[i];
+                }
+            }
         }
 
-        if (!_monitoring || inputs == 0)
+        Array.Clear(_mix, 0, frames);
+        if (_playing)
         {
-            return;
+            var position = Volatile.Read(ref _position);
+            MixTracks(position, frames);
+            if (_metronomeEnabled)
+            {
+                MixClick(position, frames);
+            }
+
+            Volatile.Write(ref _position, position + frames);
+        }
+
+        for (var i = 0; i < frames; i++)
+        {
+            _mix[i] += _monitor[i];
         }
 
         for (var channel = 0; channel < e.OutputBuffers.Length; channel++)
         {
-            var source = e.InputBuffers[Math.Min(channel, inputs - 1)];
-            CopyMemory(e.OutputBuffers[channel], source, (uint)(e.SamplesPerBuffer * 4));
+            WriteOutput(e.OutputBuffers[channel], frames, e.AsioSampleType);
         }
 
         e.WrittenToOutputBuffers = true;
+    }
+
+    private void EnsureBuffers(int frames)
+    {
+        if (_scratch.Length >= frames)
+        {
+            return;
+        }
+
+        _scratch = new float[frames];
+        _monitor = new float[frames];
+        _mix = new float[frames];
+        _outInt = new int[frames];
+    }
+
+    private void MixTracks(long position, int frames)
+    {
+        var tracks = _tracks;
+        var anySolo = tracks.Any(t => t.Solo);
+        foreach (var track in tracks)
+        {
+            if (track.Mute || (anySolo && !track.Solo))
+            {
+                continue;
+            }
+
+            var from = Math.Max(position, track.StartSample);
+            var to = Math.Min(position + frames, track.StartSample + track.Samples.Length);
+            for (var at = from; at < to; at++)
+            {
+                _mix[at - position] += track.Samples[at - track.StartSample] * track.Gain;
+            }
+        }
+    }
+
+    private void MixClick(long position, int frames)
+    {
+        var samplesPerBeat = SampleRate * 60.0 / Bpm;
+        var clickLength = SampleRate / 50;
+        for (var i = 0; i < frames; i++)
+        {
+            var at = position + i;
+            var beat = (long)(at / samplesPerBeat);
+            var offset = (int)(at - (beat * samplesPerBeat));
+            if (offset >= clickLength)
+            {
+                continue;
+            }
+
+            var frequency = beat % 4 == 0 ? 1500.0 : 1000.0;
+            var envelope = 1f - ((float)offset / clickLength);
+            _mix[i] += (float)Math.Sin(2 * Math.PI * frequency * offset / SampleRate) * envelope * 0.4f;
+        }
+    }
+
+    private void WriteOutput(IntPtr destination, int frames, AsioSampleType type)
+    {
+        if (type == AsioSampleType.Float32LSB)
+        {
+            Marshal.Copy(_mix, 0, destination, frames);
+            return;
+        }
+
+        for (var i = 0; i < frames; i++)
+        {
+            _outInt[i] = (int)(Math.Clamp(_mix[i], -1f, 1f) * 2147483647f);
+        }
+
+        Marshal.Copy(_outInt, 0, destination, frames);
     }
 
     private static float ConvertToFloat(IntPtr buffer, int samples, AsioSampleType type, float[] destination)
@@ -176,9 +305,6 @@ public sealed class AsioEngine : IDisposable
 
         return peak;
     }
-
-    [DllImport("kernel32.dll", EntryPoint = "RtlMoveMemory")]
-    private static extern void CopyMemory(IntPtr destination, IntPtr source, uint length);
 
     private sealed class SilenceProvider(int sampleRate, int channels) : IWaveProvider
     {
