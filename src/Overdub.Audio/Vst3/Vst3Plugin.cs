@@ -356,6 +356,8 @@ public sealed unsafe class Vst3Plugin : IDisposable
         }
     }
 
+    public void FlushParameters() => Process(new float[64], new float[64], 64);
+
     public Vst3State SaveState()
     {
         lock (_processLock)

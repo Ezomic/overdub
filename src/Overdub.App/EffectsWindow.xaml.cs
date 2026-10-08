@@ -7,13 +7,19 @@ namespace Overdub.App;
 
 public partial class EffectsWindow : Window
 {
+    private readonly MainViewModel _main;
     private readonly TrackViewModel _track;
+    private TextBlock _pluginName = null!;
+    private Button _pluginEdit = null!;
+    private ToggleButton _pluginOn = null!;
+    private Button _pluginClear = null!;
     private readonly List<ToggleButton> _toggles = [];
     private readonly List<(int Effect, int Parameter, Slider Slider, TextBlock Readout)> _sliders = [];
     private bool _syncing;
 
-    public EffectsWindow(TrackViewModel track)
+    public EffectsWindow(MainViewModel main, TrackViewModel track)
     {
+        _main = main;
         _track = track;
         InitializeComponent();
         Title = $"Effects: {track.Name}";
@@ -23,8 +29,58 @@ public partial class EffectsWindow : Window
         Sync();
     }
 
+    private void BuildPluginRow()
+    {
+        var header = new DockPanel { Margin = new Thickness(0, 0, 0, 8) };
+        _pluginOn = new ToggleButton { Content = "On", Style = (Style)FindResource("Chip"), Focusable = false, Margin = new Thickness(0) };
+        DockPanel.SetDock(_pluginOn, Dock.Right);
+        _pluginOn.Click += (_, _) => _main.SetPluginEnabled(_track, _pluginOn.IsChecked == true);
+        header.Children.Add(_pluginOn);
+        header.Children.Add(new TextBlock { Text = "VST3 plugin", FontSize = 15, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center });
+        Panels.Children.Add(header);
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 20) };
+        var choose = new Button { Content = "Choose...", Style = (Style)FindResource("TransportButton"), Width = 96, Height = 26, FontSize = 12, Padding = new Thickness(12, 0, 12, 0), Focusable = false, Margin = new Thickness(0, 0, 8, 0) };
+        choose.Click += async (_, _) => await ChoosePluginAsync();
+        _pluginEdit = new Button { Content = "Open editor", Style = (Style)FindResource("TransportButton"), Width = 96, Height = 26, FontSize = 12, Padding = new Thickness(12, 0, 12, 0), Focusable = false, Margin = new Thickness(0, 0, 8, 0) };
+        _pluginEdit.Click += (_, _) =>
+        {
+            var slot = _track.Effects.Plugin;
+            if (!PluginEditorWindow.Show(this, $"{slot.Info?.Name}: {_track.Name}", slot, _main.PluginStateChanged))
+            {
+                _main.ReportProblem("This plugin has no editor window.");
+            }
+        };
+        _pluginClear = new Button { Content = "Remove", Style = (Style)FindResource("TransportButton"), Width = 96, Height = 26, FontSize = 12, Padding = new Thickness(12, 0, 12, 0), Focusable = false, Margin = new Thickness(0, 0, 12, 0) };
+        _pluginClear.Click += async (_, _) =>
+        {
+            await _main.AssignPluginAsync(_track, null);
+            Sync();
+        };
+        _pluginName = new TextBlock { VerticalAlignment = VerticalAlignment.Center, Foreground = (Brush)FindResource("TextDim") };
+        row.Children.Add(choose);
+        row.Children.Add(_pluginEdit);
+        row.Children.Add(_pluginClear);
+        row.Children.Add(_pluginName);
+        Panels.Children.Add(row);
+    }
+
+    private async Task ChoosePluginAsync()
+    {
+        var picker = new PluginPickerWindow(this);
+        if (picker.PickFrom(_main.ScanPluginsAsync()) && picker.Selected is { } info)
+        {
+            await _main.AssignPluginAsync(_track, info);
+            Sync();
+        }
+    }
+
     private void Build()
     {
+        if (_track.CanHaveEffects)
+        {
+            BuildPluginRow();
+        }
+
         var effects = _track.Effects.Effects;
         for (var e = 0; e < effects.Count; e++)
         {
@@ -89,6 +145,12 @@ public partial class EffectsWindow : Window
 
     private void Sync()
     {
+        var plugin = _track.Effects.Plugin;
+        _pluginName.Text = plugin.Error ?? plugin.Info?.Name ?? "None";
+        _pluginEdit.IsEnabled = plugin.Instance is not null;
+        _pluginClear.IsEnabled = plugin.Info is not null;
+        _pluginOn.IsEnabled = plugin.Info is not null;
+        _pluginOn.IsChecked = plugin.Enabled;
         _syncing = true;
         var effects = _track.Effects.Effects;
         for (var e = 0; e < effects.Count; e++)
