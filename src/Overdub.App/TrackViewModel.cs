@@ -127,7 +127,7 @@ public sealed class MidiClipViewModel : ObservableObject
     }
 }
 
-public sealed class TrackViewModel(Track model, Brush color, Action onMixChanged, Action<TrackViewModel> onArmed, Action<TrackViewModel> onRemove) : ObservableObject
+public sealed class TrackViewModel(Track model, Brush color, Action onMixChanged, Action<TrackViewModel> onArmed, Action<TrackViewModel> onRemove, Action<string, Action, Action, string?> onEdit) : ObservableObject
 {
     private bool _editing;
     private bool _removePending;
@@ -144,13 +144,21 @@ public sealed class TrackViewModel(Track model, Brush color, Action onMixChanged
         set
         {
             var trimmed = value?.Trim();
-            if (!string.IsNullOrEmpty(trimmed))
+            if (string.IsNullOrEmpty(trimmed) || trimmed == Model.Name)
             {
-                Model.Name = trimmed;
+                OnPropertyChanged();
+                return;
             }
 
-            OnPropertyChanged();
+            var old = Model.Name;
+            onEdit("Rename track", () => ApplyName(trimmed), () => ApplyName(old), null);
         }
+    }
+
+    private void ApplyName(string name)
+    {
+        Model.Name = name;
+        OnPropertyChanged(nameof(Name));
     }
 
     public bool IsEditing
@@ -220,8 +228,13 @@ public sealed class TrackViewModel(Track model, Brush color, Action onMixChanged
         get => Model.Mute;
         set
         {
-            Model.Mute = value;
-            OnPropertyChanged();
+            if (value == Model.Mute)
+            {
+                return;
+            }
+
+            var old = Model.Mute;
+            onEdit(value ? "Mute track" : "Unmute track", () => ApplyMute(value), () => ApplyMute(old), null);
         }
     }
 
@@ -230,9 +243,28 @@ public sealed class TrackViewModel(Track model, Brush color, Action onMixChanged
         get => Model.Solo;
         set
         {
-            Model.Solo = value;
-            OnPropertyChanged();
+            if (value == Model.Solo)
+            {
+                return;
+            }
+
+            var old = Model.Solo;
+            onEdit(value ? "Solo track" : "Unsolo track", () => ApplySolo(value), () => ApplySolo(old), null);
         }
+    }
+
+    private void ApplyMute(bool value)
+    {
+        Model.Mute = value;
+        onMixChanged();
+        OnPropertyChanged(nameof(Mute));
+    }
+
+    private void ApplySolo(bool value)
+    {
+        Model.Solo = value;
+        onMixChanged();
+        OnPropertyChanged(nameof(Solo));
     }
 
     public double Gain
@@ -240,10 +272,14 @@ public sealed class TrackViewModel(Track model, Brush color, Action onMixChanged
         get => Model.Gain;
         set
         {
-            Model.Gain = (float)value;
-            onMixChanged();
-            OnPropertyChanged();
-            OnPropertyChanged(nameof(GainText));
+            var next = (float)value;
+            if (Math.Abs(next - Model.Gain) < 0.0001f)
+            {
+                return;
+            }
+
+            var old = Model.Gain;
+            onEdit("Change volume", () => ApplyGain(next), () => ApplyGain(old), $"vol:{Model.Id}");
         }
     }
 
@@ -252,11 +288,31 @@ public sealed class TrackViewModel(Track model, Brush color, Action onMixChanged
         get => Model.Pan;
         set
         {
-            Model.Pan = (float)value;
-            onMixChanged();
-            OnPropertyChanged();
-            OnPropertyChanged(nameof(PanText));
+            var next = (float)value;
+            if (Math.Abs(next - Model.Pan) < 0.0001f)
+            {
+                return;
+            }
+
+            var old = Model.Pan;
+            onEdit("Change pan", () => ApplyPan(next), () => ApplyPan(old), $"pan:{Model.Id}");
         }
+    }
+
+    private void ApplyGain(float value)
+    {
+        Model.Gain = value;
+        onMixChanged();
+        OnPropertyChanged(nameof(Gain));
+        OnPropertyChanged(nameof(GainText));
+    }
+
+    private void ApplyPan(float value)
+    {
+        Model.Pan = value;
+        onMixChanged();
+        OnPropertyChanged(nameof(Pan));
+        OnPropertyChanged(nameof(PanText));
     }
 
     public string GainText => Model.Gain <= 0.0001f ? "-inf dB" : $"{20 * Math.Log10(Model.Gain):+0.0;-0.0;0.0} dB";

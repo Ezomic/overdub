@@ -157,6 +157,13 @@ public partial class MainWindow
             case Key.Delete:
                 _viewModel.DeleteSelection();
                 break;
+            case Key.Z when control && Keyboard.Modifiers.HasFlag(ModifierKeys.Shift):
+            case Key.Y when control:
+                _viewModel.Redo();
+                break;
+            case Key.Z when control:
+                _viewModel.Undo();
+                break;
             case Key.D when control:
                 _viewModel.DuplicateSelection();
                 break;
