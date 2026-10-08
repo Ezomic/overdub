@@ -39,6 +39,7 @@
                 <Button Style="{StaticResource TransportButton}" Width="Auto" Height="24" FontSize="12" Padding="10,0" Margin="0,0,8,0" Content="{Binding SignatureLabel}" Click="OnSignatureClick" Focusable="False" ToolTip="Time signature" />
                 <ToggleButton Style="{StaticResource Chip}" IsChecked="{Binding Metronome}" Content="Click" Margin="0,0,8,0" Focusable="False" />
                 <Button Style="{StaticResource TransportButton}" Width="Auto" Height="24" FontSize="12" Padding="10,0" Margin="0,0,8,0" Content="{Binding CountInLabel}" Click="OnCountInClick" Focusable="False" ToolTip="Click bars before recording starts" />
+                <Button Style="{StaticResource TransportButton}" Width="Auto" Height="24" FontSize="12" Padding="10,0" Margin="0,0,8,0" Content="{Binding WaitLabel}" Click="OnWaitClick" Focusable="False" ToolTip="Start recording and playback when you start playing. Pick how loud the first note must be. Skips the count-in." />
             </StackPanel>
         </Border>
 

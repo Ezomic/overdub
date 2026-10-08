@@ -422,6 +422,20 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _ => $"Count-in: {_session.Engine.CountInBars} bars",
     };
 
+    private static readonly (string Label, float Level)[] WaitSteps = [("off", 0f), ("sensitive", 0.003f), ("normal", 0.01f), ("firm", 0.04f)];
+    private int _waitStep;
+    private bool _waitNotice;
+
+    public string WaitLabel => $"Wait: {WaitSteps[_waitStep].Label}";
+
+    public void CycleWait()
+    {
+        _waitStep = (_waitStep + 1) % WaitSteps.Length;
+        _session.WaitForInput = _waitStep != 0;
+        _session.Engine.TriggerThreshold = WaitSteps[_waitStep].Level;
+        OnPropertyChanged(nameof(WaitLabel));
+    }
+
     public void CycleCountIn()
     {
         _session.Engine.CountInBars = (_session.Engine.CountInBars + 1) % 3;
@@ -1486,6 +1500,11 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         Message = "";
         _session.StartRecording();
         IsRecording = true;
+        if (_session.Engine.IsWaitingForInput)
+        {
+            _waitNotice = true;
+            Notice = "Waiting for you to play...";
+        }
         OnPropertyChanged(nameof(IsPlaying));
     }
 
@@ -1527,6 +1546,12 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         if (engine.IsPlaying || ChordText.Length > 0)
         {
             RefreshChord();
+        }
+
+        if (_waitNotice && !engine.IsWaitingForInput)
+        {
+            _waitNotice = false;
+            Notice = "";
         }
 
         if (IsRecording && engine.PunchCompleted)
