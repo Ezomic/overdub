@@ -4,7 +4,7 @@ namespace Overdub.Audio;
 
 public sealed record ClipData(string File, long StartSample, long? Offset = null, long? Length = null);
 
-public sealed record MidiEventData(long At, int Note, int Velocity);
+public sealed record MidiEventData(long At, int Note, int Velocity, int Kind = 0, int Value = 0);
 
 public sealed record MidiClipData(List<MidiEventData> Events);
 

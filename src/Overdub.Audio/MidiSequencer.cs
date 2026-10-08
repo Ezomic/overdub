@@ -2,7 +2,7 @@ namespace Overdub.Audio;
 
 public sealed class MidiSequencer
 {
-    private readonly List<(int Offset, byte Note, byte Velocity)> _due = [];
+    private readonly List<(int Offset, MidiEvent Event)> _due = [];
 
     public void Render(Synth synth, IReadOnlyList<MidiClip> clips, bool anySolo, long position, float[] destination, int frames, int destOffset = 0)
     {
@@ -18,24 +18,31 @@ public sealed class MidiSequencer
             var shift = clip.Shift;
             for (var i = FirstAtOrAfter(events, position - shift); i < events.Length && events[i].At + shift < position + frames; i++)
             {
-                _due.Add(((int)(events[i].At + shift - position), events[i].Note, events[i].Velocity));
+                _due.Add(((int)(events[i].At + shift - position), events[i]));
             }
         }
 
         _due.Sort((a, b) => a.Offset.CompareTo(b.Offset));
 
         var cursor = destOffset;
-        foreach (var (offset, note, velocity) in _due)
+        foreach (var (offset, e) in _due)
         {
             synth.Render(destination, cursor, destOffset + offset - cursor);
             cursor = destOffset + offset;
-            if (velocity > 0)
+            switch (e.Kind)
             {
-                synth.NoteOn(note, velocity);
-            }
-            else
-            {
-                synth.NoteOff(note);
+                case MidiKind.Sustain:
+                    synth.SustainPedal(e.Value >= 64);
+                    break;
+                case MidiKind.PitchBend:
+                    synth.PitchBend(e.Value);
+                    break;
+                case MidiKind.Note when e.Velocity > 0:
+                    synth.NoteOn(e.Note, e.Velocity);
+                    break;
+                default:
+                    synth.NoteOff(e.Note);
+                    break;
             }
         }
 

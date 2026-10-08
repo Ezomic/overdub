@@ -1,6 +1,13 @@
 namespace Overdub.Audio;
 
-public readonly record struct MidiEvent(long At, byte Note, byte Velocity);
+public enum MidiKind
+{
+    Note,
+    Sustain,
+    PitchBend,
+}
+
+public readonly record struct MidiEvent(long At, byte Note, byte Velocity, MidiKind Kind = MidiKind.Note, int Value = 0);
 
 public readonly record struct MidiNote(long Start, long End, byte Pitch);
 
@@ -26,6 +33,11 @@ public sealed class MidiClip
         var notes = new List<MidiNote>();
         foreach (var e in Events)
         {
+            if (e.Kind != MidiKind.Note)
+            {
+                continue;
+            }
+
             if (e.Velocity > 0)
             {
                 open[e.Note] = e.At;
@@ -45,26 +57,46 @@ public sealed class MidiClip
     {
         var local = position - Shift;
         var open = new Dictionary<byte, byte>();
+        var sustain = 0;
+        var bend = 0;
         var left = new List<MidiEvent>();
         var right = new List<MidiEvent>();
         foreach (var e in Events)
         {
-            if (e.At < local)
-            {
-                left.Add(e);
-                if (e.Velocity > 0)
-                {
-                    open[e.Note] = e.Velocity;
-                }
-                else
-                {
-                    open.Remove(e.Note);
-                }
-            }
-            else
+            if (e.At >= local)
             {
                 right.Add(e);
+                continue;
             }
+
+            left.Add(e);
+            switch (e.Kind)
+            {
+                case MidiKind.Sustain:
+                    sustain = e.Value;
+                    break;
+                case MidiKind.PitchBend:
+                    bend = e.Value;
+                    break;
+                case MidiKind.Note when e.Velocity > 0:
+                    open[e.Note] = e.Velocity;
+                    break;
+                default:
+                    open.Remove(e.Note);
+                    break;
+            }
+        }
+
+        if (sustain >= 64)
+        {
+            left.Add(new MidiEvent(local, 0, 0, MidiKind.Sustain, 0));
+            right.Insert(0, new MidiEvent(local, 0, 0, MidiKind.Sustain, sustain));
+        }
+
+        if (bend != 0)
+        {
+            left.Add(new MidiEvent(local, 0, 0, MidiKind.PitchBend, 0));
+            right.Insert(0, new MidiEvent(local, 0, 0, MidiKind.PitchBend, bend));
         }
 
         foreach (var (note, velocity) in open)
