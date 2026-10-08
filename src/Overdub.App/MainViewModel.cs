@@ -20,6 +20,12 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private double _playheadX;
     private double _timelineWidth = 60 * Timeline.PixelsPerSecond;
     private double _bpm = 120;
+    private string _midiLabel = "No MIDI input";
+
+    private static readonly Brush[] Palette =
+    [
+        Hex("#4C9AFF"), Hex("#5BC070"), Hex("#9B8AFB"), Hex("#E5A33B"), Hex("#E5619B"), Hex("#2EC4B6"),
+    ];
 
     public MainViewModel()
     {
@@ -28,14 +34,12 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             "Overdub",
             DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss"));
         _session = new Session(folder);
-        _session.Tracks.Add(new Track("Guitar", 0));
-        _session.Tracks.Add(new Track("Bass", 1));
-        _session.Tracks.Add(new Track("Keys", null));
+        _session.AddTrack("Guitar", 0);
+        _session.AddTrack("Bass", 1);
+        _session.AddTrack("Keys", null);
+        Tracks = [];
+        RebuildTracks();
 
-        Brush[] colors = [Hex("#4C9AFF"), Hex("#5BC070"), Hex("#9B8AFB")];
-        Tracks = new ObservableCollection<TrackViewModel>(_session.Tracks.Select((t, i) => new TrackViewModel(t, colors[i], _session.ApplyMixerState)));
-
-        Keys.CycleMidi = new RelayCommand(CycleMidiDevice);
         PlayCommand = new RelayCommand(TogglePlay);
         StopCommand = new RelayCommand(Stop);
         RecordCommand = new RelayCommand(ToggleRecord);
@@ -48,7 +52,6 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     }
 
     public ObservableCollection<TrackViewModel> Tracks { get; }
-    private TrackViewModel Keys => Tracks[2];
     public ICommand PlayCommand { get; }
     public ICommand StopCommand { get; }
     public ICommand RecordCommand { get; }
@@ -169,6 +172,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         {
             _session.Engine.StopTransport();
             Bpm = _session.Load(path);
+            RebuildTracks();
             RefreshTimeline();
             OnPropertyChanged(nameof(Metronome));
             Message = "";
@@ -213,6 +217,88 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    public int InputCount => Math.Max(2, _session.Engine.InputCount);
+
+    public void AddAudioTrack(int input)
+    {
+        _session.AddTrack(UniqueName($"Input {input + 1}"), input);
+        RebuildTracks();
+    }
+
+    public void AddMidiTrack()
+    {
+        _session.AddTrack(UniqueName("Keys"), null);
+        RebuildTracks();
+    }
+
+    private void RemoveTrack(TrackViewModel track)
+    {
+        if (IsRecording)
+        {
+            Message = "Stop recording before removing a track.";
+            return;
+        }
+
+        _session.RemoveTrack(track.Model);
+        Tracks.Remove(track);
+        RefreshTimeline();
+        _session.Save();
+    }
+
+    private void DisarmConflicts(TrackViewModel armed)
+    {
+        foreach (var other in Tracks)
+        {
+            if (other != armed && other.Armed && other.Model.Input == armed.Model.Input)
+            {
+                other.Armed = false;
+            }
+        }
+    }
+
+    private string UniqueName(string name)
+    {
+        var candidate = name;
+        for (var n = 2; Tracks.Any(t => t.Name == candidate); n++)
+        {
+            candidate = $"{name} {n}";
+        }
+
+        return candidate;
+    }
+
+    private void RebuildTracks()
+    {
+        Tracks.Clear();
+        foreach (var model in _session.Tracks)
+        {
+            var vm = new TrackViewModel(model, Palette[model.ColorIndex % Palette.Length], _session.ApplyMixerState, DisarmConflicts, RemoveTrack)
+            {
+                MidiLabel = _midiLabel,
+            };
+            if (model.IsMidi)
+            {
+                vm.CycleMidi = new RelayCommand(CycleMidiDevice);
+            }
+
+            Tracks.Add(vm);
+        }
+
+        if (_session.Engine.SampleRate > 0)
+        {
+            RefreshTimeline();
+        }
+    }
+
+    private void SetMidiLabel(string label)
+    {
+        _midiLabel = label;
+        foreach (var track in Tracks)
+        {
+            track.MidiLabel = label;
+        }
+    }
+
     private void CycleMidiDevice()
     {
         var midi = _session.Midi;
@@ -224,17 +310,17 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             if (next >= names.Count)
             {
                 midi.Close();
-                Keys.MidiLabel = names.Count == 0 ? "No MIDI input found" : "No MIDI input";
+                SetMidiLabel(names.Count == 0 ? "No MIDI input found" : "No MIDI input");
                 return;
             }
 
             midi.Open(next);
-            Keys.MidiLabel = names[next];
+            SetMidiLabel(names[next]);
         }
         catch (Exception ex)
         {
             midi.Close();
-            Keys.MidiLabel = "No MIDI input";
+            SetMidiLabel("No MIDI input");
             Message = $"MIDI: {ex.Message}";
         }
     }
@@ -295,7 +381,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
         if (_session.HasArmedMidi && !_session.Midi.IsOpen)
         {
-            Message = "Pick a MIDI input on the Keys track first.";
+            Message = "Pick a MIDI input on a Keys track first.";
             return;
         }
 
@@ -344,7 +430,14 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             track.UpdateMeter(engine);
         }
 
-        Keys.UpdateMidiMeter(_session.ReadMidiActivity());
+        var activity = _session.ReadMidiActivity();
+        foreach (var track in Tracks)
+        {
+            if (track.IsMidi)
+            {
+                track.UpdateMidiMeter(activity);
+            }
+        }
     }
 
     private static SolidColorBrush Hex(string hex) => (SolidColorBrush)new BrushConverter().ConvertFromString(hex)!;

@@ -52,15 +52,65 @@ public sealed class MidiClipViewModel
     public Brush Brush { get; }
 }
 
-public sealed class TrackViewModel(Track model, Brush color, Action onMixChanged) : ObservableObject
+public sealed class TrackViewModel(Track model, Brush color, Action onMixChanged, Action<TrackViewModel> onArmed, Action<TrackViewModel> onRemove) : ObservableObject
 {
+    private bool _editing;
+    private bool _removePending;
+    private RelayCommand? _remove;
     private double _level;
     private bool _clipped;
     private string _midiLabel = "No MIDI input";
 
     public Track Model { get; } = model;
     public Brush Color { get; } = color;
-    public string Name => Model.Name;
+    public string Name
+    {
+        get => Model.Name;
+        set
+        {
+            var trimmed = value?.Trim();
+            if (!string.IsNullOrEmpty(trimmed))
+            {
+                Model.Name = trimmed;
+            }
+
+            OnPropertyChanged();
+        }
+    }
+
+    public bool IsEditing
+    {
+        get => _editing;
+        set
+        {
+            if (SetField(ref _editing, value))
+            {
+                OnPropertyChanged(nameof(IsNotEditing));
+            }
+        }
+    }
+
+    public bool IsNotEditing => !_editing;
+    public string RemoveLabel => _removePending ? "Remove?" : "✕";
+    public System.Windows.Input.ICommand RemoveCommand => _remove ??= new RelayCommand(RemoveClicked);
+
+    public void ResetRemove()
+    {
+        _removePending = false;
+        OnPropertyChanged(nameof(RemoveLabel));
+    }
+
+    private void RemoveClicked()
+    {
+        if (!_removePending)
+        {
+            _removePending = true;
+            OnPropertyChanged(nameof(RemoveLabel));
+            return;
+        }
+
+        onRemove(this);
+    }
     public bool HasInput => true;
     public bool IsMidi => Model.IsMidi;
     public bool IsAudio => !Model.IsMidi;
@@ -81,6 +131,11 @@ public sealed class TrackViewModel(Track model, Brush color, Action onMixChanged
         set
         {
             Model.Armed = value;
+            if (value)
+            {
+                onArmed(this);
+            }
+
             OnPropertyChanged();
         }
     }

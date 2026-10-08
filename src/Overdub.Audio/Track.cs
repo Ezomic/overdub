@@ -7,7 +7,9 @@ public sealed class Track(string name, int? input)
     private float _gain = 1f;
     private float _pan;
 
-    public string Name { get; } = name;
+    public string Name { get; set; } = name;
+    public string Id { get; } = Guid.NewGuid().ToString("N")[..8];
+    public int ColorIndex { get; set; }
     public int? Input { get; } = input;
     public bool Armed { get; set; }
     public bool IsMidi => Input is null;

@@ -52,20 +52,38 @@
             </StackPanel>
         </Border>
 
-        <Grid Grid.Row="1">
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+        <Grid>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="270" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <ItemsControl Grid.Column="0" ItemsSource="{Binding Tracks}">
+            <StackPanel Grid.Column="0">
+            <ItemsControl ItemsSource="{Binding Tracks}">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
                         <Border Height="124" Background="{StaticResource Panel}" BorderBrush="{StaticResource Border}" BorderThickness="0,0,1,1">
                             <Grid>
                                 <Border Width="4" HorizontalAlignment="Left" Background="{Binding Color}" />
                                 <StackPanel Margin="16,10,12,8">
-                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="14" />
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <Grid>
+                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="14" ToolTip="Double-click to rename"
+                                                       MouseLeftButtonDown="OnNameMouseDown" Visibility="{Binding IsNotEditing, Converter={StaticResource BoolToVis}}" />
+                                            <TextBox Text="{Binding Name, UpdateSourceTrigger=LostFocus}" FontSize="13" Height="22" Padding="2,0" VerticalContentAlignment="Center"
+                                                     Background="{StaticResource Well}" Foreground="{StaticResource Text}" BorderBrush="{StaticResource Border}"
+                                                     CaretBrush="{StaticResource Text}" Visibility="{Binding IsEditing, Converter={StaticResource BoolToVis}}"
+                                                     LostFocus="OnNameLostFocus" KeyDown="OnNameKeyDown" />
+                                        </Grid>
+                                        <Button Grid.Column="1" Style="{StaticResource TransportButton}" Content="{Binding RemoveLabel}" Command="{Binding RemoveCommand}"
+                                                Width="Auto" Height="18" FontSize="10" Padding="6,0" Margin="6,0,0,0" Foreground="{StaticResource TextDim}"
+                                                ToolTip="Remove track" MouseLeave="OnRemoveMouseLeave" Focusable="False" />
+                                    </Grid>
                                     <TextBlock Text="{Binding InputText}" Foreground="{StaticResource TextDim}" FontSize="11" Margin="0,1,0,6" Visibility="{Binding IsAudio, Converter={StaticResource BoolToVis}}" />
                                     <Button Style="{StaticResource TransportButton}" Command="{Binding CycleMidi}" Content="{Binding MidiLabel}" HorizontalAlignment="Left"
                                             Width="Auto" Height="22" FontSize="11" Padding="8,0" Margin="0,2,0,6" ToolTip="Click to switch MIDI input"
@@ -107,6 +125,9 @@
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
+            <Button Style="{StaticResource TransportButton}" Content="+ Add track" Click="OnAddTrackClick" Width="Auto" Height="28" FontSize="12"
+                    Padding="12,0" Margin="14,12,0,12" HorizontalAlignment="Left" Focusable="False" />
+            </StackPanel>
 
             <ScrollViewer Grid.Column="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
                 <Grid x:Name="LaneArea" Width="{Binding TimelineWidth}" Background="Transparent" MouseLeftButtonDown="OnLaneMouseDown" VerticalAlignment="Top">
@@ -174,6 +195,7 @@
                 </Grid>
             </ScrollViewer>
         </Grid>
+        </ScrollViewer>
 
         <Border Grid.Row="2" Background="{StaticResource Panel}" BorderBrush="{StaticResource Border}" BorderThickness="0,1,0,0" Padding="14,8">
             <DockPanel>

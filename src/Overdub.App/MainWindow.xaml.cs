@@ -1,5 +1,6 @@
 using System.IO;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 
 namespace Overdub.App;
@@ -26,6 +27,80 @@ public partial class MainWindow : Window
         if (sender is System.Windows.Controls.Slider slider && double.TryParse((string)slider.Tag, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var value))
         {
             slider.Value = value;
+        }
+    }
+
+    private void OnAddTrackClick(object sender, RoutedEventArgs e)
+    {
+        var menu = new ContextMenu
+        {
+            PlacementTarget = (UIElement)sender,
+            Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom,
+        };
+        for (var i = 0; i < _viewModel.InputCount; i++)
+        {
+            var input = i;
+            var item = new MenuItem { Header = $"Audio, input {input + 1}" };
+            item.Click += (_, _) => _viewModel.AddAudioTrack(input);
+            menu.Items.Add(item);
+        }
+
+        var midi = new MenuItem { Header = "MIDI keys (built-in synth)" };
+        midi.Click += (_, _) => _viewModel.AddMidiTrack();
+        menu.Items.Add(midi);
+        menu.IsOpen = true;
+    }
+
+    private void OnNameMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount != 2 || sender is not FrameworkElement { DataContext: TrackViewModel vm, Parent: Grid grid })
+        {
+            return;
+        }
+
+        vm.IsEditing = true;
+        Dispatcher.BeginInvoke(() =>
+        {
+            var box = grid.Children.OfType<TextBox>().First();
+            box.Focus();
+            box.SelectAll();
+        }, System.Windows.Threading.DispatcherPriority.Input);
+    }
+
+    private void OnNameLostFocus(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: TrackViewModel vm })
+        {
+            vm.IsEditing = false;
+        }
+    }
+
+    private void OnNameKeyDown(object sender, KeyEventArgs e)
+    {
+        if (sender is not TextBox { DataContext: TrackViewModel vm } box || e.Key is not (Key.Enter or Key.Escape))
+        {
+            return;
+        }
+
+        var binding = System.Windows.Data.BindingOperations.GetBindingExpression(box, TextBox.TextProperty);
+        if (e.Key == Key.Enter)
+        {
+            binding?.UpdateSource();
+        }
+        else
+        {
+            binding?.UpdateTarget();
+        }
+
+        vm.IsEditing = false;
+        e.Handled = true;
+    }
+
+    private void OnRemoveMouseLeave(object sender, MouseEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: TrackViewModel vm })
+        {
+            vm.ResetRemove();
         }
     }
 
