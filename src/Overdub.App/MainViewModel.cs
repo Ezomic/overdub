@@ -166,10 +166,51 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             if (value)
             {
                 _punchOn = false;
+                if (!HasRegion && !ChooseLoopRegion())
+                {
+                    _loopOn = false;
+                }
             }
 
             RegionChanged();
         }
+    }
+
+    private bool ChooseLoopRegion()
+    {
+        var engine = _session.Engine;
+        if (engine.SampleRate == 0)
+        {
+            return false;
+        }
+
+        long start;
+        long end;
+        string what;
+        switch (_selection)
+        {
+            case Clip clip:
+                (start, end, what) = (clip.StartSample, clip.EndSample, "the selected clip");
+                break;
+            case MidiClip midi:
+                (start, end, what) = (midi.StartSample, midi.EndSample, "the selected block");
+                break;
+            default:
+                var bar = engine.SamplesPerBeat * engine.BeatsPerBar;
+                (start, end, what) = (0, (long)(Math.Ceiling(_session.LengthSamples / bar) * bar), "the whole song");
+                break;
+        }
+
+        if (end - start < engine.SamplesPerBeat * 0.5)
+        {
+            Message = "Nothing to loop yet. Add something, or drag on the ruler to choose a range.";
+            return false;
+        }
+
+        _regionStart = start;
+        _regionEnd = end;
+        Notice = $"Looping {what}. Drag on the ruler to loop something else.";
+        return true;
     }
 
     public bool PunchOn
