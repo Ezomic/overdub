@@ -16,6 +16,7 @@ public sealed class DrumWindow : Window
     private readonly StackPanel _grid = new();
     private readonly TextBlock _hint = new() { Margin = new Thickness(0, 12, 0, 0) };
     private DrumPattern? _current;
+    private int _repeat = 1;
 
     public DrumWindow(MainViewModel main, Window owner)
     {
@@ -118,7 +119,12 @@ public sealed class DrumWindow : Window
             };
             _patternBar.Children.Add(presets);
             _patternBar.Children.Add(MakeButton("Clear", () => _main.ClearDrumPattern(current), width: 60));
-            _patternBar.Children.Add(MakeButton("Place at playhead", () => _main.PlaceDrumPattern(current), width: 130));
+            _patternBar.Children.Add(MakeButton($"Repeat {_repeat}x", () =>
+            {
+                _repeat = _repeat >= 8 ? 1 : _repeat * 2;
+                Refresh();
+            }, width: 80));
+            _patternBar.Children.Add(MakeButton("Place at playhead", () => _main.PlaceDrumPattern(current, _repeat), width: 130));
         }
 
         BuildGrid();

@@ -26,6 +26,7 @@ public sealed class ChordWindow : Window
     private ChordPattern? _current;
     private int _keyRoot;
     private bool _minorKey;
+    private int _repeat = 1;
 
     public ChordWindow(MainViewModel main, Window owner, Track track)
     {
@@ -142,7 +143,12 @@ public sealed class ChordWindow : Window
         _patternBar.Children.Add(MakeButton(current.Bars == 1 ? "1 bar" : $"{current.Bars} bars", () => _main.EditChordPattern(current, p => p.Bars = (p.Bars % ChordPattern.MaxBars) + 1, "Change pattern length"), width: 70));
         var styles = ChordPattern.Styles(current.Role);
         _patternBar.Children.Add(MenuButton(ChordPattern.StyleName(current.Style), styles.Select(s => (ChordPattern.StyleName(s), (Action)(() => _main.EditChordPattern(current, p => p.Style = s, "Change style")))), 130));
-        _patternBar.Children.Add(MakeButton("Place at playhead", () => _main.PlaceChordPattern(_track, current), width: 130));
+        _patternBar.Children.Add(MakeButton($"Repeat {_repeat}x", () =>
+        {
+            _repeat = _repeat >= 8 ? 1 : _repeat * 2;
+            Refresh();
+        }, width: 80));
+        _patternBar.Children.Add(MakeButton("Place at playhead", () => _main.PlaceChordPattern(_track, current, _repeat), width: 130));
 
         for (var bar = 0; bar < current.Bars; bar++)
         {

@@ -410,10 +410,11 @@ public sealed class Session : IDisposable
         return pattern;
     }
 
-    public void PlaceChordPattern(Track track, ChordPattern pattern, long start)
+    public void PlaceChordPattern(Track track, ChordPattern pattern, long start, int repeats = 1)
     {
-        var clip = pattern.ToClip(Engine.SampleRate, Engine.Bpm, Engine.BeatsPerBar, start);
-        Edit("Place chord pattern", () => track.AddMidiClip(clip), () => track.MidiClips.Remove(clip));
+        var length = pattern.LengthSamples(Engine.SampleRate, Engine.Bpm, Engine.BeatsPerBar);
+        var clips = Enumerable.Range(0, repeats).Select(i => pattern.ToClip(Engine.SampleRate, Engine.Bpm, Engine.BeatsPerBar, start + (i * length))).ToList();
+        Edit("Place chord pattern", () => clips.ForEach(track.AddMidiClip), () => clips.ForEach(c => track.MidiClips.Remove(c)));
     }
 
     public Track? DrumTrack => Tracks.FirstOrDefault(t => t.IsDrums);
@@ -496,10 +497,11 @@ public sealed class Session : IDisposable
         return pattern;
     }
 
-    public void PlacePattern(Track track, DrumPattern pattern, long start)
+    public void PlacePattern(Track track, DrumPattern pattern, long start, int repeats = 1)
     {
-        var clip = pattern.ToClip(Engine.SampleRate, Engine.Bpm, start);
-        Edit("Place drum pattern", () => track.AddMidiClip(clip), () => track.MidiClips.Remove(clip));
+        var length = pattern.LengthSamples(Engine.SampleRate, Engine.Bpm);
+        var clips = Enumerable.Range(0, repeats).Select(i => pattern.ToClip(Engine.SampleRate, Engine.Bpm, start + (i * length))).ToList();
+        Edit("Place drum pattern", () => clips.ForEach(track.AddMidiClip), () => clips.ForEach(c => track.MidiClips.Remove(c)));
     }
 
     public void RemoveTrackUndoable(Track track)
