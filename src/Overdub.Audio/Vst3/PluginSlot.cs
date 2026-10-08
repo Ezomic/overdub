@@ -49,6 +49,14 @@ public sealed class PluginSlot : IDisposable
         _stateVersion = source._stateVersion;
     }
 
+    public PluginSlot CreateCopy(int sampleRate)
+    {
+        var copy = new PluginSlot();
+        copy.CopyFrom(this);
+        copy.Sync(sampleRate);
+        return copy;
+    }
+
     public void Sync(int sampleRate)
     {
         DisposeRetired();

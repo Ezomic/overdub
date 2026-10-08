@@ -110,7 +110,9 @@
                                         <Button Style="{StaticResource TransportButton}" Command="{Binding CycleMidi}" Content="{Binding MidiLabel}"
                                                 Width="Auto" Height="22" FontSize="11" Padding="8,0" Margin="0,0,6,0" ToolTip="Click to switch MIDI input" Focusable="False" />
                                         <Button Style="{StaticResource TransportButton}" Command="{Binding CyclePreset}" Content="{Binding Preset}"
-                                                Width="Auto" Height="22" FontSize="11" Padding="8,0" Margin="0" ToolTip="Click to change the sound" Focusable="False" />
+                                                Width="Auto" Height="22" FontSize="11" Padding="8,0" Margin="0,0,6,0" ToolTip="Click to change the sound" Focusable="False" />
+                                        <Button Style="{StaticResource TransportButton}" Content="VST" Click="OnEffectsClick"
+                                                Width="Auto" Height="22" FontSize="11" Padding="8,0" Margin="0" ToolTip="Play this track through a VST3 instrument" Focusable="False" />
                                     </StackPanel>
                                     <StackPanel Orientation="Horizontal">
                                         <ToggleButton Style="{StaticResource ArmChip}" Content="R" IsChecked="{Binding Armed}" IsEnabled="{Binding HasInput}" ToolTip="Arm for recording" Focusable="False" />

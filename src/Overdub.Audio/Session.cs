@@ -170,6 +170,7 @@ public sealed class Session : IDisposable
         Engine.SynthGain = keys?.Gain ?? 1f;
         Engine.SynthPan = keys?.Pan ?? 0f;
         Engine.Synth.SetPreset(keys?.Preset);
+        Engine.Synth.Instrument = keys is { Instrument.Active: true } ? keys.Instrument.Instance : null;
     }
 
     private static void AddTake(Track track, Clip clip)
@@ -554,14 +555,14 @@ public sealed class Session : IDisposable
             t.IsBacking ? true : null,
             t.Effects.Effects.ToDictionary(e => e.Name, e => new EffectData(e.Enabled, (double[])e.Values.Clone())),
             t.Comp.Select(c => new CompData(c.Start, c.End, c.Lane)).ToList(),
-            PluginDataFor(t))).ToList();
+            PluginDataFor(t.Effects.Plugin),
+            PluginDataFor(t.Instrument))).ToList();
         ProjectFile.Write(ProjectPath, new ProjectData(1, Engine.SampleRate, Engine.Bpm, tracks, Engine.BeatsPerBar, Engine.BeatUnit));
         RecentProjects.Add(ProjectPath);
     }
 
-    private static PluginData? PluginDataFor(Track track)
+    private static PluginData? PluginDataFor(PluginSlot slot)
     {
-        var slot = track.Effects.Plugin;
         if (slot.Info is not { } info)
         {
             return null;
@@ -580,18 +581,18 @@ public sealed class Session : IDisposable
             slot.State is null ? null : Convert.ToBase64String(slot.State.Controller));
     }
 
-    private static void RestorePlugin(Track track, PluginData data)
+    private static void RestorePlugin(PluginSlot slot, PluginData data)
     {
         var info = new Vst3PluginInfo(data.Path, data.Name, data.Vendor, data.Category, data.SubCategories, Guid.Parse(data.ClassId));
         var state = data.Component is null ? null : new Vst3State(Convert.FromBase64String(data.Component), Convert.FromBase64String(data.Controller ?? ""));
-        track.Effects.Plugin.Restore(info, state, data.Enabled);
+        slot.Restore(info, state, data.Enabled);
     }
 
-    public IEnumerable<string> PluginErrors => Tracks.Select(t => t.Effects.Plugin.Error).OfType<string>();
+    public IEnumerable<string> PluginErrors => Tracks.SelectMany(t => new[] { t.Effects.Plugin.Error, t.Instrument.Error }).OfType<string>();
 
     public void AssignPlugin(Track track, Vst3PluginInfo? info)
     {
-        track.Effects.Plugin.Choose(info);
+        track.PluginSlot.Choose(info);
         SyncPlugins();
         track.Effects.Touch();
     }
@@ -601,12 +602,15 @@ public sealed class Session : IDisposable
         var rate = Engine.SampleRate;
         foreach (var track in Tracks)
         {
+            track.Instrument.Sync(rate);
             track.Effects.Plugin.Sync(rate);
             track.PlaybackFx.Plugin.CopyFrom(track.Effects.Plugin);
             track.PlaybackFx.Plugin.Sync(rate);
             track.LiveFx.Plugin.CopyFrom(track.Effects.Plugin);
             track.LiveFx.Plugin.Sync(rate);
         }
+
+        ApplyMixerState();
     }
 
     public double Load(string projectPath)
@@ -638,7 +642,12 @@ public sealed class Session : IDisposable
 
             if (d.Plugin is not null)
             {
-                RestorePlugin(track, d.Plugin);
+                RestorePlugin(track.Effects.Plugin, d.Plugin);
+            }
+
+            if (d.Instrument is not null)
+            {
+                RestorePlugin(track.Instrument, d.Instrument);
             }
 
             foreach (var c in d.Clips)
@@ -714,13 +723,15 @@ public sealed class Session : IDisposable
             });
             var path = System.IO.Path.Combine(folder, unique + ".wav");
             var strip = new ChannelStrip(audio, track.Effects, track.Effects.CloneForProcessing(Engine.SampleRate));
+            var instrument = track.IsMidi && track.Instrument.Active ? track.Instrument.CreateCopy(Engine.SampleRate) : null;
             try
             {
-                Mixer.Export([strip], midi, Engine.SampleRate, path, track.Gain, track.Pan, length, track.Preset);
+                Mixer.Export([strip], midi, Engine.SampleRate, path, track.Gain, track.Pan, length, track.Preset, instrument?.Instance);
             }
             finally
             {
                 strip.Processor?.Dispose();
+                instrument?.Dispose();
             }
 
             written.Add(path);
@@ -739,6 +750,8 @@ public sealed class Session : IDisposable
         var wavPath = AudioEncoder.IsEncoded(path) ? System.IO.Path.GetTempFileName() : path;
         try
         {
+            var keys = Tracks.FirstOrDefault(t => t.IsMidi);
+            var instrument = keys is { Instrument.Active: true } ? keys.Instrument.CreateCopy(Engine.SampleRate) : null;
             var strips = Tracks.Where(t => !t.IsMidi).Select(t => new ChannelStrip(t.EffectiveClips(), t.Effects, t.Effects.CloneForProcessing(Engine.SampleRate))).ToList();
             try
             {
@@ -750,10 +763,12 @@ public sealed class Session : IDisposable
                     Engine.SynthGain,
                     Engine.SynthPan,
                     0,
-                    Engine.Synth.PresetName);
+                    Engine.Synth.PresetName,
+                    instrument?.Instance);
             }
             finally
             {
+                instrument?.Dispose();
                 strips.ForEach(s => s.Processor?.Dispose());
             }
 

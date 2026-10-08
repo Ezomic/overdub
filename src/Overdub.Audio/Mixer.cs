@@ -133,7 +133,7 @@ public static class Mixer
         }
     }
 
-    public static void Export(IReadOnlyList<ChannelStrip> channels, IReadOnlyList<MidiClip> midi, int sampleRate, string path, float synthGain = 1f, float synthPan = 0f, long minLength = 0, string? preset = null)
+    public static void Export(IReadOnlyList<ChannelStrip> channels, IReadOnlyList<MidiClip> midi, int sampleRate, string path, float synthGain = 1f, float synthPan = 0f, long minLength = 0, string? preset = null, Vst3.Vst3Plugin? instrument = null)
     {
         var tracks = channels.SelectMany(c => c.Clips).ToList();
         var tail = sampleRate;
@@ -150,6 +150,7 @@ public static class Mixer
         var synth = new Synth();
         synth.Configure(sampleRate);
         synth.SetPreset(preset);
+        synth.Instrument = instrument;
         var sequencer = new MidiSequencer();
         var anySolo = AnySolo(tracks, midi);
         var scratch = new MixScratch();

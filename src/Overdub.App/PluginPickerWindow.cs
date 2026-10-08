@@ -13,7 +13,7 @@ public sealed class PluginPickerWindow : Window
     public PluginPickerWindow(Window owner)
     {
         Owner = owner;
-        Title = "Choose a VST3 effect";
+        Title = "Choose a VST3 plugin";
         Width = 460;
         Height = 480;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
@@ -45,7 +45,7 @@ public sealed class PluginPickerWindow : Window
     private void SetPlugins(IReadOnlyList<Vst3PluginInfo> plugins)
     {
         _list.ItemsSource = plugins.Select(p => new Row(p, $"{p.Name}   ({p.Vendor})")).ToList();
-        _status.Text = plugins.Count == 0 ? "No VST3 effects found in the standard folders." : $"{plugins.Count} effects found";
+        _status.Text = plugins.Count == 0 ? "No matching VST3 plugins found in the standard folders." : $"{plugins.Count} plugins found";
     }
 
     private void Accept()
