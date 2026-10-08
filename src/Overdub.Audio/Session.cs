@@ -1,3 +1,4 @@
+using NAudio.Wave;
 namespace Overdub.Audio;
 
 public sealed class Session : IDisposable
@@ -201,6 +202,91 @@ public sealed class Session : IDisposable
     public void Edit(string name, Action doIt, Action undo, EditKind kind = EditKind.Clips, string? mergeKey = null) =>
         History.Execute(name, () => { doIt(); PublishClips(); }, () => { undo(); PublishClips(); }, kind, mergeKey);
 
+    public Track ImportAudio(string sourcePath)
+    {
+        if (Engine.SampleRate == 0)
+        {
+            throw new InvalidOperationException("Open an audio device first.");
+        }
+
+        using var reader = new AudioFileReader(sourcePath);
+        ISampleProvider provider = reader;
+        if (reader.WaveFormat.SampleRate != Engine.SampleRate)
+        {
+            provider = new NAudio.Wave.SampleProviders.WdlResamplingSampleProvider(reader, Engine.SampleRate);
+        }
+
+        var channels = provider.WaveFormat.Channels;
+        var data = new List<float[]>();
+        var total = 0;
+        var chunk = new float[channels * 65536];
+        int read;
+        while ((read = provider.Read(chunk.AsSpan())) > 0)
+        {
+            data.Add(chunk[..read]);
+            total += read;
+        }
+
+        if (total == 0)
+        {
+            throw new InvalidOperationException("That file contains no audio.");
+        }
+
+        var interleaved = new float[total];
+        var at = 0;
+        foreach (var block in data)
+        {
+            block.CopyTo(interleaved, at);
+            at += block.Length;
+        }
+
+        var name = System.IO.Path.GetFileNameWithoutExtension(sourcePath);
+        System.IO.Directory.CreateDirectory(Directory);
+        var path = System.IO.Path.Combine(Directory, $"{SafeName(name)}-imported.wav");
+        for (var n = 2; File.Exists(path); n++)
+        {
+            path = System.IO.Path.Combine(Directory, $"{SafeName(name)}-imported-{n}.wav");
+        }
+
+        var playback = PlaybackTrack.FromInterleaved(interleaved, total, channels, 0, keepStereo: true);
+        using (var writer = new NAudio.Wave.WaveFileWriter(path, NAudio.Wave.WaveFormat.CreateIeeeFloatWaveFormat(Engine.SampleRate, playback.Right is null ? 1 : 2)))
+        {
+            if (playback.Right is { } right)
+            {
+                var stereo = new float[playback.Samples.Length * 2];
+                for (var i = 0; i < playback.Samples.Length; i++)
+                {
+                    stereo[i * 2] = playback.Samples[i];
+                    stereo[(i * 2) + 1] = right[i];
+                }
+
+                writer.WriteSamples(stereo, 0, stereo.Length);
+            }
+            else
+            {
+                writer.WriteSamples(playback.Samples, 0, playback.Samples.Length);
+            }
+        }
+
+        var track = new Track(name, null) { ColorIndex = _created++, IsBacking = true };
+        var clip = new Clip(path, playback);
+        Edit(
+            "Import audio",
+            () =>
+            {
+                Tracks.Add(track);
+                track.AddClip(clip);
+                ApplyMixerState();
+            },
+            () =>
+            {
+                Tracks.Remove(track);
+                ApplyMixerState();
+            },
+            EditKind.Tracks);
+        return track;
+    }
+
     public Track AddTrackUndoable(string name, int? input)
     {
         var track = new Track(name, input) { ColorIndex = _created++ };
@@ -340,7 +426,8 @@ public sealed class Session : IDisposable
             t.Input,
             t.IsMidi,
             t.ColorIndex,
-            t.Preset)).ToList();
+            t.Preset,
+            t.IsBacking ? true : null)).ToList();
         ProjectFile.Write(ProjectPath, new ProjectData(1, Engine.SampleRate, Engine.Bpm, tracks, Engine.BeatsPerBar, Engine.BeatUnit));
         RecentProjects.Add(ProjectPath);
     }
@@ -352,9 +439,10 @@ public sealed class Session : IDisposable
         var loaded = new List<Track>();
         foreach (var d in data.Tracks)
         {
-            var isMidi = d.IsMidi ?? (d.Input is null && d.Name == "Keys");
+            var isMidi = d.IsBacking != true && (d.IsMidi ?? (d.Input is null && d.Name == "Keys"));
             int? input = isMidi ? null : d.Input ?? (d.Name == "Bass" ? 1 : 0);
-            var track = new Track(d.Name, input) { ColorIndex = d.Color ?? loaded.Count, Preset = d.Preset ?? "Lead" };
+            var backing = d.IsBacking == true;
+            var track = new Track(d.Name, backing ? null : input) { ColorIndex = d.Color ?? loaded.Count, Preset = d.Preset ?? "Lead", IsBacking = backing };
             track.Mute = d.Mute;
             track.Solo = d.Solo;
             track.Gain = d.Gain;
@@ -362,7 +450,7 @@ public sealed class Session : IDisposable
             foreach (var c in d.Clips)
             {
                 var path = System.IO.Path.Combine(directory, c.File);
-                var playback = PlaybackTrack.FromWav(path, c.StartSample, Engine.SampleRate);
+                var playback = PlaybackTrack.FromWav(path, c.StartSample, Engine.SampleRate, keepStereo: true);
                 if (c.Offset is { } offset && c.Length is { } length)
                 {
                     playback.Offset = Math.Clamp(offset, 0, playback.Samples.Length);
@@ -411,6 +499,7 @@ public sealed class Session : IDisposable
 
             var audio = track.Clips.Select(c => new PlaybackTrack(c.Playback.Samples, c.Playback.StartSample)
             {
+                Right = c.Playback.Right,
                 Offset = c.Playback.Offset,
                 Length = c.Playback.Length,
                 Gain = track.Gain,

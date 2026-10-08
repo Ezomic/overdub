@@ -125,6 +125,41 @@ public partial class MainWindow : Window
 
     private void OnAnalyzeClick(object sender, RoutedEventArgs e) => new AnalysisWindow(_viewModel) { Owner = this }.Show();
 
+    private void OnFileClick(object sender, RoutedEventArgs e)
+    {
+        var menu = MenuFor(sender);
+        menu.Items.Add(Item("Open...", () => OnOpenClick(FileButton, new RoutedEventArgs())));
+        menu.Items.Add(Item("Save", () => _viewModel.Save()));
+        menu.Items.Add(new Separator());
+        menu.Items.Add(Item("Import audio...", () => OnImportClick(FileButton, new RoutedEventArgs())));
+        menu.Items.Add(Item("Export mixdown...", () => OnExportClick(FileButton, new RoutedEventArgs())));
+        menu.Items.Add(Item("Export stems...", () => OnStemsClick(FileButton, new RoutedEventArgs())));
+        menu.IsOpen = true;
+    }
+
+    private void OnToolsClick(object sender, RoutedEventArgs e)
+    {
+        var menu = MenuFor(sender);
+        menu.Items.Add(Item("Tuner", () => OnTunerClick(ToolsButton, new RoutedEventArgs())));
+        menu.Items.Add(Item("On-screen keyboard", () => OnKeyboardClick(ToolsButton, new RoutedEventArgs())));
+        menu.Items.Add(Item("Analyze clip", () => OnAnalyzeClick(ToolsButton, new RoutedEventArgs())));
+        menu.Items.Add(Item("Measure latency", () => OnLatencyClick(ToolsButton, new RoutedEventArgs())));
+        menu.IsOpen = true;
+    }
+
+    private static ContextMenu MenuFor(object sender) => new()
+    {
+        PlacementTarget = (UIElement)sender,
+        Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom,
+    };
+
+    private static MenuItem Item(string header, Action action)
+    {
+        var item = new MenuItem { Header = header };
+        item.Click += (_, _) => action();
+        return item;
+    }
+
     private void OnTunerClick(object sender, RoutedEventArgs e) => new TunerWindow(_viewModel) { Owner = this }.Show();
 
     private void OnLatencyClick(object sender, RoutedEventArgs e) => new LatencyWindow(_viewModel) { Owner = this }.ShowDialog();
@@ -226,6 +261,19 @@ public partial class MainWindow : Window
         if (dialog.ShowDialog(this) == true)
         {
             _viewModel.Open(dialog.FileName);
+        }
+    }
+
+    private void OnImportClick(object sender, RoutedEventArgs e)
+    {
+        var dialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "Import a backing track",
+            Filter = "Audio files|*.wav;*.mp3;*.flac;*.m4a;*.aac;*.wma;*.aif;*.aiff|All files|*.*",
+        };
+        if (dialog.ShowDialog(this) == true)
+        {
+            _viewModel.ImportAudio(dialog.FileName);
         }
     }
 

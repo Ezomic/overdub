@@ -368,6 +368,26 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    public void ImportAudio(string path)
+    {
+        if (IsRecording)
+        {
+            Message = "Stop recording before importing.";
+            return;
+        }
+
+        try
+        {
+            Message = "";
+            var track = _session.ImportAudio(path);
+            Notice = $"Imported {track.Name}";
+        }
+        catch (Exception ex)
+        {
+            Message = ex.Message;
+        }
+    }
+
     public void ExportStems(string folder)
     {
         try
