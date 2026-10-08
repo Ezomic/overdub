@@ -1,0 +1,33 @@
+<Window x:Class="Overdub.App.KeyboardWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Keyboard" Icon="Assets/overdub.ico" Width="810" Height="270" ResizeMode="NoResize" Topmost="True"
+        WindowStartupLocation="CenterOwner" Background="{StaticResource Bg}" Foreground="{StaticResource Text}" FontFamily="Segoe UI" FontSize="13">
+    <Window.Resources>
+        <Style x:Key="PianoKey" TargetType="Button">
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" BorderBrush="#3A3A3F" BorderThickness="1" CornerRadius="0,0,4,4" />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+            <Button Style="{StaticResource TransportButton}" Width="Auto" Height="26" Padding="10,0" Content="Octave -" Click="OnOctaveDown" Focusable="False" />
+            <Button Style="{StaticResource TransportButton}" Width="Auto" Height="26" Padding="10,0" Content="Octave +" Click="OnOctaveUp" Focusable="False" />
+            <ToggleButton x:Name="SustainToggle" Style="{StaticResource Chip}" Height="26" Content="Sustain" Click="OnSustain" Focusable="False" />
+            <TextBlock x:Name="RangeText" Foreground="{StaticResource TextDim}" VerticalAlignment="Center" Margin="12,0,0,0" />
+            <TextBlock Foreground="{StaticResource TextDim}" VerticalAlignment="Center" Margin="16,0,0,0"
+                       Text="Click and drag, or play with A W S E D F T G Y H U J K O L P" />
+        </StackPanel>
+        <Canvas x:Name="Keys" Grid.Row="1" Width="748" Height="150" HorizontalAlignment="Left" VerticalAlignment="Top" />
+    </Grid>
+</Window>

@@ -219,8 +219,11 @@ public sealed class Session : IDisposable
         Engine.SetMidiClips(Tracks.SelectMany(t => t.MidiClips));
     }
 
+    public event Action<byte, byte>? NoteActivity;
+
     public void HandleNote(byte note, byte velocity)
     {
+        NoteActivity?.Invoke(note, velocity);
         if (velocity > 0)
         {
             Engine.Synth.NoteOn(note, velocity);
