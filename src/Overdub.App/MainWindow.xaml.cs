@@ -123,6 +123,8 @@ public partial class MainWindow : Window
 
     private void OnKeyboardClick(object sender, RoutedEventArgs e) => new KeyboardWindow(_viewModel) { Owner = this }.Show();
 
+    private void OnAnalyzeClick(object sender, RoutedEventArgs e) => new AnalysisWindow(_viewModel) { Owner = this }.Show();
+
     private void OnTunerClick(object sender, RoutedEventArgs e) => new TunerWindow(_viewModel) { Owner = this }.Show();
 
     private void OnLatencyClick(object sender, RoutedEventArgs e) => new LatencyWindow(_viewModel) { Owner = this }.ShowDialog();
