@@ -48,7 +48,7 @@
                     <Button Style="{StaticResource TransportButton}" Width="64" Height="24" FontSize="12" Margin="0,0,8,0" Content="Stems" Click="OnStemsClick" Focusable="False" ToolTip="Export each track as its own WAV" />
                     <Button Style="{StaticResource TransportButton}" Width="64" Height="24" FontSize="12" Margin="0,0,8,0" Content="Open" Click="OnOpenClick" Focusable="False" ToolTip="Open a project" />
                     <Button Style="{StaticResource TransportButton}" Width="64" Height="24" FontSize="12" Margin="0,0,8,0" Content="Save" Click="OnSaveClick" Focusable="False" ToolTip="Save the project" />
-                    <Button Style="{StaticResource TransportButton}" Width="64" Height="24" FontSize="12" Margin="0" Content="Export" Click="OnExportClick" Focusable="False" ToolTip="Export a stereo WAV mixdown" />
+                    <Button Style="{StaticResource TransportButton}" Width="64" Height="24" FontSize="12" Margin="0" Content="Export" Click="OnExportClick" Focusable="False" ToolTip="Export a stereo mixdown as WAV, MP3 or FLAC" />
                 </StackPanel>
                 <StackPanel Orientation="Horizontal">
                     <ToggleButton Style="{StaticResource Chip}" IsChecked="{Binding LoopOn}" Content="Loop" ToolTip="Loop the region; recording makes one take per pass" Focusable="False" />

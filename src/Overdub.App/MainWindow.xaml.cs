@@ -205,8 +205,10 @@ public partial class MainWindow : Window
     {
         var dialog = new Microsoft.Win32.SaveFileDialog
         {
-            Filter = "WAV audio (*.wav)|*.wav",
+            Filter = "WAV audio (*.wav)|*.wav|MP3 audio (*.mp3)|*.mp3|FLAC audio (*.flac)|*.flac",
             FileName = Path.GetFileName(_viewModel.DefaultExportName),
+            AddExtension = true,
+            DefaultExt = ".wav",
             InitialDirectory = Path.GetDirectoryName(_viewModel.DefaultExportName),
         };
         if (dialog.ShowDialog(this) == true)
