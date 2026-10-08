@@ -92,6 +92,9 @@ public sealed class MidiClip
     public IEnumerable<int> PitchesAt(long position) =>
         Notes().Where(n => n.Start <= position && position < n.End).Select(n => (int)n.Pitch);
 
+    public MidiClip Scaled(double factor) =>
+        new(Events.Select(e => e with { At = (long)Math.Round(e.At * factor) }), (long)Math.Round(Shift * factor)) { Mute = Mute, Solo = Solo };
+
     public MidiClip Copy(long shiftBy) => new(Events, Shift + shiftBy) { Mute = Mute, Solo = Solo };
 
     public MidiClip Quantize(long grid, double strength = 1.0)
