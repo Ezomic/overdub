@@ -14,6 +14,7 @@ public sealed class Session : IDisposable
     {
         Directory = directory;
         Midi.NoteReceived += HandleNote;
+        Midi.ControlReceived += HandleControl;
     }
 
     public string Directory { get; private set; }
@@ -237,10 +238,33 @@ public sealed class Session : IDisposable
                 return;
             }
 
-            var at = Math.Max(0, Engine.Position - Engine.OutputLatencySamples - Engine.ManualOffsetSamples);
-            _midiBuffer.Add(new MidiEvent(at, note, velocity));
+            _midiBuffer.Add(new MidiEvent(MidiTime(), note, velocity));
         }
     }
+
+    public void HandleControl(MidiKind kind, int value)
+    {
+        if (kind == MidiKind.Sustain)
+        {
+            Engine.Synth.SustainPedal(value >= 64);
+        }
+        else if (kind == MidiKind.PitchBend)
+        {
+            Engine.Synth.PitchBend(value);
+        }
+
+        lock (_midiLock)
+        {
+            if (_midiBuffer is null || Engine.IsCountingIn)
+            {
+                return;
+            }
+
+            _midiBuffer.Add(new MidiEvent(MidiTime(), 0, 0, kind, value));
+        }
+    }
+
+    private long MidiTime() => Math.Max(0, Engine.Position - Engine.OutputLatencySamples - Engine.ManualOffsetSamples);
 
     private void FinishMidiRecording()
     {
@@ -260,20 +284,39 @@ public sealed class Session : IDisposable
         }
 
         var held = new HashSet<byte>();
+        var sustain = 0;
+        var bend = 0;
         foreach (var e in events)
         {
-            if (e.Velocity > 0)
+            switch (e.Kind)
             {
-                held.Add(e.Note);
-            }
-            else
-            {
-                held.Remove(e.Note);
+                case MidiKind.Sustain:
+                    sustain = e.Value;
+                    break;
+                case MidiKind.PitchBend:
+                    bend = e.Value;
+                    break;
+                case MidiKind.Note when e.Velocity > 0:
+                    held.Add(e.Note);
+                    break;
+                default:
+                    held.Remove(e.Note);
+                    break;
             }
         }
 
-        var end = Engine.Position;
-        events.AddRange(held.Select(note => new MidiEvent(Math.Max(end, events[^1].At), note, 0)));
+        var end = Math.Max(Engine.Position, events[^1].At);
+        events.AddRange(held.Select(note => new MidiEvent(end, note, 0)));
+        if (sustain >= 64)
+        {
+            events.Add(new MidiEvent(end, 0, 0, MidiKind.Sustain, 0));
+        }
+
+        if (bend != 0)
+        {
+            events.Add(new MidiEvent(end, 0, 0, MidiKind.PitchBend, 0));
+        }
+
         track.AddMidiClip(new MidiClip(events));
     }
 
@@ -288,7 +331,7 @@ public sealed class Session : IDisposable
             t.Solo,
             t.Gain,
             t.Clips.Select(c => new ClipData(System.IO.Path.GetRelativePath(Directory, c.Path), c.StartSample, c.Playback.Offset, c.Length)).ToList(),
-            t.MidiClips.Select(m => new MidiClipData(m.Events.Select(e => new MidiEventData(e.At + m.Shift, e.Note, e.Velocity)).ToList())).ToList(),
+            t.MidiClips.Select(m => new MidiClipData(m.Events.Select(e => new MidiEventData(e.At + m.Shift, e.Note, e.Velocity, (int)e.Kind, e.Value)).ToList())).ToList(),
             t.Pan,
             t.Input,
             t.IsMidi,
@@ -326,7 +369,7 @@ public sealed class Session : IDisposable
 
             foreach (var midi in d.MidiClips ?? [])
             {
-                track.AddMidiClip(new MidiClip(midi.Events.Select(e => new MidiEvent(e.At, (byte)e.Note, (byte)e.Velocity))));
+                track.AddMidiClip(new MidiClip(midi.Events.Select(e => new MidiEvent(e.At, (byte)e.Note, (byte)e.Velocity, (MidiKind)e.Kind, e.Value))));
             }
 
             loaded.Add(track);

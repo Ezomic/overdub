@@ -7,6 +7,7 @@ public sealed class MidiInput : IDisposable
     private MidiIn? _device;
 
     public event Action<byte, byte>? NoteReceived;
+    public event Action<MidiKind, int>? ControlReceived;
 
     public bool IsOpen => _device is not null;
     public string? DeviceName { get; private set; }
@@ -45,6 +46,12 @@ public sealed class MidiInput : IDisposable
         {
             case NoteOnEvent on:
                 NoteReceived?.Invoke((byte)on.NoteNumber, (byte)on.Velocity);
+                break;
+            case ControlChangeEvent { Controller: MidiController.Sustain } sustain:
+                ControlReceived?.Invoke(MidiKind.Sustain, sustain.ControllerValue);
+                break;
+            case PitchWheelChangeEvent wheel:
+                ControlReceived?.Invoke(MidiKind.PitchBend, wheel.Pitch - 8192);
                 break;
             case NoteEvent { CommandCode: MidiCommandCode.NoteOff } off:
                 NoteReceived?.Invoke((byte)off.NoteNumber, 0);
