@@ -544,7 +544,83 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     private long PixelsToSamplesClamped(double pixels) => Math.Max(0, PixelsToSamples(pixels));
 
-    public int RowAt(double y) => (int)Math.Floor((y - 26) / 124);
+    public int RowAt(double y)
+    {
+        var top = 26.0;
+        for (var i = 0; i < Tracks.Count; i++)
+        {
+            top += Tracks[i].RowHeight;
+            if (y < top)
+            {
+                return i;
+            }
+        }
+
+        return Tracks.Count;
+    }
+
+    public (TrackViewModel Track, int Lane, double RowTop)? StripAt(double y)
+    {
+        var top = 26.0;
+        foreach (var track in Tracks)
+        {
+            if (y >= top && y < top + track.RowHeight)
+            {
+                if (!track.IsMultiLane)
+                {
+                    return null;
+                }
+
+                var offset = y - top;
+                for (var lane = 0; lane < track.LaneCount; lane++)
+                {
+                    var rowTop = TrackViewModel.RowTop(track.LaneCount, lane);
+                    if (offset >= rowTop && offset < rowTop + 12)
+                    {
+                        return (track, lane, rowTop);
+                    }
+                }
+
+                return null;
+            }
+
+            top += track.RowHeight;
+        }
+
+        return null;
+    }
+
+    public void CompTake(TrackViewModel track, int lane, double fromPixel, double toPixel)
+    {
+        if (IsRecording || _session.Engine.SampleRate == 0)
+        {
+            return;
+        }
+
+        var takes = track.Model.Clips.Where(c => c.Lane == lane).ToList();
+        if (takes.Count == 0)
+        {
+            return;
+        }
+
+        long start;
+        long end;
+        if (Math.Abs(toPixel - fromPixel) < 4)
+        {
+            start = takes.Min(c => c.StartSample);
+            end = takes.Max(c => c.EndSample);
+        }
+        else
+        {
+            start = SnapSamples(PixelsToSamplesClamped(Math.Min(fromPixel, toPixel)));
+            end = SnapSamples(PixelsToSamplesClamped(Math.Max(fromPixel, toPixel)));
+        }
+
+        if (end > start)
+        {
+            _session.CompTake(track.Model, lane, start, end);
+        }
+    }
 
     public void CommitClipMove(ClipViewModel vm, double leftPixels, int row)
     {

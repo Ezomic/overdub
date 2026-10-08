@@ -102,7 +102,7 @@ public sealed class Session : IDisposable
                     playback = new PlaybackTrack(trimmed, start);
                 }
 
-                track.AddClip(new Clip(path, playback));
+                AddTake(track, new Clip(path, playback));
                 continue;
             }
 
@@ -164,6 +164,29 @@ public sealed class Session : IDisposable
         Engine.Synth.SetPreset(keys?.Preset);
     }
 
+    private static void AddTake(Track track, Clip clip)
+    {
+        clip.Lane = track.Clips
+            .Where(c => c.StartSample < clip.EndSample && clip.StartSample < c.EndSample)
+            .Select(c => c.Lane + 1)
+            .DefaultIfEmpty(0)
+            .Max();
+        track.AddClip(clip);
+    }
+
+    public void CompTake(Track track, int lane, long start, long end)
+    {
+        var before = track.Comp.ToList();
+        Edit(
+            "Comp take",
+            () => track.SetComp(lane, start, end),
+            () =>
+            {
+                track.Comp.Clear();
+                track.Comp.AddRange(before);
+            });
+    }
+
     private void WriteWav(string path, float[] samples, int from, int length)
     {
         using var writer = new NAudio.Wave.WaveFileWriter(path, NAudio.Wave.WaveFormat.CreateIeeeFloatWaveFormat(Engine.SampleRate, 1));
@@ -193,7 +216,7 @@ public sealed class Session : IDisposable
             var startSample = i == 0 ? firstStart : Engine.LoopStart;
             var slice = new float[length];
             Array.Copy(samples, from, slice, 0, length);
-            track.AddClip(new Clip(passPath, new PlaybackTrack(slice, startSample)));
+            AddTake(track, new Clip(passPath, new PlaybackTrack(slice, startSample)));
         }
 
         File.Delete(path);
@@ -334,7 +357,7 @@ public sealed class Session : IDisposable
                 track.PlaybackFx.Configure(rate);
             }
 
-            strips.Add(new ChannelStrip(track.Clips.Select(c => c.Playback).ToArray(), track.Effects, track.PlaybackFx));
+            strips.Add(new ChannelStrip(track.EffectiveClips(), track.Effects, track.PlaybackFx));
         }
 
         Engine.SetChannels(strips);
@@ -465,7 +488,7 @@ public sealed class Session : IDisposable
             t.Mute,
             t.Solo,
             t.Gain,
-            t.Clips.Select(c => new ClipData(System.IO.Path.GetRelativePath(Directory, c.Path), c.StartSample, c.Playback.Offset, c.Length)).ToList(),
+            t.Clips.Select(c => new ClipData(System.IO.Path.GetRelativePath(Directory, c.Path), c.StartSample, c.Playback.Offset, c.Length, c.Lane)).ToList(),
             t.MidiClips.Select(m => new MidiClipData(m.Events.Select(e => new MidiEventData(e.At + m.Shift, e.Note, e.Velocity, (int)e.Kind, e.Value)).ToList())).ToList(),
             t.Pan,
             t.Input,
@@ -473,7 +496,8 @@ public sealed class Session : IDisposable
             t.ColorIndex,
             t.Preset,
             t.IsBacking ? true : null,
-            t.Effects.Effects.ToDictionary(e => e.Name, e => new EffectData(e.Enabled, (double[])e.Values.Clone())))).ToList();
+            t.Effects.Effects.ToDictionary(e => e.Name, e => new EffectData(e.Enabled, (double[])e.Values.Clone())),
+            t.Comp.Select(c => new CompData(c.Start, c.End, c.Lane)).ToList())).ToList();
         ProjectFile.Write(ProjectPath, new ProjectData(1, Engine.SampleRate, Engine.Bpm, tracks, Engine.BeatsPerBar, Engine.BeatUnit));
         RecentProjects.Add(ProjectPath);
     }
@@ -514,7 +538,12 @@ public sealed class Session : IDisposable
                     playback.Length = Math.Clamp(length, 0, playback.Samples.Length - playback.Offset);
                 }
 
-                track.AddClip(new Clip(path, playback));
+                track.AddClip(new Clip(path, playback) { Lane = c.Lane ?? 0 });
+            }
+
+            foreach (var segment in d.Comp ?? [])
+            {
+                track.Comp.Add(new CompSegment(segment.Start, segment.End, segment.Lane));
             }
 
             foreach (var midi in d.MidiClips ?? [])
@@ -554,11 +583,11 @@ public sealed class Session : IDisposable
                 unique = $"{name}-{n}";
             }
 
-            var audio = track.Clips.Select(c => new PlaybackTrack(c.Playback.Samples, c.Playback.StartSample)
+            var audio = track.EffectiveClips().Select(c => new PlaybackTrack(c.Samples, c.StartSample)
             {
-                Right = c.Playback.Right,
-                Offset = c.Playback.Offset,
-                Length = c.Playback.Length,
+                Right = c.Right,
+                Offset = c.Offset,
+                Length = c.Length,
                 Gain = track.Gain,
                 Pan = track.Pan,
             }).ToList();
@@ -588,7 +617,7 @@ public sealed class Session : IDisposable
         try
         {
             Mixer.Export(
-                Tracks.Where(t => !t.IsMidi).Select(t => new ChannelStrip(t.Clips.Select(c => c.Playback).ToArray(), t.Effects, t.Effects.CloneForProcessing(Engine.SampleRate))).ToList(),
+                Tracks.Where(t => !t.IsMidi).Select(t => new ChannelStrip(t.EffectiveClips(), t.Effects, t.Effects.CloneForProcessing(Engine.SampleRate))).ToList(),
                 Tracks.SelectMany(t => t.MidiClips).ToList(),
                 Engine.SampleRate,
                 wavPath,
