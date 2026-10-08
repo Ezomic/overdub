@@ -152,7 +152,7 @@ public partial class KeyboardWindow : Window
         }
 
         _viewModel.PlayNote((byte)note, 100);
-        await Task.Delay(250);
+        await Task.Delay(900);
         _viewModel.PlayNote((byte)note, 0);
     }
 
