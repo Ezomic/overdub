@@ -211,7 +211,7 @@ public sealed class TrackViewModel(Track model, Brush color, Action onMixChanged
 
         onRemove(this);
     }
-    public bool HasInput => !Model.IsBacking && !Model.IsDrums;
+    public bool HasInput => !Model.IsBacking && !Model.IsDrums && Model.Machine is null;
     public int LaneCount => Model.LaneCount;
     public bool IsMultiLane => LaneCount > 1;
     public double RowHeight => IsMultiLane ? Math.Max(124, 10 + (LaneCount * 58)) : 124;
@@ -221,7 +221,8 @@ public sealed class TrackViewModel(Track model, Brush color, Action onMixChanged
     public static double RowTop(int lanes, int lane) => 6 + ((lanes - 1 - lane) * 58);
     public bool IsMidi => Model.IsMidi;
     public bool IsDrums => Model.IsDrums;
-    public bool IsKeys => Model.IsMidi && !Model.IsDrums;
+    public bool IsKeys => Model.IsKeys;
+    public bool IsMachine => Model.Machine is not null;
     public bool IsAudio => !Model.IsMidi;
     public string InputText => Model.IsBacking ? "Imported audio" : Model.Input is { } input ? $"Input {input + 1}, instrument" : "MIDI, built-in synth";
     public ObservableCollection<MidiClipViewModel> MidiClips { get; } = [];

@@ -133,13 +133,13 @@ public static class Mixer
         }
     }
 
-    public static void Export(IReadOnlyList<ChannelStrip> channels, IReadOnlyList<MidiClip> midi, int sampleRate, string path, float synthGain = 1f, float synthPan = 0f, long minLength = 0, string? preset = null, Vst3.Vst3Plugin? instrument = null, DrumMix? drums = null)
+    public static void Export(IReadOnlyList<ChannelStrip> channels, IReadOnlyList<MidiClip> midi, int sampleRate, string path, float synthGain = 1f, float synthPan = 0f, long minLength = 0, string? preset = null, Vst3.Vst3Plugin? instrument = null, DrumMix? drums = null, IReadOnlyList<MachineMix>? machines = null)
     {
         var tracks = channels.SelectMany(c => c.Clips).ToList();
         var tail = sampleRate;
         var length = Math.Max(
             tracks.Select(t => t.EndSample).DefaultIfEmpty(0).Max(),
-            midi.Concat(drums?.Clips ?? []).Where(c => c.Events.Length > 0).Select(c => c.EndSample + tail).DefaultIfEmpty(0).Max());
+            midi.Concat(drums?.Clips ?? []).Concat((machines ?? []).SelectMany(m => m.Clips)).Where(c => c.Events.Length > 0).Select(c => c.EndSample + tail).DefaultIfEmpty(0).Max());
         length = Math.Max(length, minLength);
         if (length == 0)
         {
@@ -156,7 +156,17 @@ public static class Mixer
         drumKit.Configure(sampleRate);
         var drumSequencer = new MidiSequencer();
         var drumClips = drums?.Clips ?? [];
-        var anySolo = AnySolo(tracks, midi) || AnySolo([], drumClips);
+        var machineList = machines ?? [];
+        var machineSynths = machineList.Select(m =>
+        {
+            var synth = new Synth();
+            synth.Configure(sampleRate);
+            synth.SetPreset(m.Preset);
+            return synth;
+        }).ToList();
+        var machineSequencers = machineList.Select(_ => new MidiSequencer()).ToList();
+        var machineBuf = new float[block];
+        var anySolo = AnySolo(tracks, midi) || AnySolo([], drumClips) || machineList.Any(m => AnySolo([], m.Clips));
         var scratch = new MixScratch();
         var left = new float[block];
         var right = new float[block];
@@ -178,6 +188,13 @@ public static class Mixer
             {
                 drumSequencer.Render(drumKit, drumClips, anySolo, position, drumBuf, frames);
                 AddPanned(drumBuf, drums.Gain, drums.Pan, left, right, frames);
+            }
+
+            for (var m = 0; m < machineList.Count; m++)
+            {
+                Array.Clear(machineBuf, 0, block);
+                machineSequencers[m].Render(machineSynths[m], machineList[m].Clips, anySolo, position, machineBuf, frames);
+                AddPanned(machineBuf, machineList[m].Gain, machineList[m].Pan, left, right, frames);
             }
 
             for (var i = 0; i < frames; i++)

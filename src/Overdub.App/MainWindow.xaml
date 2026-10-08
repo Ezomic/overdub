@@ -111,6 +111,12 @@
                                         <Button Style="{StaticResource TransportButton}" Content="Drum machine" Click="OnDrumsClick"
                                                 Width="Auto" Height="22" FontSize="11" Padding="8,0" Margin="0" ToolTip="Edit drum patterns and place them on the timeline" Focusable="False" />
                                     </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,2,0,6" Visibility="{Binding IsMachine, Converter={StaticResource BoolToVis}}">
+                                        <Button Style="{StaticResource TransportButton}" Command="{Binding CyclePreset}" Content="{Binding Preset}"
+                                                Width="Auto" Height="22" FontSize="11" Padding="8,0" Margin="0,0,6,0" ToolTip="Click to change the sound" Focusable="False" />
+                                        <Button Style="{StaticResource TransportButton}" Content="Chords" Click="OnChordsClick"
+                                                Width="Auto" Height="22" FontSize="11" Padding="8,0" Margin="0" ToolTip="Edit chord patterns and place them on the timeline" Focusable="False" />
+                                    </StackPanel>
                                     <StackPanel Orientation="Horizontal" Margin="0,2,0,6" Visibility="{Binding IsKeys, Converter={StaticResource BoolToVis}}">
                                         <Button Style="{StaticResource TransportButton}" Command="{Binding CycleMidi}" Content="{Binding MidiLabel}"
                                                 Width="Auto" Height="22" FontSize="11" Padding="8,0" Margin="0,0,6,0" ToolTip="Click to switch MIDI input" Focusable="False" />

@@ -50,6 +50,8 @@ public sealed class AsioEngine : IDisposable
 
     public Synth Synth { get; } = new();
     public DrumKit Drums { get; } = new();
+    public MachineLane[] Machines { get; } = [new MachineLane(), new MachineLane()];
+    private readonly float[][] _machineBufs = [new float[4096], new float[4096]];
     public float DrumGain { get; set; } = 1f;
     public float DrumPan { get; set; }
     private MidiClip[] _drumMidi = [];
@@ -99,6 +101,10 @@ public sealed class AsioEngine : IDisposable
         SampleRate = sampleRate;
         Synth.Configure(sampleRate);
         Drums.Configure(sampleRate);
+        foreach (var lane in Machines)
+        {
+            lane.Synth.Configure(sampleRate);
+        }
         BufferSamples = _asio.FramesPerBuffer;
         OutputLatencySamples = _asio.PlaybackLatency;
         MeasuredRoundTripSamples = LatencyStore.Load(LatencyKey);
@@ -194,6 +200,8 @@ public sealed class AsioEngine : IDisposable
 
     public void SetMidiClips(IEnumerable<MidiClip> clips) => _midi = clips.ToArray();
 
+    public void SetMachineClips(MachineRole role, IEnumerable<MidiClip> clips) => Machines[(int)role].Clips = clips.ToArray();
+
     public void SetDrumClips(IEnumerable<MidiClip> clips) => _drumMidi = clips.ToArray();
 
     public void Play() => _playing = true;
@@ -273,6 +281,10 @@ public sealed class AsioEngine : IDisposable
         _countingIn = false;
         Synth.AllNotesOff();
         Drums.Silence();
+        foreach (var lane in Machines)
+        {
+            lane.Synth.AllNotesOff();
+        }
     }
 
     public void Seek(long sample)
@@ -280,6 +292,10 @@ public sealed class AsioEngine : IDisposable
         Volatile.Write(ref _position, (long)(Math.Max(0, sample) / Speed));
         Synth.AllNotesOff();
         Drums.Silence();
+        foreach (var lane in Machines)
+        {
+            lane.Synth.AllNotesOff();
+        }
     }
 
     public void StopTransport()
@@ -441,6 +457,8 @@ public sealed class AsioEngine : IDisposable
         Array.Clear(_mixR, 0, frames);
         Array.Clear(_synthBuf, 0, frames);
         Array.Clear(_drumBuf, 0, frames);
+        Array.Clear(_machineBufs[0], 0, frames);
+        Array.Clear(_machineBufs[1], 0, frames);
         var midiPlayed = false;
         if (_countingIn)
         {
@@ -467,10 +485,18 @@ public sealed class AsioEngine : IDisposable
         {
             Synth.Render(_synthBuf, 0, frames);
             Drums.Render(_drumBuf, 0, frames);
+            for (var m = 0; m < Machines.Length; m++)
+            {
+                Machines[m].Synth.Render(_machineBufs[m], 0, frames);
+            }
         }
 
         Mixer.AddPanned(_synthBuf, SynthGain, SynthPan, _mixL, _mixR, frames);
         Mixer.AddPanned(_drumBuf, DrumGain, DrumPan, _mixL, _mixR, frames);
+        for (var m = 0; m < Machines.Length; m++)
+        {
+            Mixer.AddPanned(_machineBufs[m], Machines[m].Gain, Machines[m].Pan, _mixL, _mixR, frames);
+        }
         for (var i = 0; i < frames; i++)
         {
             _mixL[i] = Mixer.SoftLimit(_mixL[i] + _monitorL[i]);
@@ -506,6 +532,8 @@ public sealed class AsioEngine : IDisposable
         _mixR = new float[frames];
         _synthBuf = new float[frames];
         _drumBuf = new float[frames];
+        _machineBufs[0] = new float[frames];
+        _machineBufs[1] = new float[frames];
         _outInt = new int[frames];
     }
 
@@ -517,7 +545,7 @@ public sealed class AsioEngine : IDisposable
         var channels = _channels;
         var midi = _midi;
         var drumMidi = _drumMidi;
-        var anySolo = Mixer.AnySolo(tracks, midi) || Mixer.AnySolo([], drumMidi);
+        var anySolo = Mixer.AnySolo(tracks, midi) || Mixer.AnySolo([], drumMidi) || Machines.Any(l => Mixer.AnySolo([], l.Clips));
         var speed = Speed;
         var loopStart = (long)(LoopStart / speed);
         var loopEnd = (long)(LoopEnd / speed);
@@ -546,6 +574,11 @@ public sealed class AsioEngine : IDisposable
             Mixer.MixChannels(channels, anySolo, position, _mixL, _mixR, chunk, done, _fxScratch);
             _sequencer.Render(Synth, midi, anySolo, position, _synthBuf, chunk, done);
             _drumSequencer.Render(Drums, drumMidi, anySolo, position, _drumBuf, chunk, done);
+            for (var m = 0; m < Machines.Length; m++)
+            {
+                Machines[m].Sequencer.Render(Machines[m].Synth, Machines[m].Clips, anySolo, position, _machineBufs[m], chunk, done);
+            }
+
             if (_metronomeEnabled)
             {
                 MixClick(position, chunk, done);
