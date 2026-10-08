@@ -44,6 +44,12 @@ public partial class MainWindow
         }
 
         _viewModel.Select(model);
+        if (e.ClickCount == 2 && element.DataContext is MidiClipViewModel)
+        {
+            OpenPianoRoll();
+            return;
+        }
+
         var local = e.GetPosition(element).X;
         _dragMode = element.DataContext is ClipViewModel && local <= EdgeGrab ? DragMode.TrimLeft
             : element.DataContext is ClipViewModel && local >= width - EdgeGrab ? DragMode.TrimRight

@@ -287,6 +287,29 @@ public sealed class Session : IDisposable
         return track;
     }
 
+    public void ReplaceMidiClip(Track track, int index, MidiClip replacement, string name)
+    {
+        var original = track.MidiClips[index];
+        if (replacement.Events.Length == 0)
+        {
+            Edit(name, () => track.MidiClips.RemoveAt(index), () => track.InsertMidiClip(index, original));
+            return;
+        }
+
+        Edit(
+            name,
+            () =>
+            {
+                track.MidiClips.RemoveAt(index);
+                track.InsertMidiClip(index, replacement);
+            },
+            () =>
+            {
+                track.MidiClips.RemoveAt(index);
+                track.InsertMidiClip(index, original);
+            });
+    }
+
     public Track AddTrackUndoable(string name, int? input)
     {
         var track = new Track(name, input) { ColorIndex = _created++ };

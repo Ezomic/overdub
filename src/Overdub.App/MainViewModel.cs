@@ -450,6 +450,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     private void OnHistoryChanged(EditChange change)
     {
+        EditHistoryChanged?.Invoke();
         if (change.Kind == EditKind.Mix)
         {
             ScheduleSave();
@@ -843,6 +844,43 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 return new AnalysisReport("Nothing to analyze", null, null, "Record or import something first, or click a clip.");
         }
     }
+
+    public event Action? EditHistoryChanged;
+
+    public void EditMidiNotes(Track track, int index, IEnumerable<MidiNoteData> notes)
+    {
+        if (IsRecording)
+        {
+            return;
+        }
+
+        var original = track.MidiClips[index];
+        var replacement = original.WithNotes(notes);
+        if (ReferenceEquals(_selection, original))
+        {
+            _selection = replacement;
+        }
+
+        _session.ReplaceMidiClip(track, index, replacement, "Edit notes");
+    }
+
+    public (TrackViewModel Track, MidiClip Clip)? FindMidiClipForEditing()
+    {
+        var position = _session.Engine.Position;
+        var clips = Tracks.SelectMany(t => t.Model.MidiClips.Select(c => (Track: t, Clip: c))).ToList();
+        if (clips.Count == 0)
+        {
+            return null;
+        }
+
+        return clips.FirstOrDefault(c => ReferenceEquals(c.Clip, _selection)) is { Clip: not null } selected && selected.Track is not null
+            ? selected
+            : clips.FirstOrDefault(c => position >= c.Clip.StartSample && position < c.Clip.EndSample) is { Clip: not null } under && under.Track is not null
+                ? under
+                : clips[0];
+    }
+
+    public void ShowMessage(string text) => Message = text;
 
     public void DeleteSelection()
     {

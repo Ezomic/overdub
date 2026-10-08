@@ -125,6 +125,17 @@ public partial class MainWindow : Window
 
     private void OnAnalyzeClick(object sender, RoutedEventArgs e) => new AnalysisWindow(_viewModel) { Owner = this }.Show();
 
+    private void OpenPianoRoll()
+    {
+        if (_viewModel.FindMidiClipForEditing() is not { } target)
+        {
+            _viewModel.ShowMessage("Record or add some MIDI notes first, then select the clip.");
+            return;
+        }
+
+        new PianoRollWindow(_viewModel, target.Track, target.Clip) { Owner = this }.Show();
+    }
+
     private void OnEffectsClick(object sender, RoutedEventArgs e)
     {
         if (sender is FrameworkElement { DataContext: TrackViewModel track })
@@ -150,6 +161,7 @@ public partial class MainWindow : Window
         var menu = MenuFor(sender);
         menu.Items.Add(Item("Tuner", () => OnTunerClick(ToolsButton, new RoutedEventArgs())));
         menu.Items.Add(Item("On-screen keyboard", () => OnKeyboardClick(ToolsButton, new RoutedEventArgs())));
+        menu.Items.Add(Item("Piano roll", OpenPianoRoll));
         menu.Items.Add(Item("Analyze clip", () => OnAnalyzeClick(ToolsButton, new RoutedEventArgs())));
         menu.Items.Add(Item("Measure latency", () => OnLatencyClick(ToolsButton, new RoutedEventArgs())));
         menu.IsOpen = true;
