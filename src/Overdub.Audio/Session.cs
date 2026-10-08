@@ -385,14 +385,31 @@ public sealed class Session : IDisposable
         return written;
     }
 
-    public void ExportMixdown(string path) =>
-        Mixer.Export(
-            Tracks.SelectMany(t => t.Clips).Select(c => c.Playback).ToList(),
-            Tracks.SelectMany(t => t.MidiClips).ToList(),
-            Engine.SampleRate,
-            path,
-            Engine.SynthGain,
-            Engine.SynthPan);
+    public void ExportMixdown(string path)
+    {
+        var wavPath = AudioEncoder.IsEncoded(path) ? System.IO.Path.GetTempFileName() : path;
+        try
+        {
+            Mixer.Export(
+                Tracks.SelectMany(t => t.Clips).Select(c => c.Playback).ToList(),
+                Tracks.SelectMany(t => t.MidiClips).ToList(),
+                Engine.SampleRate,
+                wavPath,
+                Engine.SynthGain,
+                Engine.SynthPan);
+            if (wavPath != path)
+            {
+                AudioEncoder.Convert(wavPath, path);
+            }
+        }
+        finally
+        {
+            if (wavPath != path)
+            {
+                File.Delete(wavPath);
+            }
+        }
+    }
 
     public void Dispose()
     {
