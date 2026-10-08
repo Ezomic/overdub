@@ -27,6 +27,10 @@ public sealed class AsioEngine : IDisposable
     public int SampleRate { get; private set; }
     public int InputCount { get; private set; }
     public int BufferSamples { get; private set; }
+    public int OutputLatencySamples { get; private set; }
+    public int ManualOffsetSamples { get; set; }
+
+    public int CompensationSamples => OutputLatencySamples + BufferSamples + ManualOffsetSamples;
 
     public bool SampleTypeSupported { get; private set; } = true;
 
@@ -53,6 +57,7 @@ public sealed class AsioEngine : IDisposable
         DriverName = driverName;
         SampleRate = sampleRate;
         BufferSamples = _asio.FramesPerBuffer;
+        OutputLatencySamples = _asio.PlaybackLatency;
     }
 
     public void Start() => (_asio ?? throw new InvalidOperationException("Open a driver first.")).Play();
@@ -165,6 +170,7 @@ public sealed class AsioEngine : IDisposable
         SampleRate = 0;
         InputCount = 0;
         BufferSamples = 0;
+        OutputLatencySamples = 0;
     }
 
     public void Dispose() => Close();
