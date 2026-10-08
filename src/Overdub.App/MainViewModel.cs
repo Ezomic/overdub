@@ -349,6 +349,57 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _session.Dispose();
     }
 
+    private string _driver = "";
+
+    private void UpdateStatus()
+    {
+        var engine = _session.Engine;
+        var kind = engine.MeasuredRoundTripSamples is null ? "estimated" : "measured";
+        Status = $"{_driver}  ·  {engine.SampleRate / 1000.0:0.#} kHz  ·  {engine.BufferSamples} samples  ·  {engine.LatencyMilliseconds:0.0} ms  ·  latency {kind} {engine.CompensationSamples} samples";
+    }
+
+    public int AudioInputCount => Math.Max(1, _session.Engine.InputCount);
+
+    public string LatencySummary
+    {
+        get
+        {
+            var engine = _session.Engine;
+            var estimate = engine.EstimatedRoundTripSamples;
+            return engine.MeasuredRoundTripSamples is { } measured
+                ? $"Measured {measured} samples ({measured * 1000.0 / engine.SampleRate:0.0} ms). The estimate was {estimate}."
+                : $"Using the estimate: {estimate} samples ({estimate * 1000.0 / Math.Max(1, engine.SampleRate):0.0} ms).";
+        }
+    }
+
+    public async Task<string> MeasureLatencyAsync(int input)
+    {
+        var engine = _session.Engine;
+        if (engine.SampleRate == 0)
+        {
+            return "No audio device.";
+        }
+
+        try
+        {
+            var result = await engine.MeasureLatencyAsync(input);
+            UpdateStatus();
+            return result is null
+                ? $"No signal heard on input {input + 1}. Check the cable from an output to that input and raise the input gain."
+                : LatencySummary;
+        }
+        catch (Exception ex)
+        {
+            return ex.Message;
+        }
+    }
+
+    public void ResetLatency()
+    {
+        _session.Engine.ClearMeasuredLatency();
+        UpdateStatus();
+    }
+
     private void OpenDevice()
     {
         var engine = _session.Engine;
@@ -358,7 +409,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 ?? throw new InvalidOperationException("No Komplete Audio ASIO driver found.");
             engine.Open(driver);
             engine.Start();
-            Status = $"{driver}  ·  {engine.SampleRate / 1000.0:0.#} kHz  ·  {engine.BufferSamples} samples  ·  {engine.LatencyMilliseconds:0.0} ms  ·  compensating {engine.CompensationSamples} samples";
+            _driver = driver;
+            UpdateStatus();
         }
         catch (Exception ex)
         {

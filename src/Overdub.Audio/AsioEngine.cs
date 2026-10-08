@@ -24,6 +24,7 @@ public sealed class AsioEngine : IDisposable
     private readonly MidiSequencer _sequencer = new();
     private long _position;
     private volatile bool _playing;
+    private LatencyProbe? _probe;
     private volatile bool _countingIn;
     private long _countInPos;
     private long _countInEnd;
@@ -47,7 +48,13 @@ public sealed class AsioEngine : IDisposable
     public int OutputLatencySamples { get; private set; }
     public int ManualOffsetSamples { get; set; }
 
-    public int CompensationSamples => OutputLatencySamples + BufferSamples + ManualOffsetSamples;
+    public int? MeasuredRoundTripSamples { get; private set; }
+
+    public int EstimatedRoundTripSamples => OutputLatencySamples + BufferSamples;
+
+    public int CompensationSamples => (MeasuredRoundTripSamples ?? EstimatedRoundTripSamples) + ManualOffsetSamples;
+
+    private string LatencyKey => $"{DriverName}|{SampleRate}|{BufferSamples}";
 
     public bool SampleTypeSupported { get; private set; } = true;
 
@@ -76,6 +83,7 @@ public sealed class AsioEngine : IDisposable
         Synth.Configure(sampleRate);
         BufferSamples = _asio.FramesPerBuffer;
         OutputLatencySamples = _asio.PlaybackLatency;
+        MeasuredRoundTripSamples = LatencyStore.Load(LatencyKey);
     }
 
     public void Start() => (_asio ?? throw new InvalidOperationException("Open a driver first.")).Play();
@@ -142,6 +150,42 @@ public sealed class AsioEngine : IDisposable
         _countInLead = _countInEnd - length;
         _countInPos = 0;
         _countingIn = true;
+    }
+
+    public async Task<int?> MeasureLatencyAsync(int input, CancellationToken cancellation = default)
+    {
+        if (_asio is null)
+        {
+            throw new InvalidOperationException("Open a driver first.");
+        }
+
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(input, InputCount);
+        var wasMonitoring = _monitoring;
+        _monitoring = false;
+        var probe = new LatencyProbe(SampleRate, input);
+        Volatile.Write(ref _probe, probe);
+        try
+        {
+            var result = await probe.Completion.WaitAsync(cancellation);
+            if (result is { } samples)
+            {
+                MeasuredRoundTripSamples = samples;
+                LatencyStore.Save(LatencyKey, samples);
+            }
+
+            return result;
+        }
+        finally
+        {
+            Volatile.Write(ref _probe, null);
+            _monitoring = wasMonitoring;
+        }
+    }
+
+    public void ClearMeasuredLatency()
+    {
+        MeasuredRoundTripSamples = null;
+        LatencyStore.Remove(LatencyKey);
     }
 
     public void Pause()
@@ -244,6 +288,7 @@ public sealed class AsioEngine : IDisposable
         InputCount = 0;
         BufferSamples = 0;
         OutputLatencySamples = 0;
+        MeasuredRoundTripSamples = null;
     }
 
     public void Dispose() => Close();
@@ -297,6 +342,9 @@ public sealed class AsioEngine : IDisposable
                 WriteRecorders(0, frames, Position);
             }
         }
+
+        var probe = Volatile.Read(ref _probe);
+        probe?.Process(_inputBufs[probe.Input], _mixL, _mixR, frames);
 
         if (!midiPlayed)
         {
