@@ -14,6 +14,8 @@ public sealed class AsioEngine : IDisposable
     private float[] _mix = new float[4096];
     private int[] _outInt = new int[4096];
     private PlaybackTrack[] _tracks = [];
+    private MidiClip[] _midi = [];
+    private readonly MidiSequencer _sequencer = new();
     private long _position;
     private volatile bool _playing;
     private volatile bool _metronomeEnabled;
@@ -97,6 +99,8 @@ public sealed class AsioEngine : IDisposable
 
     public void SetTracks(IEnumerable<PlaybackTrack> tracks) => _tracks = tracks.ToArray();
 
+    public void SetMidiClips(IEnumerable<MidiClip> clips) => _midi = clips.ToArray();
+
     public void Play() => _playing = true;
 
     public void Pause()
@@ -105,7 +109,11 @@ public sealed class AsioEngine : IDisposable
         Synth.AllNotesOff();
     }
 
-    public void Seek(long sample) => Volatile.Write(ref _position, Math.Max(0, sample));
+    public void Seek(long sample)
+    {
+        Volatile.Write(ref _position, Math.Max(0, sample));
+        Synth.AllNotesOff();
+    }
 
     public void StopTransport()
     {
@@ -211,10 +219,16 @@ public sealed class AsioEngine : IDisposable
         }
 
         Array.Clear(_mix, 0, frames);
+        var midiPlayed = false;
         if (_playing)
         {
             var position = Volatile.Read(ref _position);
-            MixTracks(position, frames);
+            var tracks = _tracks;
+            var midi = _midi;
+            var anySolo = Mixer.AnySolo(tracks, midi);
+            Mixer.Mix(tracks, anySolo, position, _mix, frames);
+            _sequencer.Render(Synth, midi, anySolo, position, _mix, frames);
+            midiPlayed = true;
             if (_metronomeEnabled)
             {
                 MixClick(position, frames);
@@ -223,7 +237,10 @@ public sealed class AsioEngine : IDisposable
             Interlocked.Add(ref _position, frames);
         }
 
-        Synth.Render(_mix, 0, frames);
+        if (!midiPlayed)
+        {
+            Synth.Render(_mix, 0, frames);
+        }
         for (var i = 0; i < frames; i++)
         {
             _mix[i] = Mixer.SoftLimit(_mix[i] + _monitor[i]);
@@ -249,8 +266,6 @@ public sealed class AsioEngine : IDisposable
         _mix = new float[frames];
         _outInt = new int[frames];
     }
-
-    private void MixTracks(long position, int frames) => Mixer.Mix(_tracks, position, _mix, frames);
 
     private void MixClick(long position, int frames)
     {
