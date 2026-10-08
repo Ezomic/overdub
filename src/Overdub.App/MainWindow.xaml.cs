@@ -104,6 +104,10 @@ public partial class MainWindow : Window
         }
     }
 
+    private void OnTapClick(object sender, RoutedEventArgs e) => _viewModel.Tap();
+
+    private void OnSignatureClick(object sender, RoutedEventArgs e) => _viewModel.CycleSignature();
+
     private void OnCountInClick(object sender, RoutedEventArgs e) => _viewModel.CycleCountIn();
 
     private void OnSaveClick(object sender, RoutedEventArgs e) => _viewModel.Save();

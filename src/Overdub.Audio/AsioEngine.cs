@@ -92,6 +92,9 @@ public sealed class AsioEngine : IDisposable
     public bool IsCountingIn => _countingIn;
     public int CountInBars { get; set; }
     public int BeatsPerBar { get; set; } = 4;
+    public int BeatUnit { get; set; } = 4;
+
+    public double SamplesPerBeat => SampleRate * 60.0 / Bpm * 4.0 / BeatUnit;
     public long Position => Volatile.Read(ref _position);
     public TimeSpan PositionTime => SampleRate == 0 ? TimeSpan.Zero : TimeSpan.FromSeconds((double)Position / SampleRate);
 
@@ -117,7 +120,7 @@ public sealed class AsioEngine : IDisposable
 
     public void BeginCountIn()
     {
-        var samplesPerBeat = SampleRate * 60.0 / Bpm;
+        var samplesPerBeat = SamplesPerBeat;
         var beats = CountInBars * BeatsPerBar;
         var length = beats * samplesPerBeat;
         var buffer = Math.Max(1, BufferSamples);
@@ -312,7 +315,7 @@ public sealed class AsioEngine : IDisposable
 
     private void RenderCountIn(int frames)
     {
-        var samplesPerBeat = SampleRate * 60.0 / Bpm;
+        var samplesPerBeat = SamplesPerBeat;
         var clickLength = SampleRate / 50;
         for (var i = 0; i < frames; i++)
         {
@@ -351,7 +354,7 @@ public sealed class AsioEngine : IDisposable
 
     private void MixClick(long position, int frames)
     {
-        var samplesPerBeat = SampleRate * 60.0 / Bpm;
+        var samplesPerBeat = SamplesPerBeat;
         var clickLength = SampleRate / 50;
         for (var i = 0; i < frames; i++)
         {
