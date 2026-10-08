@@ -8,21 +8,28 @@ public sealed class Clip
     {
         Path = path;
         Playback = playback;
-        Peaks = ComputePeaks(playback.Samples);
     }
 
     public string Path { get; }
     public PlaybackTrack Playback { get; }
-    public float[] Peaks { get; }
-    public long StartSample => Playback.StartSample;
-    public long Length => Playback.Samples.Length;
 
-    private static float[] ComputePeaks(float[] samples)
+    public long StartSample
     {
-        var peaks = new float[(samples.Length + PeakBlock - 1) / PeakBlock];
-        for (var i = 0; i < samples.Length; i++)
+        get => Playback.StartSample;
+        set => Playback.StartSample = value;
+    }
+
+    public long Length => Playback.Length;
+    public long EndSample => Playback.EndSample;
+
+    public float[] ComputePeaks()
+    {
+        var offset = (int)Playback.Offset;
+        var length = (int)Playback.Length;
+        var peaks = new float[(length + PeakBlock - 1) / PeakBlock];
+        for (var i = 0; i < length; i++)
         {
-            var value = Math.Abs(samples[i]);
+            var value = Math.Abs(Playback.Samples[offset + i]);
             if (value > peaks[i / PeakBlock])
             {
                 peaks[i / PeakBlock] = value;
@@ -31,4 +38,14 @@ public sealed class Clip
 
         return peaks;
     }
+
+    public Clip Copy(long start, long offset, long length) => new(Path, new PlaybackTrack(Playback.Samples, start)
+    {
+        Offset = offset,
+        Length = length,
+        Gain = Playback.Gain,
+        Pan = Playback.Pan,
+        Mute = Playback.Mute,
+        Solo = Playback.Solo,
+    });
 }

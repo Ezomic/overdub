@@ -40,6 +40,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _session.AddTrack("Keys", null);
         Tracks = [];
         RebuildTracks();
+        _session.History.Changed += OnHistoryChanged;
 
         PlayCommand = new RelayCommand(TogglePlay);
         StopCommand = new RelayCommand(Stop);
@@ -408,6 +409,301 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    private object? _selection;
+
+    private void OnHistoryChanged()
+    {
+        RefreshTimeline();
+        _session.Save();
+    }
+
+    public void Select(object? model)
+    {
+        _selection = model;
+        ApplySelection();
+    }
+
+    private void ApplySelection()
+    {
+        foreach (var track in Tracks)
+        {
+            foreach (var clip in track.Clips)
+            {
+                clip.Selected = ReferenceEquals(clip.Model, _selection);
+            }
+
+            foreach (var clip in track.MidiClips)
+            {
+                clip.Selected = ReferenceEquals(clip.Model, _selection);
+            }
+        }
+    }
+
+    private long PixelsToSamplesClamped(double pixels) => Math.Max(0, PixelsToSamples(pixels));
+
+    public int RowAt(double y) => (int)Math.Floor((y - 26) / 124);
+
+    public void CommitClipMove(ClipViewModel vm, double leftPixels, int row)
+    {
+        if (IsRecording)
+        {
+            vm.Reset();
+            return;
+        }
+
+        var clip = vm.Model;
+        var from = vm.Owner.Model;
+        var target = row >= 0 && row < Tracks.Count && !Tracks[row].IsMidi ? Tracks[row].Model : from;
+        var oldStart = clip.StartSample;
+        var newStart = SnapSamples(PixelsToSamplesClamped(leftPixels));
+        if (target == from && newStart == oldStart)
+        {
+            vm.Reset();
+            return;
+        }
+
+        var index = from.Clips.IndexOf(clip);
+        _session.Edit(
+            "Move clip",
+            () =>
+            {
+                if (target != from)
+                {
+                    from.Clips.Remove(clip);
+                    target.AddClip(clip);
+                }
+
+                clip.StartSample = newStart;
+            },
+            () =>
+            {
+                if (target != from)
+                {
+                    target.Clips.Remove(clip);
+                    from.InsertClip(index, clip);
+                }
+
+                clip.StartSample = oldStart;
+            });
+    }
+
+    public void CommitClipTrim(ClipViewModel vm, double leftPixels, double widthPixels)
+    {
+        if (IsRecording)
+        {
+            vm.Reset();
+            return;
+        }
+
+        var playback = vm.Model.Playback;
+        var oldStart = playback.StartSample;
+        var oldOffset = playback.Offset;
+        var oldLength = playback.Length;
+        var earliest = Math.Max(0, oldStart - oldOffset);
+        var latestEnd = oldStart - oldOffset + playback.Samples.Length;
+        var newStart = Math.Clamp(SnapSamples(PixelsToSamplesClamped(leftPixels)), earliest, oldStart + oldLength - 1);
+        var newEnd = Math.Clamp(SnapSamples(PixelsToSamplesClamped(leftPixels + widthPixels)), newStart + 1, latestEnd);
+        var newOffset = oldOffset + (newStart - oldStart);
+        var newLength = newEnd - newStart;
+        if (newStart == oldStart && newLength == oldLength)
+        {
+            vm.Reset();
+            return;
+        }
+
+        _session.Edit(
+            "Trim clip",
+            () =>
+            {
+                playback.Offset = newOffset;
+                playback.StartSample = newStart;
+                playback.Length = newLength;
+            },
+            () =>
+            {
+                playback.Offset = oldOffset;
+                playback.StartSample = oldStart;
+                playback.Length = oldLength;
+            });
+    }
+
+    public void CommitMidiMove(MidiClipViewModel vm, double leftPixels, int row)
+    {
+        if (IsRecording)
+        {
+            vm.Reset();
+            return;
+        }
+
+        var clip = vm.Model;
+        var from = vm.Owner.Model;
+        var target = row >= 0 && row < Tracks.Count && Tracks[row].IsMidi ? Tracks[row].Model : from;
+        var oldShift = clip.Shift;
+        var newShift = oldShift + (SnapSamples(PixelsToSamplesClamped(leftPixels)) - clip.StartSample);
+        if (target == from && newShift == oldShift)
+        {
+            vm.Reset();
+            return;
+        }
+
+        var index = from.MidiClips.IndexOf(clip);
+        _session.Edit(
+            "Move MIDI clip",
+            () =>
+            {
+                if (target != from)
+                {
+                    from.MidiClips.Remove(clip);
+                    target.AddMidiClip(clip);
+                }
+
+                clip.Shift = newShift;
+            },
+            () =>
+            {
+                if (target != from)
+                {
+                    target.MidiClips.Remove(clip);
+                    from.InsertMidiClip(index, clip);
+                }
+
+                clip.Shift = oldShift;
+            });
+    }
+
+    public void SplitAtPlayhead()
+    {
+        if (IsRecording)
+        {
+            return;
+        }
+
+        var position = _session.Engine.Position;
+        foreach (var track in OrderedForSplit())
+        {
+            var audio = track.Model.Clips.FirstOrDefault(c => position > c.StartSample + 100 && position < c.EndSample - 100 && Wanted(c));
+            if (audio is not null)
+            {
+                SplitAudio(track.Model, audio, position);
+                return;
+            }
+
+            var midi = track.Model.MidiClips.FirstOrDefault(c => position > c.StartSample && position < c.EndSample && Wanted(c));
+            if (midi is not null)
+            {
+                SplitMidi(track.Model, midi, position);
+                return;
+            }
+        }
+
+        Message = "Nothing to split. Move the playhead over a clip first.";
+    }
+
+    private bool Wanted(object clip) => _selection is null || ReferenceEquals(_selection, clip);
+
+    private IEnumerable<TrackViewModel> OrderedForSplit() => Tracks;
+
+    private void SplitAudio(Track track, Clip clip, long position)
+    {
+        var playback = clip.Playback;
+        var originalLength = playback.Length;
+        var firstLength = position - playback.StartSample;
+        var right = clip.Copy(position, playback.Offset + firstLength, originalLength - firstLength);
+        var index = track.Clips.IndexOf(clip);
+        _selection = right;
+        _session.Edit(
+            "Split clip",
+            () =>
+            {
+                playback.Length = firstLength;
+                track.InsertClip(index + 1, right);
+            },
+            () =>
+            {
+                track.Clips.Remove(right);
+                playback.Length = originalLength;
+            });
+    }
+
+    private void SplitMidi(Track track, MidiClip clip, long position)
+    {
+        var (left, right) = clip.Split(position);
+        if (left is null || right is null)
+        {
+            Message = "Nothing to split there.";
+            return;
+        }
+
+        var index = track.MidiClips.IndexOf(clip);
+        _selection = right;
+        _session.Edit(
+            "Split MIDI clip",
+            () =>
+            {
+                track.MidiClips.Remove(clip);
+                track.InsertMidiClip(index, left);
+                track.InsertMidiClip(index + 1, right);
+            },
+            () =>
+            {
+                track.MidiClips.Remove(left);
+                track.MidiClips.Remove(right);
+                track.InsertMidiClip(index, clip);
+            });
+    }
+
+    public void DeleteSelection()
+    {
+        if (IsRecording || _selection is null)
+        {
+            return;
+        }
+
+        foreach (var track in Tracks.Select(t => t.Model))
+        {
+            if (_selection is Clip clip && track.Clips.IndexOf(clip) is >= 0 and var index)
+            {
+                _selection = null;
+                _session.Edit("Delete clip", () => track.Clips.Remove(clip), () => track.InsertClip(index, clip));
+                return;
+            }
+
+            if (_selection is MidiClip midi && track.MidiClips.IndexOf(midi) is >= 0 and var midiIndex)
+            {
+                _selection = null;
+                _session.Edit("Delete MIDI clip", () => track.MidiClips.Remove(midi), () => track.InsertMidiClip(midiIndex, midi));
+                return;
+            }
+        }
+    }
+
+    public void DuplicateSelection()
+    {
+        if (IsRecording || _selection is null)
+        {
+            return;
+        }
+
+        foreach (var track in Tracks.Select(t => t.Model))
+        {
+            if (_selection is Clip clip && track.Clips.IndexOf(clip) is >= 0 and var index)
+            {
+                var copy = clip.Copy(clip.EndSample, clip.Playback.Offset, clip.Length);
+                _selection = copy;
+                _session.Edit("Duplicate clip", () => track.InsertClip(index + 1, copy), () => track.Clips.Remove(copy));
+                return;
+            }
+
+            if (_selection is MidiClip midi && track.MidiClips.IndexOf(midi) is >= 0 and var midiIndex)
+            {
+                var copy = midi.Copy(midi.EndSample - midi.StartSample);
+                _selection = copy;
+                _session.Edit("Duplicate MIDI clip", () => track.InsertMidiClip(midiIndex + 1, copy), () => track.MidiClips.Remove(copy));
+                return;
+            }
+        }
+    }
+
     public void SeekToPixel(double x)
     {
         var engine = _session.Engine;
@@ -701,6 +997,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             track.RefreshClips(_session.Engine.SampleRate);
             track.NotifyMixChanged();
         }
+
+        ApplySelection();
 
         var seconds = (double)_session.LengthSamples / Math.Max(1, _session.Engine.SampleRate);
         TimelineWidth = Math.Max(60, seconds + 10) * Timeline.PixelsPerSecond;

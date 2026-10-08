@@ -58,20 +58,24 @@ public sealed class Track(string name, int? input)
         }
     }
 
-    public void AddClip(Clip clip)
+    public void AddClip(Clip clip) => InsertClip(Clips.Count, clip);
+
+    public void InsertClip(int index, Clip clip)
     {
         clip.Playback.Mute = _mute;
         clip.Playback.Solo = _solo;
         clip.Playback.Gain = _gain;
         clip.Playback.Pan = _pan;
-        Clips.Add(clip);
+        Clips.Insert(index, clip);
     }
 
-    public void AddMidiClip(MidiClip clip)
+    public void AddMidiClip(MidiClip clip) => InsertMidiClip(MidiClips.Count, clip);
+
+    public void InsertMidiClip(int index, MidiClip clip)
     {
         clip.Mute = _mute;
         clip.Solo = _solo;
-        MidiClips.Add(clip);
+        MidiClips.Insert(index, clip);
     }
 
     private void Apply(Action<Clip> action)

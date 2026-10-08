@@ -70,10 +70,10 @@ public static class Mixer
             gl *= track.Gain;
             gr *= track.Gain;
             var from = Math.Max(position, track.StartSample);
-            var to = Math.Min(position + frames, track.StartSample + track.Samples.Length);
+            var to = Math.Min(position + frames, track.EndSample);
             for (var at = from; at < to; at++)
             {
-                var sample = track.Samples[at - track.StartSample];
+                var sample = track.Samples[track.Offset + (at - track.StartSample)];
                 left[destOffset + (int)(at - position)] += sample * gl;
                 right[destOffset + (int)(at - position)] += sample * gr;
             }
@@ -84,7 +84,7 @@ public static class Mixer
     {
         var tail = sampleRate;
         var length = Math.Max(
-            tracks.Select(t => t.StartSample + t.Samples.Length).DefaultIfEmpty(0).Max(),
+            tracks.Select(t => t.EndSample).DefaultIfEmpty(0).Max(),
             midi.Where(c => c.Events.Length > 0).Select(c => c.EndSample + tail).DefaultIfEmpty(0).Max());
         if (length == 0)
         {

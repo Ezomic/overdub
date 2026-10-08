@@ -9,47 +9,122 @@ public static class Timeline
     public const double PixelsPerSecond = 80;
 }
 
-public sealed class ClipViewModel(Clip clip, int sampleRate, Brush brush)
+public sealed class ClipViewModel : ObservableObject
 {
-    public double Left { get; } = (double)clip.StartSample / sampleRate * Timeline.PixelsPerSecond;
-    public double Width { get; } = Math.Max(2, (double)clip.Length / sampleRate * Timeline.PixelsPerSecond);
-    public float[] Peaks { get; } = clip.Peaks;
-    public Brush Brush { get; } = brush;
+    private double _left;
+    private double _width;
+    private bool _selected;
+
+    public ClipViewModel(Clip clip, int sampleRate, Brush brush, TrackViewModel owner)
+    {
+        Model = clip;
+        SampleRate = sampleRate;
+        Brush = brush;
+        Owner = owner;
+        Peaks = clip.ComputePeaks();
+        Reset();
+    }
+
+    public Clip Model { get; }
+    public int SampleRate { get; }
+    public Brush Brush { get; }
+    public TrackViewModel Owner { get; }
+    public float[] Peaks { get; }
+
+    public double Left
+    {
+        get => _left;
+        set => SetField(ref _left, value);
+    }
+
+    public double Width
+    {
+        get => _width;
+        set => SetField(ref _width, value);
+    }
+
+    public bool Selected
+    {
+        get => _selected;
+        set => SetField(ref _selected, value);
+    }
+
+    public double ToPixels(long samples) => (double)samples / SampleRate * Timeline.PixelsPerSecond;
+
+    public void Reset()
+    {
+        Left = ToPixels(Model.StartSample);
+        Width = Math.Max(2, ToPixels(Model.Length));
+    }
 }
 
-public sealed class MidiClipViewModel
+public sealed class MidiClipViewModel : ObservableObject
 {
     private const double Height = 108;
 
-    public MidiClipViewModel(MidiClip clip, int sampleRate, Brush brush)
+    private double _left;
+    private double _width;
+    private bool _selected;
+
+    public MidiClipViewModel(MidiClip clip, int sampleRate, Brush brush, TrackViewModel owner)
     {
+        Model = clip;
         Brush = brush;
+        Owner = owner;
+        SampleRate = sampleRate;
         var secondsToPixels = Timeline.PixelsPerSecond / sampleRate;
-        Left = clip.StartSample * secondsToPixels;
-        Width = Math.Max(8, (clip.EndSample - clip.StartSample) * secondsToPixels);
         var notes = clip.Notes();
         if (notes.Count == 0)
         {
             Notes = [];
-            return;
+        }
+        else
+        {
+            var low = notes.Min(n => n.Pitch);
+            var high = notes.Max(n => n.Pitch);
+            var rows = high - low + 1;
+            var rowHeight = Math.Clamp((Height - 8) / rows, 3, 9);
+            var top = (Height - (rows * rowHeight)) / 2;
+            Notes = notes.Select(n => new NoteRect(
+                (n.Start - clip.StartSample) * secondsToPixels,
+                top + ((high - n.Pitch) * rowHeight),
+                Math.Max(2, (n.End - n.Start) * secondsToPixels),
+                Math.Max(2, rowHeight - 1))).ToArray();
         }
 
-        var low = notes.Min(n => n.Pitch);
-        var high = notes.Max(n => n.Pitch);
-        var rows = high - low + 1;
-        var rowHeight = Math.Clamp((Height - 8) / rows, 3, 9);
-        var top = (Height - (rows * rowHeight)) / 2;
-        Notes = notes.Select(n => new NoteRect(
-            (n.Start - clip.StartSample) * secondsToPixels,
-            top + ((high - n.Pitch) * rowHeight),
-            Math.Max(2, (n.End - n.Start) * secondsToPixels),
-            Math.Max(2, rowHeight - 1))).ToArray();
+        Reset();
     }
 
-    public double Left { get; }
-    public double Width { get; }
-    public NoteRect[] Notes { get; }
+    public MidiClip Model { get; }
     public Brush Brush { get; }
+    public TrackViewModel Owner { get; }
+    public int SampleRate { get; }
+    public NoteRect[] Notes { get; }
+
+    public double Left
+    {
+        get => _left;
+        set => SetField(ref _left, value);
+    }
+
+    public double Width
+    {
+        get => _width;
+        set => SetField(ref _width, value);
+    }
+
+    public bool Selected
+    {
+        get => _selected;
+        set => SetField(ref _selected, value);
+    }
+
+    public void Reset()
+    {
+        var toPixels = Timeline.PixelsPerSecond / SampleRate;
+        Left = Model.StartSample * toPixels;
+        Width = Math.Max(8, (Model.EndSample - Model.StartSample) * toPixels);
+    }
 }
 
 public sealed class TrackViewModel(Track model, Brush color, Action onMixChanged, Action<TrackViewModel> onArmed, Action<TrackViewModel> onRemove) : ObservableObject
@@ -233,13 +308,13 @@ public sealed class TrackViewModel(Track model, Brush color, Action onMixChanged
         Clips.Clear();
         foreach (var clip in Model.Clips)
         {
-            Clips.Add(new ClipViewModel(clip, sampleRate, Color));
+            Clips.Add(new ClipViewModel(clip, sampleRate, Color, this));
         }
 
         MidiClips.Clear();
         foreach (var clip in Model.MidiClips)
         {
-            MidiClips.Add(new MidiClipViewModel(clip, sampleRate, Color));
+            MidiClips.Add(new MidiClipViewModel(clip, sampleRate, Color, this));
         }
     }
 }

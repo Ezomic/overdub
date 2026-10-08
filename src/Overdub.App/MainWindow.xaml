@@ -3,11 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:Overdub.App"
         Title="Overdub" Icon="Assets/overdub.ico" Width="1100" Height="580" MinWidth="1060" MinHeight="400"
-        Background="{StaticResource Bg}" Foreground="{StaticResource Text}" FontFamily="Segoe UI" FontSize="13">
-    <Window.InputBindings>
-        <KeyBinding Key="Space" Command="{Binding PlayCommand}" />
-        <KeyBinding Key="R" Command="{Binding RecordCommand}" />
-    </Window.InputBindings>
+        Background="{StaticResource Bg}" Foreground="{StaticResource Text}" FontFamily="Segoe UI" FontSize="13" PreviewKeyDown="OnPreviewKeyDown">
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
     </Window.Resources>
@@ -57,6 +53,9 @@
                     <ToggleButton Style="{StaticResource Chip}" IsChecked="{Binding LoopOn}" Content="Loop" ToolTip="Loop the region; recording makes one take per pass" Focusable="False" />
                     <ToggleButton Style="{StaticResource Chip}" IsChecked="{Binding PunchOn}" Content="Punch" ToolTip="Record only inside the region" Focusable="False" />
                     <Button Style="{StaticResource TransportButton}" Width="Auto" Height="24" FontSize="12" Padding="10,0" Margin="4,0,4,0" Content="{Binding SnapLabel}" Click="OnSnapClick" Focusable="False" ToolTip="Snap regions and clips to the grid" />
+                    <Button Style="{StaticResource TransportButton}" Width="Auto" Height="24" FontSize="12" Padding="10,0" Margin="12,0,4,0" Content="Split" Click="OnSplitClick" Focusable="False" ToolTip="Split the clip at the playhead (S)" />
+                    <Button Style="{StaticResource TransportButton}" Width="Auto" Height="24" FontSize="12" Padding="10,0" Margin="0,0,4,0" Content="Duplicate" Click="OnDuplicateClick" Focusable="False" ToolTip="Duplicate the selected clip (Ctrl+D)" />
+                    <Button Style="{StaticResource TransportButton}" Width="Auto" Height="24" FontSize="12" Padding="10,0" Margin="0,0,4,0" Content="Delete" Click="OnDeleteClick" Focusable="False" ToolTip="Delete the selected clip (Delete)" />
                     <TextBlock Text="{Binding RegionText}" Foreground="{StaticResource TextDim}" FontSize="12" VerticalAlignment="Center" Margin="8,0,0,0" />
                 </StackPanel>
             </DockPanel>
@@ -168,10 +167,11 @@
                                             </ItemsControl.ItemContainerStyle>
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
-                                                    <Grid Width="{Binding Width}" Height="108">
+                                                    <Grid Width="{Binding Width}" Height="108" Background="Transparent" MouseLeftButtonDown="OnClipDown" MouseMove="OnClipMove" MouseLeftButtonUp="OnClipUp">
                                                         <Border Background="{Binding Brush}" Opacity="0.2" CornerRadius="4" />
                                                         <Border BorderBrush="{Binding Brush}" BorderThickness="1" CornerRadius="4" Opacity="0.7" />
-                                                        <local:RectsControl Rects="{Binding Notes}" Brush="{Binding Brush}" />
+                                                        <local:RectsControl Rects="{Binding Notes}" Brush="{Binding Brush}" IsHitTestVisible="False" />
+                                                        <Border BorderBrush="White" BorderThickness="2" CornerRadius="4" IsHitTestVisible="False" Visibility="{Binding Selected, Converter={StaticResource BoolToVis}}" />
                                                     </Grid>
                                                 </DataTemplate>
                                             </ItemsControl.ItemTemplate>
@@ -190,10 +190,11 @@
                                             </ItemsControl.ItemContainerStyle>
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
-                                                    <Grid Width="{Binding Width}" Height="108">
+                                                    <Grid Width="{Binding Width}" Height="108" Background="Transparent" MouseLeftButtonDown="OnClipDown" MouseMove="OnClipMove" MouseLeftButtonUp="OnClipUp">
                                                         <Border Background="{Binding Brush}" Opacity="0.2" CornerRadius="4" />
                                                         <Border BorderBrush="{Binding Brush}" BorderThickness="1" CornerRadius="4" Opacity="0.7" />
-                                                        <local:WaveformControl Peaks="{Binding Peaks}" Brush="{Binding Brush}" Margin="1" />
+                                                        <local:WaveformControl Peaks="{Binding Peaks}" Brush="{Binding Brush}" Margin="1" IsHitTestVisible="False" />
+                                                        <Border BorderBrush="White" BorderThickness="2" CornerRadius="4" IsHitTestVisible="False" Visibility="{Binding Selected, Converter={StaticResource BoolToVis}}" />
                                                     </Grid>
                                                 </DataTemplate>
                                             </ItemsControl.ItemTemplate>
