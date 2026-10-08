@@ -23,6 +23,8 @@ public sealed class AsioEngine : IDisposable
 
     public const int MaxInputs = 8;
 
+    public Synth Synth { get; } = new();
+
     public string? DriverName { get; private set; }
     public int SampleRate { get; private set; }
     public int InputCount { get; private set; }
@@ -56,6 +58,7 @@ public sealed class AsioEngine : IDisposable
 
         DriverName = driverName;
         SampleRate = sampleRate;
+        Synth.Configure(sampleRate);
         BufferSamples = _asio.FramesPerBuffer;
         OutputLatencySamples = _asio.PlaybackLatency;
     }
@@ -96,7 +99,11 @@ public sealed class AsioEngine : IDisposable
 
     public void Play() => _playing = true;
 
-    public void Pause() => _playing = false;
+    public void Pause()
+    {
+        _playing = false;
+        Synth.AllNotesOff();
+    }
 
     public void Seek(long sample) => Volatile.Write(ref _position, Math.Max(0, sample));
 
@@ -216,9 +223,10 @@ public sealed class AsioEngine : IDisposable
             Interlocked.Add(ref _position, frames);
         }
 
+        Synth.Render(_mix, 0, frames);
         for (var i = 0; i < frames; i++)
         {
-            _mix[i] += _monitor[i];
+            _mix[i] = Mixer.SoftLimit(_mix[i] + _monitor[i]);
         }
 
         for (var channel = 0; channel < e.OutputBuffers.Length; channel++)

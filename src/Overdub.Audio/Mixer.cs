@@ -4,6 +4,20 @@ namespace Overdub.Audio;
 
 public static class Mixer
 {
+    private const float Knee = 0.8f;
+
+    public static float SoftLimit(float value)
+    {
+        var magnitude = Math.Abs(value);
+        if (magnitude <= Knee)
+        {
+            return value;
+        }
+
+        var limited = Knee + ((1f - Knee) * MathF.Tanh((magnitude - Knee) / (1f - Knee)));
+        return MathF.CopySign(limited, value);
+    }
+
     public static void Mix(IReadOnlyList<PlaybackTrack> tracks, long position, float[] destination, int frames)
     {
         var anySolo = false;
