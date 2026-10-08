@@ -207,7 +207,7 @@ public sealed class AsioEngine : IDisposable
                 MixClick(position, frames);
             }
 
-            Volatile.Write(ref _position, position + frames);
+            Interlocked.Add(ref _position, frames);
         }
 
         for (var i = 0; i < frames; i++)
@@ -239,7 +239,12 @@ public sealed class AsioEngine : IDisposable
     private void MixTracks(long position, int frames)
     {
         var tracks = _tracks;
-        var anySolo = tracks.Any(t => t.Solo);
+        var anySolo = false;
+        foreach (var track in tracks)
+        {
+            anySolo |= track.Solo;
+        }
+
         foreach (var track in tracks)
         {
             if (track.Mute || (anySolo && !track.Solo))
