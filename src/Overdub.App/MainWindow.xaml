@@ -56,6 +56,7 @@
         <Border Grid.Row="1" Background="{StaticResource Panel}" BorderBrush="{StaticResource Border}" BorderThickness="0,0,0,1" Padding="14,6">
             <DockPanel>
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                    <Button Style="{StaticResource TransportButton}" Width="Auto" Height="24" FontSize="12" Padding="10,0" Margin="0,0,8,0" Content="Latency" Click="OnLatencyClick" Focusable="False" ToolTip="Measure the round-trip latency with a loopback cable" />
                     <Button Style="{StaticResource TransportButton}" Width="64" Height="24" FontSize="12" Margin="0,0,8,0" Content="Open" Click="OnOpenClick" Focusable="False" ToolTip="Open a project" />
                     <Button Style="{StaticResource TransportButton}" Width="64" Height="24" FontSize="12" Margin="0,0,8,0" Content="Save" Click="OnSaveClick" Focusable="False" ToolTip="Save the project" />
                     <Button Style="{StaticResource TransportButton}" Width="64" Height="24" FontSize="12" Margin="0" Content="Export" Click="OnExportClick" Focusable="False" ToolTip="Export a stereo WAV mixdown" />

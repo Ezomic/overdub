@@ -1,0 +1,18 @@
+<Window x:Class="Overdub.App.LatencyWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Measure latency" Icon="Assets/overdub.ico" Width="460" SizeToContent="Height" ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner" Background="{StaticResource Bg}" Foreground="{StaticResource Text}" FontFamily="Segoe UI" FontSize="13">
+    <StackPanel Margin="20">
+        <TextBlock Text="Round-trip latency" FontSize="16" FontWeight="SemiBold" />
+        <TextBlock TextWrapping="Wrap" Foreground="{StaticResource TextDim}" Margin="0,8,0,14"
+                   Text="Connect a cable from an output of your interface to the input you pick, with the input gain low. A few short beeps play, and the delay before they come back becomes the recording compensation." />
+        <StackPanel Orientation="Horizontal" x:Name="InputChips" Margin="0,0,0,14" />
+        <TextBlock x:Name="Result" TextWrapping="Wrap" MinHeight="40" Margin="0,0,0,14" />
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button x:Name="ResetButton" Style="{StaticResource TransportButton}" Width="Auto" Height="28" Padding="12,0" Margin="0,0,8,0" Content="Use estimate" Click="OnReset" />
+            <Button x:Name="StartButton" Style="{StaticResource TransportButton}" Width="Auto" Height="28" Padding="14,0" Margin="0,0,8,0" Content="Start test" Click="OnStart" />
+            <Button Style="{StaticResource TransportButton}" Width="Auto" Height="28" Padding="14,0" Margin="0" Content="Close" Click="OnClose" />
+        </StackPanel>
+    </StackPanel>
+</Window>
