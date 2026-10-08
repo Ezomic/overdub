@@ -50,7 +50,7 @@ public sealed class AsioEngine : IDisposable
 
     public Synth Synth { get; } = new();
     public DrumKit Drums { get; } = new();
-    public MachineLane[] Machines { get; } = [new MachineLane(), new MachineLane()];
+    public MachineLane[] Machines { get; } = [new MachineLane(MachineRole.Guitar), new MachineLane(MachineRole.Bass)];
     private readonly float[][] _machineBufs = [new float[4096], new float[4096]];
     public float DrumGain { get; set; } = 1f;
     public float DrumPan { get; set; }
@@ -103,7 +103,7 @@ public sealed class AsioEngine : IDisposable
         Drums.Configure(sampleRate);
         foreach (var lane in Machines)
         {
-            lane.Synth.Configure(sampleRate);
+            lane.Configure(sampleRate);
         }
         BufferSamples = _asio.FramesPerBuffer;
         OutputLatencySamples = _asio.PlaybackLatency;
@@ -283,7 +283,7 @@ public sealed class AsioEngine : IDisposable
         Drums.Silence();
         foreach (var lane in Machines)
         {
-            lane.Synth.AllNotesOff();
+            lane.AllNotesOff();
         }
     }
 
@@ -294,7 +294,7 @@ public sealed class AsioEngine : IDisposable
         Drums.Silence();
         foreach (var lane in Machines)
         {
-            lane.Synth.AllNotesOff();
+            lane.AllNotesOff();
         }
     }
 
@@ -487,7 +487,7 @@ public sealed class AsioEngine : IDisposable
             Drums.Render(_drumBuf, 0, frames);
             for (var m = 0; m < Machines.Length; m++)
             {
-                Machines[m].Synth.Render(_machineBufs[m], 0, frames);
+                Machines[m].Voice.Render(_machineBufs[m], 0, frames);
             }
         }
 
@@ -576,7 +576,7 @@ public sealed class AsioEngine : IDisposable
             _drumSequencer.Render(Drums, drumMidi, anySolo, position, _drumBuf, chunk, done);
             for (var m = 0; m < Machines.Length; m++)
             {
-                Machines[m].Sequencer.Render(Machines[m].Synth, Machines[m].Clips, anySolo, position, _machineBufs[m], chunk, done);
+                Machines[m].Sequencer.Render(Machines[m].Voice, Machines[m].Clips, anySolo, position, _machineBufs[m], chunk, done);
             }
 
             if (_metronomeEnabled)
