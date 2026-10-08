@@ -7,6 +7,9 @@ namespace Overdub.Audio;
 public sealed class AsioEngine : IDisposable
 {
     private readonly float[] _peaks = new float[MaxInputs];
+    private readonly bool[] _clipped = new bool[MaxInputs];
+    private readonly InputRecorder?[] _recorders = new InputRecorder?[MaxInputs];
+    private float[] _scratch = new float[4096];
     private AsioOut? _asio;
     private volatile bool _monitoring = true;
 
@@ -55,8 +58,59 @@ public sealed class AsioEngine : IDisposable
         return peak;
     }
 
+    public bool IsRecording { get; private set; }
+
+    public bool ReadClipped(int input)
+    {
+        var clipped = _clipped[input];
+        _clipped[input] = false;
+        return clipped;
+    }
+
+    public void StartRecording(IReadOnlyDictionary<int, string> pathsByInput)
+    {
+        if (_asio is null)
+        {
+            throw new InvalidOperationException("Open a driver first.");
+        }
+
+        if (IsRecording)
+        {
+            throw new InvalidOperationException("Already recording.");
+        }
+
+        foreach (var (input, path) in pathsByInput)
+        {
+            ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(input, InputCount);
+            _recorders[input] = new InputRecorder(path, SampleRate);
+        }
+
+        IsRecording = true;
+    }
+
+    public IReadOnlyList<string> StopRecording()
+    {
+        IsRecording = false;
+        var paths = new List<string>();
+        for (var i = 0; i < _recorders.Length; i++)
+        {
+            var recorder = _recorders[i];
+            _recorders[i] = null;
+            if (recorder is null)
+            {
+                continue;
+            }
+
+            paths.Add(recorder.Path);
+            recorder.Dispose();
+        }
+
+        return paths;
+    }
+
     public void Close()
     {
+        StopRecording();
         if (_asio is null)
         {
             return;
@@ -82,9 +136,17 @@ public sealed class AsioEngine : IDisposable
         }
 
         var inputs = Math.Min(e.InputBuffers.Length, InputCount);
+        if (_scratch.Length < e.SamplesPerBuffer)
+        {
+            _scratch = new float[e.SamplesPerBuffer];
+        }
+
         for (var channel = 0; channel < inputs; channel++)
         {
-            _peaks[channel] = Math.Max(_peaks[channel], MeasurePeak(e.InputBuffers[channel], e.SamplesPerBuffer, e.AsioSampleType));
+            var peak = ConvertToFloat(e.InputBuffers[channel], e.SamplesPerBuffer, e.AsioSampleType, _scratch);
+            _peaks[channel] = Math.Max(_peaks[channel], peak);
+            _clipped[channel] |= peak >= 0.999f;
+            _recorders[channel]?.Write(_scratch, e.SamplesPerBuffer);
         }
 
         if (!_monitoring || inputs == 0)
@@ -101,25 +163,15 @@ public sealed class AsioEngine : IDisposable
         e.WrittenToOutputBuffers = true;
     }
 
-    private static float MeasurePeak(IntPtr buffer, int samples, AsioSampleType type)
+    private static float ConvertToFloat(IntPtr buffer, int samples, AsioSampleType type, float[] destination)
     {
         var peak = 0f;
-        switch (type)
+        for (var i = 0; i < samples; i++)
         {
-            case AsioSampleType.Int32LSB:
-                for (var i = 0; i < samples; i++)
-                {
-                    peak = Math.Max(peak, Math.Abs(Marshal.ReadInt32(buffer, i * 4) / 2147483648f));
-                }
-
-                break;
-            case AsioSampleType.Float32LSB:
-                for (var i = 0; i < samples; i++)
-                {
-                    peak = Math.Max(peak, Math.Abs(BitConverter.Int32BitsToSingle(Marshal.ReadInt32(buffer, i * 4))));
-                }
-
-                break;
+            var raw = Marshal.ReadInt32(buffer, i * 4);
+            var value = type == AsioSampleType.Int32LSB ? raw / 2147483648f : BitConverter.Int32BitsToSingle(raw);
+            destination[i] = value;
+            peak = Math.Max(peak, Math.Abs(value));
         }
 
         return peak;
