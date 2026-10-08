@@ -242,30 +242,7 @@ public sealed class AsioEngine : IDisposable
         _outInt = new int[frames];
     }
 
-    private void MixTracks(long position, int frames)
-    {
-        var tracks = _tracks;
-        var anySolo = false;
-        foreach (var track in tracks)
-        {
-            anySolo |= track.Solo;
-        }
-
-        foreach (var track in tracks)
-        {
-            if (track.Mute || (anySolo && !track.Solo))
-            {
-                continue;
-            }
-
-            var from = Math.Max(position, track.StartSample);
-            var to = Math.Min(position + frames, track.StartSample + track.Samples.Length);
-            for (var at = from; at < to; at++)
-            {
-                _mix[at - position] += track.Samples[at - track.StartSample] * track.Gain;
-            }
-        }
-    }
+    private void MixTracks(long position, int frames) => Mixer.Mix(_tracks, position, _mix, frames);
 
     private void MixClick(long position, int frames)
     {

@@ -49,5 +49,8 @@ public sealed class Session : IDisposable
 
     public long LengthSamples => Tracks.SelectMany(t => t.Clips).Select(c => c.StartSample + c.Length).DefaultIfEmpty(0).Max();
 
+    public void ExportMixdown(string path) =>
+        Mixer.Export(Tracks.SelectMany(t => t.Clips).Select(c => c.Playback).ToList(), Engine.SampleRate, path);
+
     public void Dispose() => Engine.Dispose();
 }
