@@ -2,8 +2,59 @@ using NAudio.Wave;
 
 namespace Overdub.Audio;
 
+public sealed class ChannelStrip(IReadOnlyList<PlaybackTrack> clips, EffectChain? source, EffectChain? processor)
+{
+    public IReadOnlyList<PlaybackTrack> Clips { get; } = clips;
+    public EffectChain? Source { get; } = source;
+    public EffectChain? Processor { get; } = processor;
+}
+
+public sealed class MixScratch
+{
+    public float[] Left { get; private set; } = new float[4096];
+    public float[] Right { get; private set; } = new float[4096];
+
+    public void Ensure(int frames)
+    {
+        if (Left.Length < frames)
+        {
+            Left = new float[frames];
+            Right = new float[frames];
+        }
+    }
+}
+
 public static class Mixer
 {
+    public static void MixChannels(IReadOnlyList<ChannelStrip> channels, bool anySolo, long position, float[] left, float[] right, int frames, int destOffset, MixScratch scratch)
+    {
+        foreach (var strip in channels)
+        {
+            if (strip is { Source.AnyEnabled: true, Processor: { } processor })
+            {
+                if (processor.AppliedVersion != strip.Source.Version)
+                {
+                    processor.CopyFrom(strip.Source);
+                }
+
+                scratch.Ensure(frames);
+                Array.Clear(scratch.Left, 0, frames);
+                Array.Clear(scratch.Right, 0, frames);
+                Mix(strip.Clips, anySolo, position, scratch.Left, scratch.Right, frames, 0);
+                processor.Process(scratch.Left, scratch.Right, frames);
+                for (var i = 0; i < frames; i++)
+                {
+                    left[destOffset + i] += scratch.Left[i];
+                    right[destOffset + i] += scratch.Right[i];
+                }
+            }
+            else
+            {
+                Mix(strip.Clips, anySolo, position, left, right, frames, destOffset);
+            }
+        }
+    }
+
     private const float Knee = 0.8f;
 
     public static float SoftLimit(float value)
@@ -82,8 +133,9 @@ public static class Mixer
         }
     }
 
-    public static void Export(IReadOnlyList<PlaybackTrack> tracks, IReadOnlyList<MidiClip> midi, int sampleRate, string path, float synthGain = 1f, float synthPan = 0f, long minLength = 0, string? preset = null)
+    public static void Export(IReadOnlyList<ChannelStrip> channels, IReadOnlyList<MidiClip> midi, int sampleRate, string path, float synthGain = 1f, float synthPan = 0f, long minLength = 0, string? preset = null)
     {
+        var tracks = channels.SelectMany(c => c.Clips).ToList();
         var tail = sampleRate;
         var length = Math.Max(
             tracks.Select(t => t.EndSample).DefaultIfEmpty(0).Max(),
@@ -100,6 +152,7 @@ public static class Mixer
         synth.SetPreset(preset);
         var sequencer = new MidiSequencer();
         var anySolo = AnySolo(tracks, midi);
+        var scratch = new MixScratch();
         var left = new float[block];
         var right = new float[block];
         var synthBuf = new float[block];
@@ -111,7 +164,7 @@ public static class Mixer
             Array.Clear(left, 0, block);
             Array.Clear(right, 0, block);
             Array.Clear(synthBuf, 0, block);
-            Mix(tracks, anySolo, position, left, right, frames);
+            MixChannels(channels, anySolo, position, left, right, frames, 0, scratch);
             sequencer.Render(synth, midi, anySolo, position, synthBuf, frames);
             AddPanned(synthBuf, synthGain, synthPan, left, right, frames);
             for (var i = 0; i < frames; i++)

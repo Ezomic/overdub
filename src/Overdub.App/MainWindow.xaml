@@ -114,6 +114,19 @@
                                         <ToggleButton Style="{StaticResource ArmChip}" Content="R" IsChecked="{Binding Armed}" IsEnabled="{Binding HasInput}" ToolTip="Arm for recording" Focusable="False" />
                                         <ToggleButton Style="{StaticResource Chip}" Content="M" IsChecked="{Binding Mute}" ToolTip="Mute" Focusable="False" />
                                         <ToggleButton Style="{StaticResource Chip}" Content="S" IsChecked="{Binding Solo}" ToolTip="Solo" Focusable="False" />
+                                        <Button Content="FX" Click="OnEffectsClick" ToolTip="Amp, EQ, compressor and reverb for this track" Focusable="False"
+                                                Visibility="{Binding CanHaveEffects, Converter={StaticResource BoolToVis}}" Width="30" Height="24" FontSize="12">
+                                            <Button.Style>
+                                                <Style TargetType="Button" BasedOn="{StaticResource TransportButton}">
+                                                    <Setter Property="Foreground" Value="{StaticResource TextDim}" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding HasEffects}" Value="True">
+                                                            <Setter Property="Foreground" Value="{StaticResource Good}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
+                                        </Button>
                                     </StackPanel>
                                     <Grid Margin="0,6,0,0">
                                         <Grid.ColumnDefinitions>

@@ -15,6 +15,9 @@ public sealed class Track(string name, int? input)
     public bool IsBacking { get; init; }
     public bool IsMidi => Input is null && !IsBacking;
     public string Preset { get; set; } = "Lead";
+    public EffectChain Effects { get; } = new();
+    public EffectChain PlaybackFx { get; } = new();
+    public EffectChain LiveFx { get; } = new();
     public List<Clip> Clips { get; } = [];
     public List<MidiClip> MidiClips { get; } = [];
 

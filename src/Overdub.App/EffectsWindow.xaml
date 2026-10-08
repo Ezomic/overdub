@@ -1,0 +1,9 @@
+<Window x:Class="Overdub.App.EffectsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Effects" Icon="Assets/overdub.ico" Width="520" Height="640" MinHeight="360"
+        WindowStartupLocation="CenterOwner" Background="{StaticResource Bg}" Foreground="{StaticResource Text}" FontFamily="Segoe UI" FontSize="13">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel x:Name="Panels" Margin="18" />
+    </ScrollViewer>
+</Window>

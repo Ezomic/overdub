@@ -125,6 +125,14 @@ public partial class MainWindow : Window
 
     private void OnAnalyzeClick(object sender, RoutedEventArgs e) => new AnalysisWindow(_viewModel) { Owner = this }.Show();
 
+    private void OnEffectsClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: TrackViewModel track })
+        {
+            new EffectsWindow(track) { Owner = this }.Show();
+        }
+    }
+
     private void OnFileClick(object sender, RoutedEventArgs e)
     {
         var menu = MenuFor(sender);

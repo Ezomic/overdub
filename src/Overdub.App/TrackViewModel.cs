@@ -203,6 +203,52 @@ public sealed class TrackViewModel(Track model, Brush color, Action onMixChanged
 
     public string Preset => Model.Preset;
 
+    public bool CanHaveEffects => !Model.IsMidi;
+    public bool HasEffects => Model.Effects.AnyEnabled;
+    public EffectChain Effects => Model.Effects;
+
+    public event Action? EffectsChanged;
+
+    public void SetEffectEnabled(int effect, bool enabled)
+    {
+        var target = Model.Effects.Effects[effect];
+        var old = target.Enabled;
+        if (old == enabled)
+        {
+            return;
+        }
+
+        onEdit($"{(enabled ? "Enable" : "Disable")} {target.Name.ToLowerInvariant()}", () => ApplyEffectEnabled(effect, enabled), () => ApplyEffectEnabled(effect, old), null);
+    }
+
+    public void SetEffectValue(int effect, int parameter, double value)
+    {
+        var target = Model.Effects.Effects[effect];
+        var clamped = Math.Clamp(value, target.Parameters[parameter].Min, target.Parameters[parameter].Max);
+        var old = target.Get(parameter);
+        if (Math.Abs(old - clamped) < 1e-9)
+        {
+            return;
+        }
+
+        onEdit($"Change {target.Name.ToLowerInvariant()}", () => ApplyEffectValue(effect, parameter, clamped), () => ApplyEffectValue(effect, parameter, old), $"fx:{Model.Id}:{effect}:{parameter}");
+    }
+
+    private void ApplyEffectEnabled(int effect, bool enabled)
+    {
+        Model.Effects.Effects[effect].Enabled = enabled;
+        Model.Effects.Touch();
+        OnPropertyChanged(nameof(HasEffects));
+        EffectsChanged?.Invoke();
+    }
+
+    private void ApplyEffectValue(int effect, int parameter, double value)
+    {
+        Model.Effects.Effects[effect].Set(parameter, value);
+        Model.Effects.Touch();
+        EffectsChanged?.Invoke();
+    }
+
     private RelayCommand? _cyclePreset;
 
     public System.Windows.Input.ICommand CyclePreset => _cyclePreset ??= new RelayCommand(() =>
