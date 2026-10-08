@@ -1,0 +1,47 @@
+<Window x:Class="Overdub.App.PianoRollWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:Overdub.App"
+        Title="Piano roll" Icon="Assets/overdub.ico" Width="980" Height="620" MinWidth="560" MinHeight="360"
+        WindowStartupLocation="CenterOwner" Background="{StaticResource Bg}" Foreground="{StaticResource Text}" FontFamily="Segoe UI" FontSize="13">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="86" />
+        </Grid.RowDefinitions>
+        <Border Grid.Row="0" Background="{StaticResource Panel}" BorderBrush="{StaticResource Border}" BorderThickness="0,0,0,1" Padding="12,8">
+            <StackPanel Orientation="Horizontal">
+                <Button x:Name="GridButton" Style="{StaticResource TransportButton}" Width="Auto" Height="24" FontSize="12" Padding="10,0" Click="OnGridClick" Focusable="False" ToolTip="Grid for new notes, moves and resizing" />
+                <Button Style="{StaticResource TransportButton}" Width="Auto" Height="24" FontSize="12" Padding="10,0" Content="Zoom -" Click="OnZoomOut" Focusable="False" />
+                <Button Style="{StaticResource TransportButton}" Width="Auto" Height="24" FontSize="12" Padding="10,0" Content="Zoom +" Click="OnZoomIn" Focusable="False" />
+                <Button Style="{StaticResource TransportButton}" Width="Auto" Height="24" FontSize="12" Padding="10,0" Content="Select all" Click="OnSelectAll" Focusable="False" />
+                <Button Style="{StaticResource TransportButton}" Width="Auto" Height="24" FontSize="12" Padding="10,0" Content="Delete" Click="OnDelete" Focusable="False" />
+                <TextBlock Foreground="{StaticResource TextDim}" FontSize="12" VerticalAlignment="Center" Margin="10,0,0,0"
+                           Text="Click empty space to add a note (drag to set its length). Drag a note to move it, its right edge to resize. Right-click or double-click deletes." />
+            </StackPanel>
+        </Border>
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="64" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <local:PianoKeysControl x:Name="Keys" Grid.Column="0" />
+            <ScrollViewer x:Name="Scroller" Grid.Column="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" ScrollChanged="OnScrollChanged">
+                <local:PianoRollControl x:Name="Roll" HorizontalAlignment="Left" VerticalAlignment="Top" />
+            </ScrollViewer>
+        </Grid>
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="64" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Border Grid.Column="0" Background="{StaticResource Panel}" BorderBrush="{StaticResource Border}" BorderThickness="0,1,1,0">
+                <TextBlock Text="Velocity" Foreground="{StaticResource TextDim}" FontSize="11" VerticalAlignment="Center" HorizontalAlignment="Center" />
+            </Border>
+            <Border Grid.Column="1" BorderBrush="{StaticResource Border}" BorderThickness="0,1,0,0">
+                <local:VelocityControl x:Name="Velocity" />
+            </Border>
+        </Grid>
+    </Grid>
+</Window>

@@ -11,6 +11,8 @@ public readonly record struct MidiEvent(long At, byte Note, byte Velocity, MidiK
 
 public readonly record struct MidiNote(long Start, long End, byte Pitch);
 
+public readonly record struct MidiNoteData(long Start, long End, byte Pitch, byte Velocity);
+
 public sealed class MidiClip
 {
     public MidiClip(IEnumerable<MidiEvent> events, long shift = 0)
@@ -26,6 +28,42 @@ public sealed class MidiClip
 
     public long StartSample => Events.Length == 0 ? 0 : Events[0].At + Shift;
     public long EndSample => Events.Length == 0 ? 0 : Events[^1].At + Shift;
+
+    public IReadOnlyList<MidiNoteData> NoteData()
+    {
+        var open = new Dictionary<byte, (long At, byte Velocity)>();
+        var notes = new List<MidiNoteData>();
+        foreach (var e in Events)
+        {
+            if (e.Kind != MidiKind.Note)
+            {
+                continue;
+            }
+
+            if (e.Velocity > 0)
+            {
+                open[e.Note] = (e.At, e.Velocity);
+            }
+            else if (open.Remove(e.Note, out var start))
+            {
+                notes.Add(new MidiNoteData(start.At + Shift, e.At + Shift, e.Note, start.Velocity));
+            }
+        }
+
+        return notes.OrderBy(n => n.Start).ThenBy(n => n.Pitch).ToList();
+    }
+
+    public MidiClip WithNotes(IEnumerable<MidiNoteData> notes)
+    {
+        var events = Events.Where(e => e.Kind != MidiKind.Note).ToList();
+        foreach (var note in notes)
+        {
+            events.Add(new MidiEvent(note.Start - Shift, note.Pitch, Math.Max((byte)1, note.Velocity)));
+            events.Add(new MidiEvent(Math.Max(note.Start + 1, note.End) - Shift, note.Pitch, 0));
+        }
+
+        return new MidiClip(events, Shift) { Mute = Mute, Solo = Solo };
+    }
 
     public IReadOnlyList<MidiNote> Notes()
     {
