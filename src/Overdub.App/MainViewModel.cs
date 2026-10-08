@@ -366,6 +366,50 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    private IReadOnlyList<Overdub.Audio.Vst3.Vst3PluginInfo>? _plugins;
+
+    public Task<IReadOnlyList<Overdub.Audio.Vst3.Vst3PluginInfo>> ScanPluginsAsync() =>
+        _plugins is not null
+            ? Task.FromResult(_plugins)
+            : Task.Run(() => _plugins = Overdub.Audio.Vst3.Vst3Scanner.Scan().Where(p => p.IsEffect).OrderBy(p => p.Name).ToList());
+
+    public async Task AssignPluginAsync(TrackViewModel track, Overdub.Audio.Vst3.Vst3PluginInfo? info)
+    {
+        Message = "";
+        Notice = info is null ? "" : $"Loading {info.Name}...";
+        try
+        {
+            await Task.Run(() => _session.AssignPlugin(track.Model, info));
+            _session.PublishClips();
+            track.RaiseEffectsChanged();
+            Notice = "";
+            Message = _session.PluginErrors.FirstOrDefault() ?? "";
+        }
+        catch (Exception ex)
+        {
+            Notice = "";
+            Message = ex.Message;
+        }
+    }
+
+    public void SetPluginEnabled(TrackViewModel track, bool enabled)
+    {
+        track.Model.Effects.Plugin.Enabled = enabled;
+        track.Model.Effects.Touch();
+        track.RaiseEffectsChanged();
+    }
+
+    public void ReportProblem(string text) => Message = text;
+
+    public void PluginStateChanged()
+    {
+        _session.SyncPlugins();
+        foreach (var track in Tracks)
+        {
+            track.Model.Effects.Touch();
+        }
+    }
+
     public string CountInLabel => _session.Engine.CountInBars switch
     {
         0 => "Count-in: off",

@@ -57,7 +57,7 @@ public abstract class Effect
     protected static double DbToLinear(double db) => Math.Pow(10, db / 20);
 }
 
-public sealed class EffectChain
+public sealed class EffectChain : IDisposable
 {
     private int _version;
     private int _configuredRate;
@@ -74,7 +74,10 @@ public sealed class EffectChain
     public IReadOnlyList<Effect> Effects { get; }
     public int Version => Volatile.Read(ref _version);
     public int AppliedVersion { get; private set; } = -1;
-    public bool AnyEnabled => Effects.Any(e => e.Enabled);
+    public Vst3.PluginSlot Plugin { get; } = new();
+    public bool AnyEnabled => Effects.Any(e => e.Enabled) || Plugin.Active;
+
+    public void Dispose() => Plugin.Dispose();
 
     public void Touch() => Interlocked.Increment(ref _version);
 
@@ -99,6 +102,8 @@ public sealed class EffectChain
             Effects[i].CopyFrom(source.Effects[i]);
         }
 
+        Plugin.CopyFrom(source.Plugin);
+
         AppliedVersion = source.Version;
     }
 
@@ -107,11 +112,13 @@ public sealed class EffectChain
         var clone = new EffectChain();
         clone.Configure(sampleRate);
         clone.CopyFrom(this);
+        clone.Plugin.Sync(sampleRate);
         return clone;
     }
 
     public void Process(float[] left, float[] right, int frames)
     {
+        Plugin.Process(left, right, frames);
         foreach (var effect in Effects)
         {
             if (effect.Enabled)

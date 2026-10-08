@@ -233,6 +233,12 @@ public sealed class TrackViewModel(Track model, Brush color, Action onMixChanged
 
     public event Action? EffectsChanged;
 
+    public void RaiseEffectsChanged()
+    {
+        OnPropertyChanged(nameof(HasEffects));
+        EffectsChanged?.Invoke();
+    }
+
     public void SetEffectEnabled(int effect, bool enabled)
     {
         var target = Model.Effects.Effects[effect];

@@ -142,7 +142,7 @@ public partial class MainWindow : Window
     {
         if (sender is FrameworkElement { DataContext: TrackViewModel track })
         {
-            new EffectsWindow(track) { Owner = this }.Show();
+            new EffectsWindow(_viewModel, track) { Owner = this }.Show();
         }
     }
 

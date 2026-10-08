@@ -1,4 +1,6 @@
 using NAudio.Wave;
+using Overdub.Audio.Vst3;
+
 namespace Overdub.Audio;
 
 public sealed class Session : IDisposable
@@ -413,6 +415,7 @@ public sealed class Session : IDisposable
             strips.Add(new ChannelStrip(AtPracticeSpeed(track.EffectiveClips()), track.Effects, track.PlaybackFx));
         }
 
+        SyncPlugins();
         Engine.SetChannels(strips);
         for (var input = 0; input < AsioEngine.MaxInputs; input++)
         {
@@ -550,9 +553,60 @@ public sealed class Session : IDisposable
             t.Preset,
             t.IsBacking ? true : null,
             t.Effects.Effects.ToDictionary(e => e.Name, e => new EffectData(e.Enabled, (double[])e.Values.Clone())),
-            t.Comp.Select(c => new CompData(c.Start, c.End, c.Lane)).ToList())).ToList();
+            t.Comp.Select(c => new CompData(c.Start, c.End, c.Lane)).ToList(),
+            PluginDataFor(t))).ToList();
         ProjectFile.Write(ProjectPath, new ProjectData(1, Engine.SampleRate, Engine.Bpm, tracks, Engine.BeatsPerBar, Engine.BeatUnit));
         RecentProjects.Add(ProjectPath);
+    }
+
+    private static PluginData? PluginDataFor(Track track)
+    {
+        var slot = track.Effects.Plugin;
+        if (slot.Info is not { } info)
+        {
+            return null;
+        }
+
+        slot.Capture();
+        return new PluginData(
+            info.Path,
+            info.ClassId.ToString(),
+            info.Name,
+            info.Vendor,
+            info.Category,
+            info.SubCategories,
+            slot.Enabled,
+            slot.State is null ? null : Convert.ToBase64String(slot.State.Component),
+            slot.State is null ? null : Convert.ToBase64String(slot.State.Controller));
+    }
+
+    private static void RestorePlugin(Track track, PluginData data)
+    {
+        var info = new Vst3PluginInfo(data.Path, data.Name, data.Vendor, data.Category, data.SubCategories, Guid.Parse(data.ClassId));
+        var state = data.Component is null ? null : new Vst3State(Convert.FromBase64String(data.Component), Convert.FromBase64String(data.Controller ?? ""));
+        track.Effects.Plugin.Restore(info, state, data.Enabled);
+    }
+
+    public IEnumerable<string> PluginErrors => Tracks.Select(t => t.Effects.Plugin.Error).OfType<string>();
+
+    public void AssignPlugin(Track track, Vst3PluginInfo? info)
+    {
+        track.Effects.Plugin.Choose(info);
+        SyncPlugins();
+        track.Effects.Touch();
+    }
+
+    public void SyncPlugins()
+    {
+        var rate = Engine.SampleRate;
+        foreach (var track in Tracks)
+        {
+            track.Effects.Plugin.Sync(rate);
+            track.PlaybackFx.Plugin.CopyFrom(track.Effects.Plugin);
+            track.PlaybackFx.Plugin.Sync(rate);
+            track.LiveFx.Plugin.CopyFrom(track.Effects.Plugin);
+            track.LiveFx.Plugin.Sync(rate);
+        }
     }
 
     public double Load(string projectPath)
@@ -581,6 +635,12 @@ public sealed class Session : IDisposable
 
                 track.Effects.Touch();
             }
+
+            if (d.Plugin is not null)
+            {
+                RestorePlugin(track, d.Plugin);
+            }
+
             foreach (var c in d.Clips)
             {
                 var path = System.IO.Path.Combine(directory, c.File);
@@ -654,7 +714,15 @@ public sealed class Session : IDisposable
             });
             var path = System.IO.Path.Combine(folder, unique + ".wav");
             var strip = new ChannelStrip(audio, track.Effects, track.Effects.CloneForProcessing(Engine.SampleRate));
-            Mixer.Export([strip], midi, Engine.SampleRate, path, track.Gain, track.Pan, length, track.Preset);
+            try
+            {
+                Mixer.Export([strip], midi, Engine.SampleRate, path, track.Gain, track.Pan, length, track.Preset);
+            }
+            finally
+            {
+                strip.Processor?.Dispose();
+            }
+
             written.Add(path);
         }
 
@@ -671,15 +739,24 @@ public sealed class Session : IDisposable
         var wavPath = AudioEncoder.IsEncoded(path) ? System.IO.Path.GetTempFileName() : path;
         try
         {
-            Mixer.Export(
-                Tracks.Where(t => !t.IsMidi).Select(t => new ChannelStrip(t.EffectiveClips(), t.Effects, t.Effects.CloneForProcessing(Engine.SampleRate))).ToList(),
-                Tracks.SelectMany(t => t.MidiClips).ToList(),
-                Engine.SampleRate,
-                wavPath,
-                Engine.SynthGain,
-                Engine.SynthPan,
-                0,
-                Engine.Synth.PresetName);
+            var strips = Tracks.Where(t => !t.IsMidi).Select(t => new ChannelStrip(t.EffectiveClips(), t.Effects, t.Effects.CloneForProcessing(Engine.SampleRate))).ToList();
+            try
+            {
+                Mixer.Export(
+                    strips,
+                    Tracks.SelectMany(t => t.MidiClips).ToList(),
+                    Engine.SampleRate,
+                    wavPath,
+                    Engine.SynthGain,
+                    Engine.SynthPan,
+                    0,
+                    Engine.Synth.PresetName);
+            }
+            finally
+            {
+                strips.ForEach(s => s.Processor?.Dispose());
+            }
+
             if (wavPath != path)
             {
                 AudioEncoder.Convert(wavPath, path);
