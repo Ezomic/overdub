@@ -411,10 +411,77 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     private object? _selection;
 
-    private void OnHistoryChanged()
+    private DispatcherTimer? _saveTimer;
+
+    private void OnHistoryChanged(EditChange change)
     {
-        RefreshTimeline();
+        if (change.Kind == EditKind.Mix)
+        {
+            ScheduleSave();
+            return;
+        }
+
+        if (change.Kind == EditKind.Tracks || change.Replayed)
+        {
+            RebuildTracks();
+        }
+        else
+        {
+            RefreshTimeline();
+        }
+
         _session.Save();
+    }
+
+    private void ScheduleSave()
+    {
+        _saveTimer ??= new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        _saveTimer.Tick -= SaveTick;
+        _saveTimer.Tick += SaveTick;
+        _saveTimer.Stop();
+        _saveTimer.Start();
+    }
+
+    private void SaveTick(object? sender, EventArgs e)
+    {
+        _saveTimer?.Stop();
+        _session.Save();
+    }
+
+    public void Undo()
+    {
+        if (IsRecording)
+        {
+            return;
+        }
+
+        var name = _session.History.UndoName;
+        if (name is null)
+        {
+            Notice = "Nothing to undo";
+            return;
+        }
+
+        _session.History.Undo();
+        Notice = $"Undid: {name.ToLowerInvariant()}";
+    }
+
+    public void Redo()
+    {
+        if (IsRecording)
+        {
+            return;
+        }
+
+        var name = _session.History.RedoName;
+        if (name is null)
+        {
+            Notice = "Nothing to redo";
+            return;
+        }
+
+        _session.History.Redo();
+        Notice = $"Redid: {name.ToLowerInvariant()}";
     }
 
     public void Select(object? model)
@@ -796,14 +863,12 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public void AddAudioTrack(int input)
     {
-        _session.AddTrack(UniqueName($"Input {input + 1}"), input);
-        RebuildTracks();
+        _session.AddTrackUndoable(UniqueName($"Input {input + 1}"), input);
     }
 
     public void AddMidiTrack()
     {
-        _session.AddTrack(UniqueName("Keys"), null);
-        RebuildTracks();
+        _session.AddTrackUndoable(UniqueName("Keys"), null);
     }
 
     private void RemoveTrack(TrackViewModel track)
@@ -814,10 +879,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
-        _session.RemoveTrack(track.Model);
-        Tracks.Remove(track);
-        RefreshTimeline();
-        _session.Save();
+        _session.RemoveTrackUndoable(track.Model);
     }
 
     private void DisarmConflicts(TrackViewModel armed)
@@ -847,7 +909,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         Tracks.Clear();
         foreach (var model in _session.Tracks)
         {
-            var vm = new TrackViewModel(model, Palette[model.ColorIndex % Palette.Length], _session.ApplyMixerState, DisarmConflicts, RemoveTrack)
+            var vm = new TrackViewModel(model, Palette[model.ColorIndex % Palette.Length], _session.ApplyMixerState, DisarmConflicts, RemoveTrack, EditMix)
             {
                 MidiLabel = _midiLabel,
             };
@@ -864,6 +926,9 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             RefreshTimeline();
         }
     }
+
+    private void EditMix(string name, Action doIt, Action undo, string? mergeKey) =>
+        _session.Edit(name, doIt, undo, EditKind.Mix, mergeKey);
 
     private void SetMidiLabel(string label)
     {

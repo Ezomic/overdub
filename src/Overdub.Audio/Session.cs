@@ -76,6 +76,7 @@ public sealed class Session : IDisposable
 
     public void StopRecording()
     {
+        var before = Tracks.ToDictionary(t => t, t => (Audio: t.Clips.ToHashSet(), Midi: t.MidiClips.ToHashSet()));
         var start = Math.Max(0, Engine.RecordStartSample - Engine.CompensationSamples);
         var trim = (int)Math.Max(0, Engine.CompensationSamples - Engine.RecordStartSample);
         Engine.StopRecording();
@@ -108,6 +109,38 @@ public sealed class Session : IDisposable
 
         _recordingPaths.Clear();
         PublishClips();
+        RecordTakeInHistory(before);
+    }
+
+    private void RecordTakeInHistory(Dictionary<Track, (HashSet<Clip> Audio, HashSet<MidiClip> Midi)> before)
+    {
+        var audio = new List<(Track Track, Clip Clip)>();
+        var midi = new List<(Track Track, MidiClip Clip)>();
+        foreach (var track in Tracks.Where(before.ContainsKey))
+        {
+            audio.AddRange(track.Clips.Where(c => !before[track].Audio.Contains(c)).Select(c => (track, c)));
+            midi.AddRange(track.MidiClips.Where(c => !before[track].Midi.Contains(c)).Select(c => (track, c)));
+        }
+
+        if (audio.Count == 0 && midi.Count == 0)
+        {
+            return;
+        }
+
+        History.Record(
+            "Record take",
+            () =>
+            {
+                audio.ForEach(a => a.Track.AddClip(a.Clip));
+                midi.ForEach(m => m.Track.AddMidiClip(m.Clip));
+                PublishClips();
+            },
+            () =>
+            {
+                audio.ForEach(a => a.Track.Clips.Remove(a.Clip));
+                midi.ForEach(m => m.Track.MidiClips.Remove(m.Clip));
+                PublishClips();
+            });
     }
 
     public float ReadMidiActivity()
@@ -163,8 +196,21 @@ public sealed class Session : IDisposable
         File.Delete(path);
     }
 
-    public void Edit(string name, Action doIt, Action undo) =>
-        History.Execute(name, () => { doIt(); PublishClips(); }, () => { undo(); PublishClips(); });
+    public void Edit(string name, Action doIt, Action undo, EditKind kind = EditKind.Clips, string? mergeKey = null) =>
+        History.Execute(name, () => { doIt(); PublishClips(); }, () => { undo(); PublishClips(); }, kind, mergeKey);
+
+    public Track AddTrackUndoable(string name, int? input)
+    {
+        var track = new Track(name, input) { ColorIndex = _created++ };
+        Edit("Add track", () => { Tracks.Add(track); ApplyMixerState(); }, () => { Tracks.Remove(track); ApplyMixerState(); }, EditKind.Tracks);
+        return track;
+    }
+
+    public void RemoveTrackUndoable(Track track)
+    {
+        var index = Tracks.IndexOf(track);
+        Edit("Remove track", () => { Tracks.Remove(track); ApplyMixerState(); }, () => { Tracks.Insert(index, track); ApplyMixerState(); }, EditKind.Tracks);
+    }
 
     public void PublishClips()
     {

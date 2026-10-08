@@ -106,6 +106,10 @@ public partial class MainWindow : Window
 
     private void OnSnapClick(object sender, RoutedEventArgs e) => _viewModel.CycleSnap();
 
+    private void OnUndoClick(object sender, RoutedEventArgs e) => _viewModel.Undo();
+
+    private void OnRedoClick(object sender, RoutedEventArgs e) => _viewModel.Redo();
+
     private void OnSplitClick(object sender, RoutedEventArgs e) => _viewModel.SplitAtPlayhead();
 
     private void OnDuplicateClick(object sender, RoutedEventArgs e) => _viewModel.DuplicateSelection();
