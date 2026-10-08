@@ -11,7 +11,9 @@ public sealed class AsioEngine : IDisposable
     private readonly InputRecorder?[] _recorders = new InputRecorder?[MaxInputs];
     private float[] _scratch = new float[4096];
     private float[] _monitor = new float[4096];
-    private float[] _mix = new float[4096];
+    private float[] _mixL = new float[4096];
+    private float[] _mixR = new float[4096];
+    private float[] _synthBuf = new float[4096];
     private int[] _outInt = new int[4096];
     private PlaybackTrack[] _tracks = [];
     private MidiClip[] _midi = [];
@@ -26,6 +28,8 @@ public sealed class AsioEngine : IDisposable
     public const int MaxInputs = 8;
 
     public Synth Synth { get; } = new();
+    public float SynthGain { get; set; } = 1f;
+    public float SynthPan { get; set; }
 
     public string? DriverName { get; private set; }
     public int SampleRate { get; private set; }
@@ -218,7 +222,9 @@ public sealed class AsioEngine : IDisposable
             }
         }
 
-        Array.Clear(_mix, 0, frames);
+        Array.Clear(_mixL, 0, frames);
+        Array.Clear(_mixR, 0, frames);
+        Array.Clear(_synthBuf, 0, frames);
         var midiPlayed = false;
         if (_playing)
         {
@@ -226,8 +232,8 @@ public sealed class AsioEngine : IDisposable
             var tracks = _tracks;
             var midi = _midi;
             var anySolo = Mixer.AnySolo(tracks, midi);
-            Mixer.Mix(tracks, anySolo, position, _mix, frames);
-            _sequencer.Render(Synth, midi, anySolo, position, _mix, frames);
+            Mixer.Mix(tracks, anySolo, position, _mixL, _mixR, frames);
+            _sequencer.Render(Synth, midi, anySolo, position, _synthBuf, frames);
             midiPlayed = true;
             if (_metronomeEnabled)
             {
@@ -239,16 +245,19 @@ public sealed class AsioEngine : IDisposable
 
         if (!midiPlayed)
         {
-            Synth.Render(_mix, 0, frames);
+            Synth.Render(_synthBuf, 0, frames);
         }
+
+        Mixer.AddPanned(_synthBuf, SynthGain, SynthPan, _mixL, _mixR, frames);
         for (var i = 0; i < frames; i++)
         {
-            _mix[i] = Mixer.SoftLimit(_mix[i] + _monitor[i]);
+            _mixL[i] = Mixer.SoftLimit(_mixL[i] + _monitor[i]);
+            _mixR[i] = Mixer.SoftLimit(_mixR[i] + _monitor[i]);
         }
 
         for (var channel = 0; channel < e.OutputBuffers.Length; channel++)
         {
-            WriteOutput(e.OutputBuffers[channel], frames, e.AsioSampleType);
+            WriteOutput(e.OutputBuffers[channel], frames, e.AsioSampleType, channel % 2 == 0 ? _mixL : _mixR);
         }
 
         e.WrittenToOutputBuffers = true;
@@ -263,7 +272,9 @@ public sealed class AsioEngine : IDisposable
 
         _scratch = new float[frames];
         _monitor = new float[frames];
-        _mix = new float[frames];
+        _mixL = new float[frames];
+        _mixR = new float[frames];
+        _synthBuf = new float[frames];
         _outInt = new int[frames];
     }
 
@@ -283,21 +294,23 @@ public sealed class AsioEngine : IDisposable
 
             var frequency = beat % 4 == 0 ? 1500.0 : 1000.0;
             var envelope = 1f - ((float)offset / clickLength);
-            _mix[i] += (float)Math.Sin(2 * Math.PI * frequency * offset / SampleRate) * envelope * 0.4f;
+            var click = (float)Math.Sin(2 * Math.PI * frequency * offset / SampleRate) * envelope * 0.4f;
+            _mixL[i] += click;
+            _mixR[i] += click;
         }
     }
 
-    private void WriteOutput(IntPtr destination, int frames, AsioSampleType type)
+    private void WriteOutput(IntPtr destination, int frames, AsioSampleType type, float[] source)
     {
         if (type == AsioSampleType.Float32LSB)
         {
-            Marshal.Copy(_mix, 0, destination, frames);
+            Marshal.Copy(source, 0, destination, frames);
             return;
         }
 
         for (var i = 0; i < frames; i++)
         {
-            _outInt[i] = (int)(Math.Clamp(_mix[i], -1f, 1f) * 2147483647f);
+            _outInt[i] = (int)(Math.Clamp(source[i], -1f, 1f) * 2147483647f);
         }
 
         Marshal.Copy(_outInt, 0, destination, frames);

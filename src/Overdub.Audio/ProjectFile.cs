@@ -8,7 +8,7 @@ public sealed record MidiEventData(long At, int Note, int Velocity);
 
 public sealed record MidiClipData(List<MidiEventData> Events);
 
-public sealed record TrackData(string Name, bool Mute, bool Solo, float Gain, List<ClipData> Clips, List<MidiClipData>? MidiClips = null);
+public sealed record TrackData(string Name, bool Mute, bool Solo, float Gain, List<ClipData> Clips, List<MidiClipData>? MidiClips = null, float Pan = 0f);
 
 public sealed record ProjectData(int Version, int SampleRate, double Bpm, List<TrackData> Tracks);
 

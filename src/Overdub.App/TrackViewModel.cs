@@ -19,7 +19,7 @@ public sealed class ClipViewModel(Clip clip, int sampleRate, Brush brush)
 
 public sealed class MidiClipViewModel
 {
-    private const double Height = 80;
+    private const double Height = 108;
 
     public MidiClipViewModel(MidiClip clip, int sampleRate, Brush brush)
     {
@@ -52,7 +52,7 @@ public sealed class MidiClipViewModel
     public Brush Brush { get; }
 }
 
-public sealed class TrackViewModel(Track model, Brush color) : ObservableObject
+public sealed class TrackViewModel(Track model, Brush color, Action onMixChanged) : ObservableObject
 {
     private double _level;
     private bool _clipped;
@@ -104,6 +104,34 @@ public sealed class TrackViewModel(Track model, Brush color) : ObservableObject
             OnPropertyChanged();
         }
     }
+
+    public double Gain
+    {
+        get => Model.Gain;
+        set
+        {
+            Model.Gain = (float)value;
+            onMixChanged();
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(GainText));
+        }
+    }
+
+    public double Pan
+    {
+        get => Model.Pan;
+        set
+        {
+            Model.Pan = (float)value;
+            onMixChanged();
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(PanText));
+        }
+    }
+
+    public string GainText => Model.Gain <= 0.0001f ? "-inf dB" : $"{20 * Math.Log10(Model.Gain):+0.0;-0.0;0.0} dB";
+
+    public string PanText => Math.Abs(Model.Pan) < 0.005f ? "Center" : Model.Pan < 0 ? $"L {-Model.Pan * 100:0}" : $"R {Model.Pan * 100:0}";
 
     public double Level
     {

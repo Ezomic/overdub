@@ -33,7 +33,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _session.Tracks.Add(new Track("Keys", null));
 
         Brush[] colors = [Hex("#4C9AFF"), Hex("#5BC070"), Hex("#9B8AFB")];
-        Tracks = new ObservableCollection<TrackViewModel>(_session.Tracks.Select((t, i) => new TrackViewModel(t, colors[i])));
+        Tracks = new ObservableCollection<TrackViewModel>(_session.Tracks.Select((t, i) => new TrackViewModel(t, colors[i], _session.ApplyMixerState)));
 
         Keys.CycleMidi = new RelayCommand(CycleMidiDevice);
         PlayCommand = new RelayCommand(TogglePlay);
