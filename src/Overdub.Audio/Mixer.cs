@@ -80,7 +80,7 @@ public static class Mixer
         }
     }
 
-    public static void Export(IReadOnlyList<PlaybackTrack> tracks, IReadOnlyList<MidiClip> midi, int sampleRate, string path, float synthGain = 1f, float synthPan = 0f, long minLength = 0)
+    public static void Export(IReadOnlyList<PlaybackTrack> tracks, IReadOnlyList<MidiClip> midi, int sampleRate, string path, float synthGain = 1f, float synthPan = 0f, long minLength = 0, string? preset = null)
     {
         var tail = sampleRate;
         var length = Math.Max(
@@ -95,6 +95,7 @@ public static class Mixer
         const int block = 4096;
         var synth = new Synth();
         synth.Configure(sampleRate);
+        synth.SetPreset(preset);
         var sequencer = new MidiSequencer();
         var anySolo = AnySolo(tracks, midi);
         var left = new float[block];

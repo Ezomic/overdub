@@ -13,6 +13,7 @@ public sealed class Track(string name, int? input)
     public int? Input { get; } = input;
     public bool Armed { get; set; }
     public bool IsMidi => Input is null;
+    public string Preset { get; set; } = "Lead";
     public List<Clip> Clips { get; } = [];
     public List<MidiClip> MidiClips { get; } = [];
 

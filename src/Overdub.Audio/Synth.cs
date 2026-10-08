@@ -5,10 +5,6 @@ namespace Overdub.Audio;
 public sealed class Synth
 {
     private const int MaxVoices = 16;
-    private const float AttackSeconds = 0.005f;
-    private const float DecaySeconds = 0.15f;
-    private const float SustainLevel = 0.6f;
-    private const float ReleaseSeconds = 0.3f;
     private const double BendSemitones = 2.0;
 
     private enum Command
@@ -26,6 +22,11 @@ public sealed class Synth
     private int _sampleRate = 44100;
     private bool _pedal;
     private double _bend = 1.0;
+    private SynthPatch _patch = SynthPatch.All[0];
+
+    public string PresetName => _patch.Name;
+
+    public void SetPreset(string? name) => _patch = SynthPatch.Named(name);
 
     public float Volume { get; set; } = 0.35f;
 
@@ -79,7 +80,7 @@ public sealed class Synth
                 {
                     for (var v = 0; v < MaxVoices; v++)
                     {
-                        if (_voices[v].Held)
+                        if (_voices[v].PedalHeld)
                         {
                             ReleaseVoice(ref _voices[v]);
                         }
@@ -100,7 +101,7 @@ public sealed class Synth
 
                     if (_pedal)
                     {
-                        _voices[v].Held = true;
+                        _voices[v].PedalHeld = true;
                     }
                     else
                     {
@@ -117,7 +118,7 @@ public sealed class Synth
 
     private static void ReleaseVoice(ref Voice voice)
     {
-        voice.Held = false;
+        voice.PedalHeld = false;
         if (voice.Stage != Stage.Idle)
         {
             voice.Stage = Stage.Release;
@@ -148,16 +149,24 @@ public sealed class Synth
             Velocity = velocity / 127f,
             Stage = Stage.Attack,
             Age = ++_age,
+            Patch = _patch,
+            Droop = 1f,
         };
     }
 
     private void RenderVoice(ref Voice voice, float[] destination, int offset, int frames)
     {
+        var patch = voice.Patch;
+        var table = patch.Table;
+        var detunes = patch.Detunes;
         var step = voice.Frequency * _bend / _sampleRate;
-        var attackStep = 1f / (AttackSeconds * _sampleRate);
-        var decayStep = (1f - SustainLevel) / (DecaySeconds * _sampleRate);
-        var releaseStep = 1f / (ReleaseSeconds * _sampleRate);
-        const float cutoff = 0.25f;
+        var attackStep = 1f / (patch.Attack * _sampleRate);
+        var decayStep = (1f - patch.Sustain) / (patch.Decay * _sampleRate);
+        var releaseStep = 1f / (patch.Release * _sampleRate);
+        var droopFactor = patch.HeldDecay <= 0f ? 1f : (float)Math.Exp(-patch.HeldDecay / _sampleRate);
+        var cutoff = patch.Cutoff * (1f - patch.VelocityBrightness + (patch.VelocityBrightness * voice.Velocity));
+        cutoff = Math.Clamp(cutoff, 0.01f, 1f);
+        var output = patch.Gain * voice.Velocity * Volume;
 
         for (var i = 0; i < frames; i++)
         {
@@ -174,10 +183,20 @@ public sealed class Synth
                     break;
                 case Stage.Decay:
                     voice.Level -= decayStep;
-                    if (voice.Level <= SustainLevel)
+                    voice.Droop *= droopFactor;
+                    if (voice.Level <= patch.Sustain)
                     {
-                        voice.Level = SustainLevel;
+                        voice.Level = patch.Sustain;
                         voice.Stage = Stage.Sustain;
+                    }
+
+                    break;
+                case Stage.Sustain:
+                    voice.Droop *= droopFactor;
+                    if (voice.Level * voice.Droop < 0.0005f)
+                    {
+                        voice.Stage = Stage.Idle;
+                        return;
                     }
 
                     break;
@@ -192,15 +211,37 @@ public sealed class Synth
                     break;
             }
 
-            var saw = (float)((2 * voice.Phase) - 1);
-            var detuned = (float)((2 * voice.PhaseB) - 1);
-            voice.Filter += cutoff * (((saw + detuned) * 0.5f) - voice.Filter);
-            destination[offset + i] += voice.Filter * voice.Level * voice.Velocity * Volume;
+            var sample = 0f;
+            for (var d = 0; d < detunes.Length; d++)
+            {
+                var phase = d switch
+                {
+                    0 => voice.Phase,
+                    1 => voice.PhaseB,
+                    _ => voice.Phase2,
+                };
+                var position = phase * 2048;
+                var index = (int)position;
+                var fraction = (float)(position - index);
+                sample += table[index] + ((table[index + 1] - table[index]) * fraction);
+            }
 
-            voice.Phase += step;
-            voice.PhaseB += step * 1.006;
+            voice.Filter += cutoff * (sample - voice.Filter);
+            destination[offset + i] += voice.Filter * voice.Level * voice.Droop * output;
+
+            voice.Phase += step * detunes[0];
             voice.Phase -= Math.Floor(voice.Phase);
-            voice.PhaseB -= Math.Floor(voice.PhaseB);
+            if (detunes.Length > 1)
+            {
+                voice.PhaseB += step * detunes[1];
+                voice.PhaseB -= Math.Floor(voice.PhaseB);
+            }
+
+            if (detunes.Length > 2)
+            {
+                voice.Phase2 += step * detunes[2];
+                voice.Phase2 -= Math.Floor(voice.Phase2);
+            }
         }
     }
 
@@ -224,6 +265,9 @@ public sealed class Synth
         public float Filter;
         public long Age;
         public Stage Stage;
-        public bool Held;
+        public bool PedalHeld;
+        public SynthPatch Patch;
+        public double Phase2;
+        public float Droop;
     }
 }

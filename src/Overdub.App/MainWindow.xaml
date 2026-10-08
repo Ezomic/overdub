@@ -108,9 +108,12 @@
                                                 ToolTip="Remove track" MouseLeave="OnRemoveMouseLeave" Focusable="False" />
                                     </Grid>
                                     <TextBlock Text="{Binding InputText}" Foreground="{StaticResource TextDim}" FontSize="11" Margin="0,1,0,6" Visibility="{Binding IsAudio, Converter={StaticResource BoolToVis}}" />
-                                    <Button Style="{StaticResource TransportButton}" Command="{Binding CycleMidi}" Content="{Binding MidiLabel}" HorizontalAlignment="Left"
-                                            Width="Auto" Height="22" FontSize="11" Padding="8,0" Margin="0,2,0,6" ToolTip="Click to switch MIDI input"
-                                            Visibility="{Binding IsMidi, Converter={StaticResource BoolToVis}}" Focusable="False" />
+                                    <StackPanel Orientation="Horizontal" Margin="0,2,0,6" Visibility="{Binding IsMidi, Converter={StaticResource BoolToVis}}">
+                                        <Button Style="{StaticResource TransportButton}" Command="{Binding CycleMidi}" Content="{Binding MidiLabel}"
+                                                Width="Auto" Height="22" FontSize="11" Padding="8,0" Margin="0,0,6,0" ToolTip="Click to switch MIDI input" Focusable="False" />
+                                        <Button Style="{StaticResource TransportButton}" Command="{Binding CyclePreset}" Content="{Binding Preset}"
+                                                Width="Auto" Height="22" FontSize="11" Padding="8,0" Margin="0" ToolTip="Click to change the sound" Focusable="False" />
+                                    </StackPanel>
                                     <StackPanel Orientation="Horizontal">
                                         <ToggleButton Style="{StaticResource ArmChip}" Content="R" IsChecked="{Binding Armed}" IsEnabled="{Binding HasInput}" ToolTip="Arm for recording" Focusable="False" />
                                         <ToggleButton Style="{StaticResource Chip}" Content="M" IsChecked="{Binding Mute}" ToolTip="Mute" Focusable="False" />
