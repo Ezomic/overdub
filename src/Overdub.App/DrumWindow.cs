@@ -102,6 +102,21 @@ public sealed class DrumWindow : Window
         {
             _patternBar.Children.Add(new Border { Width = 16 });
             _patternBar.Children.Add(MakeButton(current.Bars == 1 ? "1 bar" : "2 bars", () => _main.SetDrumBars(current, current.Bars == 1 ? 2 : 1), width: 70));
+            var presets = MakeButton("Presets", () => { }, width: 80);
+            presets.Click += (_, _) =>
+            {
+                var menu = new ContextMenu { PlacementTarget = presets, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom };
+                foreach (var (name, _) in DrumPattern.Presets)
+                {
+                    var preset = name;
+                    var item = new MenuItem { Header = preset };
+                    item.Click += (_, _) => _main.ApplyDrumPreset(current, preset);
+                    menu.Items.Add(item);
+                }
+
+                menu.IsOpen = true;
+            };
+            _patternBar.Children.Add(presets);
             _patternBar.Children.Add(MakeButton("Clear", () => _main.ClearDrumPattern(current), width: 60));
             _patternBar.Children.Add(MakeButton("Place at playhead", () => _main.PlaceDrumPattern(current), width: 130));
         }
