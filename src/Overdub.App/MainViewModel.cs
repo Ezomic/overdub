@@ -856,6 +856,18 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public AsioEngine Engine => _session.Engine;
 
+    public bool ScreenKeyboardOpen { get; set; }
+
+    public event Action<byte, byte>? NoteActivity
+    {
+        add => _session.NoteActivity += value;
+        remove => _session.NoteActivity -= value;
+    }
+
+    public void PlayNote(byte note, byte velocity) => _session.HandleNote(note, velocity);
+
+    public void Sustain(bool down) => _session.HandleControl(MidiKind.Sustain, down ? 127 : 0);
+
     public int AudioInputCount => Math.Max(1, _session.Engine.InputCount);
 
     public string LatencySummary
@@ -1078,9 +1090,9 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
-        if (_session.HasArmedMidi && !_session.Midi.IsOpen)
+        if (_session.HasArmedMidi && !_session.Midi.IsOpen && !ScreenKeyboardOpen)
         {
-            Message = "Pick a MIDI input on a Keys track first.";
+            Message = "Pick a MIDI input on a Keys track, or open the on-screen keyboard.";
             return;
         }
 
