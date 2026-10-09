@@ -1203,6 +1203,45 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         Transpose(shift);
     }
 
+    public (IReadOnlyList<TabNote> Notes, IReadOnlyList<TabBar> Bars) BassTabData(Track track)
+    {
+        var engine = _session.Engine;
+        var notes = track.MidiClips.SelectMany(c => c.NoteData()).Where(n => n.Velocity >= 50).Select(n =>
+        {
+            var (str, fret) = BassTab.Position(n.Pitch);
+            return new TabNote(n.Start, n.End, str, fret);
+        }).OrderBy(n => n.Start).ToList();
+        var bars = new List<TabBar>();
+        var barLength = engine.SamplesPerBeat * engine.BeatsPerBar;
+        foreach (var clip in track.MidiClips.Where(c => c.PatternId is not null))
+        {
+            var pattern = track.ChordPatterns.FirstOrDefault(p => p.Id == clip.PatternId);
+            if (pattern is null)
+            {
+                continue;
+            }
+
+            var effective = _session.EffectivePattern(pattern);
+            for (var i = 0; i < effective.Bars; i++)
+            {
+                bars.Add(new TabBar(clip.StartSample + (long)(i * barLength), effective[i].Name));
+            }
+        }
+
+        return (notes, bars.OrderBy(b => b.Start).ToList());
+    }
+
+    public bool SetMachineMute(Track track, bool mute)
+    {
+        if (Tracks.FirstOrDefault(t => t.Model == track) is { } vm)
+        {
+            vm.Mute = mute;
+            return true;
+        }
+
+        return false;
+    }
+
     public (int Root, MelodyScale Scale)? DetectedKey() => _session.DetectedKey();
 
     public Chord? ChordAtPlayhead(Track track)
