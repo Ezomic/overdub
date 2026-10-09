@@ -1460,7 +1460,23 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
     }
 
-    public void PlaceDrumPattern(DrumPattern pattern, int repeats = 1)
+    public DrumPattern? MakeDrumFill(DrumPattern source, int type)
+    {
+        if (DrumTrack is not { } track)
+        {
+            return null;
+        }
+
+        if (track.Patterns.Count >= 8)
+        {
+            Message = "You can have up to 8 drum patterns.";
+            return null;
+        }
+
+        return _session.AddFillPattern(track, source, type);
+    }
+
+    public void PlaceDrumPattern(DrumPattern pattern, int repeats = 1, DrumPattern? everyFourth = null)
     {
         if (DrumTrack is not { } track)
         {
@@ -1470,7 +1486,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         var engine = _session.Engine;
         var bar = engine.SamplesPerBeat * engine.BeatsPerBar;
         var start = (long)(Math.Round(engine.Position / bar) * bar);
-        _session.PlacePattern(track, pattern, start, repeats);
+        _session.PlacePattern(track, pattern, start, repeats, everyFourth);
     }
 
     public void AuditionDrum(int lane, int velocity) => _session.Engine.Drums.NoteOn(DrumKit.Lanes[lane].Note, velocity);

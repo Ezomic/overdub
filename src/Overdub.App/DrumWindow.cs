@@ -12,11 +12,13 @@ public sealed class DrumWindow : Window
     private static readonly Brush Accent = new SolidColorBrush(Color.FromRgb(0xE0, 0x9F, 0x3E));
 
     private readonly MainViewModel _main;
-    private readonly StackPanel _patternBar = new() { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) };
+    private readonly WrapPanel _patternBar = new() { Margin = new Thickness(0, 0, 0, 12), MaxWidth = 900 };
     private readonly StackPanel _grid = new();
     private readonly TextBlock _hint = new() { Margin = new Thickness(0, 12, 0, 0) };
     private DrumPattern? _current;
     private int _repeat = 1;
+    private int _fillType;
+    private string? _everyFourthId;
     private bool _painting;
     private byte _paintLevel;
 
@@ -67,7 +69,7 @@ public sealed class DrumWindow : Window
             Height = 26,
             FontSize = 12,
             Padding = new Thickness(12, 0, 12, 0),
-            Margin = new Thickness(0, 0, 6, 0),
+            Margin = new Thickness(0, 0, 6, 6),
             Focusable = false,
         };
         if (selected)
@@ -97,7 +99,7 @@ public sealed class DrumWindow : Window
             {
                 _current = target;
                 Refresh();
-            }, pattern == _current, 36));
+            }, pattern == _current, 52));
         }
 
         if (track.Patterns.Count < 8)
@@ -136,7 +138,45 @@ public sealed class DrumWindow : Window
                 _repeat = _repeat >= 8 ? 1 : _repeat * 2;
                 Refresh();
             }, width: 80));
-            _patternBar.Children.Add(MakeButton("Place at playhead", () => _main.PlaceDrumPattern(current, _repeat), width: 130));
+            _patternBar.Children.Add(MakeButton("Make fill", () =>
+            {
+                if (_main.MakeDrumFill(current, _fillType) is { } fill)
+                {
+                    _everyFourthId = fill.Id;
+                    _fillType = (_fillType + 1) % DrumPattern.FillNames.Length;
+                    Refresh();
+                }
+            }, width: 80));
+            var others = Track!.Patterns.Where(p => p != current).ToList();
+            var every = others.FirstOrDefault(p => p.Id == _everyFourthId);
+            var everyButton = MakeButton($"Every 4th: {every?.Name ?? "same"}", () => { }, width: 120);
+            everyButton.ToolTip = "With Repeat 4x or more, every fourth block plays another pattern, for example a fill made with Make fill";
+            everyButton.Click += (_, _) =>
+            {
+                var menu = new ContextMenu { PlacementTarget = everyButton, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom };
+                var same = new MenuItem { Header = "same" };
+                same.Click += (_, _) =>
+                {
+                    _everyFourthId = null;
+                    Refresh();
+                };
+                menu.Items.Add(same);
+                foreach (var other in others)
+                {
+                    var choice = other;
+                    var item = new MenuItem { Header = choice.Name };
+                    item.Click += (_, _) =>
+                    {
+                        _everyFourthId = choice.Id;
+                        Refresh();
+                    };
+                    menu.Items.Add(item);
+                }
+
+                menu.IsOpen = true;
+            };
+            _patternBar.Children.Add(everyButton);
+            _patternBar.Children.Add(MakeButton("Place at playhead", () => _main.PlaceDrumPattern(current, _repeat, every), width: 130));
         }
 
         BuildGrid();
