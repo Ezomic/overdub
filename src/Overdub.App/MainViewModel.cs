@@ -1803,6 +1803,48 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public IReadOnlyList<Chord> SongProgression() => KeyFinder.OpeningProgression(_session);
 
+    public (IReadOnlyList<Chord> Chords, int Bar) ProgressionAtPlayhead()
+    {
+        var engine = _session.Engine;
+        var position = engine.Position;
+        var barLength = engine.SamplesPerBeat * engine.BeatsPerBar;
+        foreach (var role in new[] { MachineRole.Guitar, MachineRole.Bass })
+        {
+            foreach (var track in _session.Tracks.Where(t => t.Machine == role))
+            {
+                foreach (var clip in track.MidiClips.Where(c => c.PatternId is not null))
+                {
+                    if (position < clip.StartSample || position >= clip.EndSample)
+                    {
+                        continue;
+                    }
+
+                    var pattern = track.ChordPatterns.FirstOrDefault(p => p.Id == clip.PatternId);
+                    if (pattern is null)
+                    {
+                        continue;
+                    }
+
+                    var effective = _session.EffectivePattern(pattern);
+                    var chords = Enumerable.Range(0, effective.Bars).Select(i => effective[i]).ToList();
+                    var bar = Math.Clamp((int)((position - clip.StartSample) / barLength), 0, chords.Count - 1);
+                    return (chords, engine.IsPlaying ? bar : -1);
+                }
+            }
+        }
+
+        return (SongProgression(), -1);
+    }
+
+    public Task HearChords(IReadOnlyList<Chord> chords, int holdMs = 900)
+    {
+        var track = _session.Tracks.FirstOrDefault(t => t.Machine == MachineRole.Guitar) ?? _session.Tracks.FirstOrDefault(t => t.Machine == MachineRole.Lead);
+        var bass = track is null && _session.Tracks.Any(t => t.Machine == MachineRole.Bass);
+        return _session.PreviewChords(track, chords.Select(c => c.VoicingNotes(bass)).ToList(), holdMs, PreviewSettings.Volume);
+    }
+
+    public bool SongKeyIsKnown => DetectSongKeyQuick() is not null;
+
     public SongKey? DetectSongKey() => KeyFinder.FromSession(_session, includeAudio: true);
 
     public Task PreviewSound(TrackViewModel track, string preset) => _session.PreviewMachineSound(track.Model, preset, PreviewSettings.Volume);

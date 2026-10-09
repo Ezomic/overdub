@@ -239,6 +239,55 @@ public sealed class Session : IDisposable
         });
     }
 
+    public Task PreviewChords(Track? track, IReadOnlyList<int[]> chords, int holdMs, float volume = 1f)
+    {
+        if (Engine.SampleRate == 0 || chords.Count == 0)
+        {
+            return Task.CompletedTask;
+        }
+
+        var machines = MachineTracks;
+        var own = track is null ? -1 : machines.IndexOf(track);
+        var spare = own < 0 ? -1 : machines.Count < Engine.Machines.Length ? machines.Count : own;
+        var lane = spare >= 0 ? Engine.Machines[spare] : Engine.Keys;
+        var version = Interlocked.Increment(ref _previewVersion);
+        return Task.Run(() =>
+        {
+            if (spare >= 0)
+            {
+                lane.Gain = track!.Gain * volume;
+                lane.Pan = track.Pan;
+                lane.SetPreset(track.Preset, waitForSamples: true);
+            }
+
+            foreach (var chord in chords)
+            {
+                if (version != _previewVersion)
+                {
+                    break;
+                }
+
+                foreach (var note in chord)
+                {
+                    lane.Voice.NoteOn((byte)note, 92);
+                }
+
+                Thread.Sleep(holdMs);
+                foreach (var note in chord)
+                {
+                    lane.Voice.NoteOff((byte)note);
+                }
+            }
+
+            Thread.Sleep(500);
+            lane.AllNotesOff();
+            if (version == _previewVersion && spare >= 0 && spare != own)
+            {
+                lane.SetPreset(null);
+            }
+        });
+    }
+
     public void ApplyMixerState()
     {
         var drums = Tracks.FirstOrDefault(t => t.IsDrums);
