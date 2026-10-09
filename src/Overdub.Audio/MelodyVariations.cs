@@ -2,17 +2,55 @@ namespace Overdub.Audio;
 
 public static class NoteTranscriber
 {
-    private const int Window = 2048;
-    private const int Hop = 512;
-
-    public static IReadOnlyList<MidiNoteData> FromAudio(float[] samples, int offset, int length, int sampleRate, long startSample)
+    private static int RefineOnset(float[] x, int frameStart, int window)
     {
+        const int block = 128;
+        var from = Math.Max(0, frameStart - (window / 2));
+        var to = Math.Min(x.Length - block, frameStart + window);
+        if (to <= from)
+        {
+            return frameStart;
+        }
+
+        var levels = new List<(int At, double Rms)>();
+        for (var at = from; at <= to; at += block)
+        {
+            double sum = 0;
+            for (var i = 0; i < block; i++)
+            {
+                sum += x[at + i] * x[at + i];
+            }
+
+            levels.Add((at, Math.Sqrt(sum / block)));
+        }
+
+        var peak = levels.Max(l => l.Rms);
+        if (peak < 1e-4)
+        {
+            return frameStart;
+        }
+
+        foreach (var (at, rms) in levels)
+        {
+            if (rms >= 0.25 * peak)
+            {
+                return at;
+            }
+        }
+
+        return frameStart;
+    }
+
+    public static IReadOnlyList<MidiNoteData> FromAudio(float[] samples, int offset, int length, int sampleRate, long startSample, double minHz = 70, int window = 2048)
+    {
+        var Window = window;
+        var Hop = window / 4;
         var frames = new List<(long At, double Midi)?>();
         var buffer = new float[Window];
         for (var position = 0; position + Window <= length && offset + position + Window <= samples.Length; position += Hop)
         {
             Array.Copy(samples, offset + position, buffer, 0, Window);
-            var reading = PitchDetector.Detect(buffer, sampleRate, 70, 1200);
+            var reading = PitchDetector.Detect(buffer, sampleRate, minHz, 1200);
             frames.Add(reading is { Clarity: >= 0.85 } r ? (position, 69 + (12 * Math.Log2(r.Frequency / 440.0))) : null);
         }
 
@@ -25,7 +63,7 @@ public static class NoteTranscriber
             {
                 var sorted = run.Select(f => f.Midi).OrderBy(m => m).ToList();
                 var pitch = (int)Math.Round(sorted[sorted.Count / 2]);
-                var begin = startSample + run[0].At + (Window / 2) - (Hop / 2);
+                var begin = startSample + (RefineOnset(samples, offset + (int)run[0].At, Window) - offset);
                 var end = startSample + run[^1].At + (Window / 2) + (Hop / 2);
                 notes.Add(new MidiNoteData(begin, end, (byte)Math.Clamp(pitch, 0, 127), 96));
             }

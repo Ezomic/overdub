@@ -1203,6 +1203,62 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         Transpose(shift);
     }
 
+    public async Task<string> CheckPlayingAsync(Track bass)
+    {
+        var engine = _session.Engine;
+        var clip = _selection as Clip ?? Tracks.SelectMany(t => t.Model.Clips).OrderBy(c => c.StartSample).LastOrDefault();
+        if (clip is null || engine.SampleRate == 0)
+        {
+            return "Record yourself playing the bass line first (arm the bass input, press record while the bass machine plays through headphones, or mute the machine for the take), then click the clip and check it.";
+        }
+
+        var rate = engine.SampleRate;
+        var playback = clip.Playback;
+        var played = await Task.Run(() => NoteTranscriber.FromAudio(playback.Samples, (int)playback.Offset, (int)playback.Length, rate, clip.StartSample, 36, 4096));
+        var from = clip.StartSample;
+        var to = clip.EndSample;
+        var target = bass.MidiClips.SelectMany(c => c.NoteData()).Where(n => n.Velocity >= 50 && n.Start >= from - (rate / 10) && n.Start < to).ToList();
+        if (target.Count == 0)
+        {
+            return "The bass machine has no notes where that clip is, so there is nothing to compare with.";
+        }
+
+        if (played.Count == 0)
+        {
+            return "I could not hear clear notes in that clip. Check that it is the bass input and that the notes are played one at a time.";
+        }
+
+        var barLength = engine.SamplesPerBeat * engine.BeatsPerBar;
+        var report = PlayingChecker.Compare(target, played, rate);
+        return PlayingChecker.Summarize(
+            report,
+            start => (int)Math.Floor((start - from) / barLength),
+            bar => ChordAtSample(bass, from + (long)(bar * barLength)) ?? "",
+            Chord.Roots);
+    }
+
+    private string? ChordAtSample(Track track, long sample)
+    {
+        var engine = _session.Engine;
+        var bar = engine.SamplesPerBeat * engine.BeatsPerBar;
+        foreach (var clip in track.MidiClips.Where(c => c.PatternId is not null))
+        {
+            var pattern = track.ChordPatterns.FirstOrDefault(p => p.Id == clip.PatternId);
+            if (pattern is null)
+            {
+                continue;
+            }
+
+            var effective = _session.EffectivePattern(pattern);
+            if (sample >= clip.StartSample && sample < clip.StartSample + effective.LengthSamples(engine.SampleRate, engine.Bpm, engine.BeatsPerBar))
+            {
+                return effective[Math.Min(effective.Bars - 1, (int)((sample - clip.StartSample) / bar))].Name;
+            }
+        }
+
+        return null;
+    }
+
     public (IReadOnlyList<TabNote> Notes, IReadOnlyList<TabBar> Bars) BassTabData(Track track)
     {
         var engine = _session.Engine;
