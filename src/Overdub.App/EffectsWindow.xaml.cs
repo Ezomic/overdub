@@ -106,6 +106,35 @@ public partial class EffectsWindow : Window
         }
     }
 
+    private void BuildChainPresets()
+    {
+        var row = new DockPanel { Margin = new Thickness(0, 0, 0, 20) };
+        var button = new Button { Content = "Presets...", Style = (Style)FindResource("TransportButton"), Width = 96, Height = 26, FontSize = 12, Padding = new Thickness(12, 0, 12, 0), Focusable = false, Margin = new Thickness(0, 0, 12, 0) };
+        button.Click += (_, _) =>
+        {
+            var menu = new ContextMenu { PlacementTarget = button, Placement = PlacementMode.Bottom };
+            foreach (var group in EffectPresets.Groups)
+            {
+                var groupItem = new MenuItem { Header = group };
+                foreach (var preset in EffectPresets.All.Where(p => p.Group == group))
+                {
+                    var chosen = preset;
+                    var item = new MenuItem { Header = chosen.Name };
+                    item.Click += (_, _) => _track.ApplyChainPreset(chosen);
+                    groupItem.Items.Add(item);
+                }
+
+                menu.Items.Add(groupItem);
+            }
+
+            menu.IsOpen = true;
+        };
+        DockPanel.SetDock(button, Dock.Left);
+        row.Children.Add(button);
+        row.Children.Add(new TextBlock { Text = "Sets the amp, equalizer, compressor and reverb together. Undo brings the old settings back.", Foreground = (Brush)FindResource("TextDim"), TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center });
+        Panels.Children.Add(row);
+    }
+
     private void Build()
     {
         BuildSends();
@@ -120,6 +149,7 @@ public partial class EffectsWindow : Window
             return;
         }
 
+        BuildChainPresets();
         var effects = _track.Effects.Effects;
         for (var e = 0; e < effects.Count; e++)
         {

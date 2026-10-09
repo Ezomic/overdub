@@ -265,10 +265,36 @@ public sealed class TrackViewModel(Track model, Brush color, Action onMixChanged
     public static readonly (string Name, double[] Values)[] AmpPresets =
     [
         ("Clean", [0, 0.2, 1, 0, 2, 0.35, 1, 0]),
+        ("Edge of breakup", [1, 0.3, 1, 1, 1, 0.4, 1, 0]),
         ("Crunch", [1, 0.5, 2, 1, 1, 0.4, 1, -1]),
         ("Lead", [2, 0.65, 1, 3, 0, 0.5, 1, -3]),
+        ("High gain", [2, 0.85, 2, 1, 1, 0.6, 1, -4]),
         ("Bass", [3, 0.3, 4, -1, 1, 0.15, 1, 0]),
+        ("Bass grit", [3, 0.6, 2, 2, 1, 0.3, 1, -2]),
+        ("Direct, no cabinet", [0, 0.1, 0, 0, 0, 0.2, 0, 0]),
     ];
+
+    public void ApplyChainPreset(ChainPreset preset)
+    {
+        var chain = Model.Effects;
+        var old = chain.Effects.Select(e => ((double[])e.Values.Clone(), e.Enabled)).ToArray();
+        onEdit(
+            $"{preset.Name} preset",
+            () =>
+            {
+                preset.ApplyTo(chain);
+                OnPropertyChanged(nameof(HasEffects));
+                EffectsChanged?.Invoke();
+            },
+            () =>
+            {
+                for (var i = 0; i < old.Length; i++)
+                {
+                    SetAllEffectValues(i, old[i].Item1, old[i].Enabled);
+                }
+            },
+            null);
+    }
 
     public void ApplyEffectPreset(int effect, string name, double[] values)
     {
