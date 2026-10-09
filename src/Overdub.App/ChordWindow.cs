@@ -103,6 +103,12 @@ public sealed class ChordWindow : Window
         return button;
     }
 
+    private static Button Locked(bool locked, Button button)
+    {
+        button.IsEnabled = !locked;
+        return button;
+    }
+
     private void Refresh()
     {
         if (!_main.HasTrack(_track))
@@ -150,14 +156,25 @@ public sealed class ChordWindow : Window
         }, width: 80));
         _patternBar.Children.Add(MakeButton("Place at playhead", () => _main.PlaceChordPattern(_track, current, _repeat), width: 130));
 
-        for (var bar = 0; bar < current.Bars; bar++)
+        var effective = _main.EffectivePattern(current);
+        var following = current.Role == MachineRole.Bass && current.FollowId is not null && !ReferenceEquals(effective, current);
+        if (current.Role == MachineRole.Bass)
+        {
+            var guitar = _main.GuitarPatterns();
+            var label = following ? $"Following {guitar.FirstOrDefault(g => g.Pattern.Id == current.FollowId).Label}" : "Own chords";
+            var choices = new List<(string Label, Action Pick)> { ("Own chords", () => _main.EditChordPattern(current, p => p.FollowId = null, "Stop following guitar")) };
+            choices.AddRange(guitar.Select(g => ($"Follow {g.Label}", (Action)(() => _main.EditChordPattern(current, p => p.FollowId = g.Pattern.Id, "Follow guitar chords")))));
+            _patternBar.Children.Add(MenuButton(label, choices, 190));
+        }
+
+        for (var bar = 0; bar < effective.Bars; bar++)
         {
             var index = bar;
-            var chord = current[bar];
+            var chord = effective[bar];
             var column = new StackPanel { Margin = new Thickness(0, 0, 10, 0) };
             column.Children.Add(new TextBlock { Text = $"Bar {bar + 1}", Foreground = (Brush)FindResource("TextDim"), Margin = new Thickness(0, 0, 0, 4) });
-            column.Children.Add(MenuButton(Chord.Roots[chord.Root], Enumerable.Range(0, 12).Select(r => (Chord.Roots[r], (Action)(() => _main.EditChordPattern(current, p => p[index] = p[index] with { Root = r }, "Change chord")))), 70));
-            column.Children.Add(MenuButton(Chord.QualityNames[(int)chord.Quality], Enumerable.Range(0, Chord.QualityNames.Length).Select(q => (Chord.QualityNames[q], (Action)(() => _main.EditChordPattern(current, p => p[index] = p[index] with { Quality = (ChordQuality)q }, "Change chord")))), 70));
+            column.Children.Add(Locked(following, MenuButton(Chord.Roots[chord.Root], Enumerable.Range(0, 12).Select(r => (Chord.Roots[r], (Action)(() => _main.EditChordPattern(current, p => p[index] = p[index] with { Root = r }, "Change chord")))), 70)));
+            column.Children.Add(Locked(following, MenuButton(Chord.QualityNames[(int)chord.Quality], Enumerable.Range(0, Chord.QualityNames.Length).Select(q => (Chord.QualityNames[q], (Action)(() => _main.EditChordPattern(current, p => p[index] = p[index] with { Quality = (ChordQuality)q }, "Change chord")))), 70)));
             _chordRow.Children.Add(column);
         }
 
