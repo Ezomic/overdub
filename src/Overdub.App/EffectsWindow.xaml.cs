@@ -22,7 +22,7 @@ public partial class EffectsWindow : Window
         _main = main;
         _track = track;
         InitializeComponent();
-        Title = track.Model.IsMidi ? $"Instrument: {track.Name}" : $"Effects: {track.Name}";
+        Title = track.Model is { IsMidi: true, Machine: null } ? $"Instrument: {track.Name}" : $"Effects: {track.Name}";
         Build();
         _track.EffectsChanged += Sync;
         Closed += (_, _) => _track.EffectsChanged -= Sync;
@@ -77,7 +77,7 @@ public partial class EffectsWindow : Window
     private void Build()
     {
         BuildPluginRow();
-        if (_track.Model.IsMidi)
+        if (_track.Model.IsMidi && _track.Model.Machine is null)
         {
             return;
         }

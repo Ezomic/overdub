@@ -96,6 +96,18 @@ public static class Mixer
         right = Math.Min(1f, 1f + pan);
     }
 
+    public static void AddPannedStereo(float[] sourceLeft, float[] sourceRight, float gain, float pan, float[] left, float[] right, int frames)
+    {
+        PanGains(pan, out var gl, out var gr);
+        gl *= gain;
+        gr *= gain;
+        for (var i = 0; i < frames; i++)
+        {
+            left[i] += sourceLeft[i] * gl;
+            right[i] += sourceRight[i] * gr;
+        }
+    }
+
     public static void AddPanned(float[] source, float gain, float pan, float[] left, float[] right, int frames)
     {
         PanGains(pan, out var gl, out var gr);
@@ -160,6 +172,7 @@ public static class Mixer
         var machineSynths = machineList.Select(m => MachineLane.CreateVoice(m.Role, m.Preset, sampleRate, m.Instrument)).ToList();
         var machineSequencers = machineList.Select(_ => new MidiSequencer()).ToList();
         var machineBuf = new float[block];
+        var machineRight = new float[block];
         var anySolo = AnySolo(tracks, midi) || AnySolo([], drumClips) || machineList.Any(m => AnySolo([], m.Clips));
         var scratch = new MixScratch();
         var left = new float[block];
@@ -188,7 +201,16 @@ public static class Mixer
             {
                 Array.Clear(machineBuf, 0, block);
                 machineSequencers[m].Render(machineSynths[m], machineList[m].Clips, anySolo, position, machineBuf, frames);
-                AddPanned(machineBuf, machineList[m].Gain, machineList[m].Pan, left, right, frames);
+                if (machineList[m].Effects is { AnyEnabled: true } fx)
+                {
+                    Array.Copy(machineBuf, machineRight, frames);
+                    fx.Process(machineBuf, machineRight, frames);
+                    AddPannedStereo(machineBuf, machineRight, machineList[m].Gain, machineList[m].Pan, left, right, frames);
+                }
+                else
+                {
+                    AddPanned(machineBuf, machineList[m].Gain, machineList[m].Pan, left, right, frames);
+                }
             }
 
             for (var i = 0; i < frames; i++)
