@@ -1099,6 +1099,39 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 : clips[0];
     }
 
+    public void ExportSelectedMidi(string? path = null)
+    {
+        if (_selection is not MidiClip clip || Tracks.FirstOrDefault(t => t.Model.MidiClips.Contains(clip)) is not { } track)
+        {
+            Message = "Click a MIDI block on the timeline first, then export it.";
+            return;
+        }
+
+        var engine = _session.Engine;
+        path ??= SelectedMidiPath(track.Name);
+        if (path is null)
+        {
+            return;
+        }
+
+        try
+        {
+            MidiExporter.Write(path, clip, track.Name, engine.Bpm, engine.BeatsPerBar, engine.BeatUnit, engine.SampleRate, track.Model.IsDrums);
+            Message = "";
+            Notice = $"Exported {Path.GetFileName(path)}";
+        }
+        catch (Exception ex)
+        {
+            Message = ex.Message;
+        }
+    }
+
+    private string? SelectedMidiPath(string name)
+    {
+        var dialog = new Microsoft.Win32.SaveFileDialog { Filter = "MIDI file (*.mid)|*.mid", FileName = name + ".mid", InitialDirectory = _session.Directory };
+        return dialog.ShowDialog() == true ? dialog.FileName : null;
+    }
+
     public void ShowMessage(string text) => Message = text;
 
     public void DeleteSelection()

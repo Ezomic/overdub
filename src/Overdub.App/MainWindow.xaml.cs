@@ -217,6 +217,7 @@ public partial class MainWindow : Window
         menu.Items.Add(Item("Import audio...", () => OnImportClick(FileButton, new RoutedEventArgs())));
         menu.Items.Add(Item("Export mixdown...", () => OnExportClick(FileButton, new RoutedEventArgs())));
         menu.Items.Add(Item("Export stems...", () => OnStemsClick(FileButton, new RoutedEventArgs())));
+        menu.Items.Add(Item("Export selected MIDI block...", () => _viewModel.ExportSelectedMidi()));
         menu.IsOpen = true;
     }
 
