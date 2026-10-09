@@ -1305,19 +1305,35 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public Track? DrumTrack => _session.DrumTrack;
 
-    public bool HasMachine(MachineRole role) => _session.MachineTrack(role) is not null;
+    public bool MachineLimitReached => _session.MachineLimitReached;
 
     public bool HasTrack(Track track) => _session.Tracks.Contains(track);
 
     public void AddMachineTrack(MachineRole role)
     {
-        if (_session.MachineTrack(role) is not null)
+        if (_session.MachineLimitReached)
         {
-            Message = $"There is already a {role.ToString().ToLowerInvariant()} machine track.";
+            Message = $"You can have up to {AsioEngine.MaxMachines} machine tracks.";
             return;
         }
 
-        _session.AddMachineTrackUndoable(role);
+        var name = role switch { MachineRole.Guitar => "Guitar machine", MachineRole.Bass => "Bass machine", _ => "Lead guitar" };
+        _session.AddMachineTrackUndoable(role, UniqueName(name));
+    }
+
+    public void GenerateMelody(Track track, int key, MelodyScale scale, int bars, MelodyDensity density)
+    {
+        var engine = _session.Engine;
+        if (engine.SampleRate == 0)
+        {
+            Message = "Connect your Komplete Audio first.";
+            return;
+        }
+
+        var bar = engine.SamplesPerBeat * engine.BeatsPerBar;
+        var start = (long)(Math.Round(engine.Position / bar) * bar);
+        var events = MelodyGenerator.Generate(engine.SampleRate, engine.Bpm, engine.BeatsPerBar, key, scale, bars, density, Random.Shared.Next());
+        _session.PlaceMelody(track, events, start);
     }
 
     public ChordPattern AddChordPattern(Track track) => _session.AddChordPattern(track);

@@ -157,7 +157,7 @@ public static class Mixer
         var drumSequencer = new MidiSequencer();
         var drumClips = drums?.Clips ?? [];
         var machineList = machines ?? [];
-        var machineSynths = machineList.Select(m => MachineLane.CreateVoice(m.Role, m.Preset, sampleRate)).ToList();
+        var machineSynths = machineList.Select(m => MachineLane.CreateVoice(m.Role, m.Preset, sampleRate, m.Instrument)).ToList();
         var machineSequencers = machineList.Select(_ => new MidiSequencer()).ToList();
         var machineBuf = new float[block];
         var anySolo = AnySolo(tracks, midi) || AnySolo([], drumClips) || machineList.Any(m => AnySolo([], m.Clips));

@@ -4,6 +4,7 @@ public enum MachineRole
 {
     Guitar,
     Bass,
+    Lead,
 }
 
 public enum ChordQuality

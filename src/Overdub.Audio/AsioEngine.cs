@@ -50,8 +50,9 @@ public sealed class AsioEngine : IDisposable
 
     public Synth Synth { get; } = new();
     public DrumKit Drums { get; } = new();
-    public MachineLane[] Machines { get; } = [new MachineLane(MachineRole.Guitar), new MachineLane(MachineRole.Bass)];
-    private readonly float[][] _machineBufs = [new float[4096], new float[4096]];
+    public MachineLane[] Machines { get; } = Enumerable.Range(0, MaxMachines).Select(_ => new MachineLane(MachineRole.Guitar)).ToArray();
+    public const int MaxMachines = 8;
+    private readonly float[][] _machineBufs = Enumerable.Range(0, MaxMachines).Select(_ => new float[4096]).ToArray();
     public float DrumGain { get; set; } = 1f;
     public float DrumPan { get; set; }
     private MidiClip[] _drumMidi = [];
@@ -200,7 +201,7 @@ public sealed class AsioEngine : IDisposable
 
     public void SetMidiClips(IEnumerable<MidiClip> clips) => _midi = clips.ToArray();
 
-    public void SetMachineClips(MachineRole role, IEnumerable<MidiClip> clips) => Machines[(int)role].Clips = clips.ToArray();
+    public void SetMachineClips(int lane, IEnumerable<MidiClip> clips) => Machines[lane].Clips = clips.ToArray();
 
     public void SetDrumClips(IEnumerable<MidiClip> clips) => _drumMidi = clips.ToArray();
 
@@ -457,8 +458,11 @@ public sealed class AsioEngine : IDisposable
         Array.Clear(_mixR, 0, frames);
         Array.Clear(_synthBuf, 0, frames);
         Array.Clear(_drumBuf, 0, frames);
-        Array.Clear(_machineBufs[0], 0, frames);
-        Array.Clear(_machineBufs[1], 0, frames);
+        foreach (var buffer in _machineBufs)
+        {
+            Array.Clear(buffer, 0, frames);
+        }
+
         var midiPlayed = false;
         if (_countingIn)
         {
@@ -532,8 +536,10 @@ public sealed class AsioEngine : IDisposable
         _mixR = new float[frames];
         _synthBuf = new float[frames];
         _drumBuf = new float[frames];
-        _machineBufs[0] = new float[frames];
-        _machineBufs[1] = new float[frames];
+        for (var m = 0; m < _machineBufs.Length; m++)
+        {
+            _machineBufs[m] = new float[frames];
+        }
         _outInt = new int[frames];
     }
 
