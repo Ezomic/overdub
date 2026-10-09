@@ -114,8 +114,14 @@
                                     <StackPanel Orientation="Horizontal" Margin="0,2,0,6" Visibility="{Binding IsMachine, Converter={StaticResource BoolToVis}}">
                                         <Button Style="{StaticResource TransportButton}" Click="OnPresetClick" Content="{Binding Preset}"
                                                 Width="Auto" Height="22" FontSize="11" Padding="8,0" Margin="0,0,6,0" ToolTip="Choose the sound" Focusable="False" />
-                                        <Button Style="{StaticResource TransportButton}" Content="Chords" Click="OnChordsClick"
+                                        <Button Style="{StaticResource TransportButton}" Content="VST" Click="OnEffectsClick"
+                                                Width="Auto" Height="22" FontSize="11" Padding="8,0" Margin="0,0,6,0" ToolTip="Play this track through a VST3 instrument, for example a sampled guitar" Focusable="False" />
+                                        <Button Style="{StaticResource TransportButton}" Content="Chords" Click="OnChordsClick" Visibility="{Binding IsChordMachine, Converter={StaticResource BoolToVis}}"
                                                 Width="Auto" Height="22" FontSize="11" Padding="8,0" Margin="0" ToolTip="Edit chord patterns and place them on the timeline" Focusable="False" />
+                                        <Button Style="{StaticResource TransportButton}" Content="Melody" Click="OnMelodyClick" Visibility="{Binding IsLead, Converter={StaticResource BoolToVis}}"
+                                                Width="Auto" Height="22" FontSize="11" Padding="8,0" Margin="0,0,6,0" ToolTip="Generate a single-note melody" Focusable="False" />
+                                        <Button Style="{StaticResource TransportButton}" Command="{Binding CycleMidi}" Content="{Binding MidiLabel}" Visibility="{Binding IsLead, Converter={StaticResource BoolToVis}}"
+                                                Width="Auto" Height="22" FontSize="11" Padding="8,0" Margin="0" ToolTip="Click to switch MIDI input, to record by playing" Focusable="False" />
                                     </StackPanel>
                                     <StackPanel Orientation="Horizontal" Margin="0,2,0,6" Visibility="{Binding IsKeys, Converter={StaticResource BoolToVis}}">
                                         <Button Style="{StaticResource TransportButton}" Command="{Binding CycleMidi}" Content="{Binding MidiLabel}"

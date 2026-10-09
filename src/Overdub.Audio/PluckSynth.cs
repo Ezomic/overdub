@@ -21,11 +21,18 @@ public sealed class PluckSynth : INoteTarget
         new("Pick bass", MachineRole.Bass, 0.3f, 0.9982f, 0.0f, 0.12f, 0.5f, 0.3f),
     ];
 
-    public static IReadOnlyList<string> Names(MachineRole role) => Characters.Where(c => c.Role == role).Select(c => c.Name).Append(role == MachineRole.Guitar ? "Synth pluck" : "Synth bass").ToList();
+    public static IReadOnlyList<string> Names(MachineRole role) => role == MachineRole.Lead
+        ? ["Electric lead", "Electric crunch", "Electric clean", "Plectrum", "Acoustic", "Synth lead"]
+        : Characters.Where(c => c.Role == role).Select(c => c.Name).Append(role == MachineRole.Guitar ? "Synth pluck" : "Synth bass").ToList();
 
     public static PluckCharacter? Find(string? name) => Characters.FirstOrDefault(c => string.Equals(c.Name, name, StringComparison.OrdinalIgnoreCase));
 
-    public static string DefaultName(MachineRole role) => role == MachineRole.Guitar ? "Acoustic" : "Finger bass";
+    public static string DefaultName(MachineRole role) => role switch
+    {
+        MachineRole.Guitar => "Acoustic",
+        MachineRole.Lead => "Electric lead",
+        _ => "Finger bass",
+    };
 
     public static string NextName(MachineRole role, string? current)
     {

@@ -52,7 +52,7 @@ public partial class MainWindow : Window
         foreach (var role in Enum.GetValues<MachineRole>())
         {
             var machineRole = role;
-            var machine = new MenuItem { Header = $"{role} machine (chords)", IsEnabled = _viewModel.HasMachine(machineRole) is false };
+            var machine = new MenuItem { Header = role switch { MachineRole.Lead => "Lead guitar (melody)", _ => $"{role} machine (chords)" }, IsEnabled = !_viewModel.MachineLimitReached };
             machine.Click += (_, _) => _viewModel.AddMachineTrack(machineRole);
             menu.Items.Add(machine);
         }
@@ -166,6 +166,14 @@ public partial class MainWindow : Window
         }
 
         menu.IsOpen = true;
+    }
+
+    private void OnMelodyClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: TrackViewModel { Model.Machine: MachineRole.Lead } track })
+        {
+            new MelodyWindow(_viewModel, this, track.Model).Show();
+        }
     }
 
     private void OnChordsClick(object sender, RoutedEventArgs e)
