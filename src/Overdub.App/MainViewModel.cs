@@ -1497,6 +1497,64 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    public void SavePatternToLibrary(DrumPattern pattern, string name) => SaveToLibrary(() => PatternLibrary.Save(pattern, name), name);
+
+    public void SavePatternToLibrary(ChordPattern pattern, string name) => SaveToLibrary(() => PatternLibrary.Save(pattern, name), name);
+
+    private void SaveToLibrary(Func<string> save, string name)
+    {
+        try
+        {
+            save();
+            Notice = $"Saved {name} to your pattern library";
+        }
+        catch (Exception ex)
+        {
+            Message = ex.Message;
+        }
+    }
+
+    public void ImportDrumPattern(string path)
+    {
+        if (DrumTrack is not { } track)
+        {
+            return;
+        }
+
+        if (track.Patterns.Count >= 8)
+        {
+            Message = "You can have up to 8 drum patterns.";
+            return;
+        }
+
+        try
+        {
+            _session.ImportPattern(track, PatternLibrary.LoadDrum(path));
+        }
+        catch (Exception ex)
+        {
+            Message = ex.Message;
+        }
+    }
+
+    public void ImportChordPattern(Track track, string path)
+    {
+        if (track.ChordPatterns.Count >= 8)
+        {
+            Message = "You can have up to 8 chord patterns.";
+            return;
+        }
+
+        try
+        {
+            _session.ImportPattern(track, PatternLibrary.LoadChord(path, track.Machine!.Value));
+        }
+        catch (Exception ex)
+        {
+            Message = ex.Message;
+        }
+    }
+
     public DrumPattern? MakeDrumFill(DrumPattern source, int type)
     {
         if (DrumTrack is not { } track)

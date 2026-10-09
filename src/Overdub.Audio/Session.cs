@@ -552,6 +552,12 @@ public sealed class Session : IDisposable
         return pattern;
     }
 
+    public void ImportPattern(Track track, DrumPattern pattern) =>
+        Edit("Import drum pattern", () => track.Patterns.Add(pattern), () => track.Patterns.Remove(pattern));
+
+    public void ImportPattern(Track track, ChordPattern pattern) =>
+        Edit("Import chord pattern", () => track.ChordPatterns.Add(pattern), () => track.ChordPatterns.Remove(pattern));
+
     public DrumPattern AddFillPattern(Track track, DrumPattern source, int type)
     {
         var baseName = source.Name.Split('+')[0] + "+";
