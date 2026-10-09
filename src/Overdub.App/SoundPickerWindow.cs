@@ -89,6 +89,19 @@ public sealed class SoundPickerWindow : Window
         };
         DockPanel.SetDock(library, Dock.Right);
         top.Children.Add(library);
+        var sample = TransportButton("From a recording...", 130);
+        sample.Click += (_, _) =>
+        {
+            var dialog = new SampleInstrumentWindow(_main, this, _track);
+            dialog.ShowDialog();
+            Reload();
+            if (dialog.CreatedPreset is not null)
+            {
+                Close();
+            }
+        };
+        DockPanel.SetDock(sample, Dock.Right);
+        top.Children.Add(sample);
         var searchLabel = new TextBlock { Text = "Search", Foreground = (Brush)FindResource("TextDim"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
         DockPanel.SetDock(searchLabel, Dock.Left);
         top.Children.Add(searchLabel);

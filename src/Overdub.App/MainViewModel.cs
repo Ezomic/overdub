@@ -1619,6 +1619,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public void ShowMessage(string text) => Message = text;
 
+    public void ShowNotice(string text) => Notice = text;
+
     public void DeleteSelection()
     {
         if (IsRecording || _selection is null)
@@ -1751,6 +1753,25 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public void PlayNote(byte note, byte velocity) => _session.HandleNote(note, velocity);
 
     public Task PreviewSound(TrackViewModel track, string preset) => _session.PreviewMachineSound(track.Model, preset);
+
+    public IReadOnlyList<(string Label, Clip Clip)> AudioTakes
+    {
+        get
+        {
+            var rate = Math.Max(1, _session.Engine.SampleRate);
+            return Tracks.Where(t => !t.IsMidi)
+                .SelectMany(t => t.Model.Clips.Select(c => (Track: t, Clip: c)))
+                .OrderByDescending(x => x.Clip.StartSample)
+                .Select(x => ($"{x.Track.Name}: {System.IO.Path.GetFileNameWithoutExtension(x.Clip.Path)} ({TimeSpan.FromSeconds(x.Clip.Length / (double)rate):m\\:ss})", x.Clip))
+                .ToList();
+        }
+    }
+
+    public SamplingAnalysis AnalyseRecording(Clip clip, MachineRole role) =>
+        InstrumentSampler.Analyse(clip.Playback.Samples, (int)clip.Playback.Offset, (int)clip.Playback.Length, _session.Engine.SampleRate, role);
+
+    public string CreateInstrument(Clip clip, SamplingAnalysis analysis, string name) =>
+        InstrumentSampler.Create(clip.Playback.Samples, (int)clip.Playback.Offset, _session.Engine.SampleRate, analysis, name);
 
     public void Sustain(bool down) => _session.HandleControl(MidiKind.Sustain, down ? 127 : 0);
 

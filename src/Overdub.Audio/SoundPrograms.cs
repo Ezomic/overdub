@@ -125,7 +125,7 @@ public static partial class SoundPrograms
             var pack = SoundCatalog.Packs.FirstOrDefault(p => string.Equals(p.Folder, folder, StringComparison.OrdinalIgnoreCase));
             var packName = pack?.Name ?? folder.Replace('_', ' ');
             var kind = pack?.Kind ?? "Other";
-            var description = pack?.Description ?? "Installed by hand into Documents\\Overdub\\Instruments.";
+            var description = pack?.Description ?? "Your own pack in Documents\\Overdub\\Instruments, made from a recording or copied in by hand.";
             var titles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var file in files.Where(f => !included.Contains(System.IO.Path.GetFullPath(f))).OrderBy(f => f, StringComparer.OrdinalIgnoreCase))
             {
@@ -146,6 +146,11 @@ public static partial class SoundPrograms
     private static string CleanTitle(string stem, string folder)
     {
         var key = new string(folder.Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant();
+        if (string.Equals(new string(stem.Where(char.IsLetterOrDigit).ToArray()), key, StringComparison.OrdinalIgnoreCase))
+        {
+            return "Main";
+        }
+
         var words = LeadingNumber().Replace(stem, "").Split(['_', '-', ' '], StringSplitOptions.RemoveEmptyEntries).ToList();
         var prefix = "";
         var consumed = 0;
