@@ -768,9 +768,9 @@ public sealed class Session : IDisposable
             PluginDataFor(t.Effects.Plugin),
             PluginDataFor(t.Instrument),
             t.IsDrums ? true : null,
-            t.IsDrums ? t.Patterns.Select(p => new PatternData(p.Id, p.Name, p.Bars, p.Encode().ToList())).ToList() : null,
+            t.IsDrums ? t.Patterns.Select(p => new PatternData(p.Id, p.Name, p.Bars, p.Encode().ToList(), p.Feel)).ToList() : null,
             t.Machine?.ToString(),
-            t.Machine is null ? null : t.ChordPatterns.Select(p => new ChordPatternData(p.Id, p.Name, p.Bars, (int)p.Style, p.Encode(), p.FollowId)).ToList())).ToList();
+            t.Machine is null ? null : t.ChordPatterns.Select(p => new ChordPatternData(p.Id, p.Name, p.Bars, (int)p.Style, p.Encode(), p.FollowId, p.Feel)).ToList())).ToList();
         ProjectFile.Write(ProjectPath, new ProjectData(1, Engine.SampleRate, Engine.Bpm, tracks, Engine.BeatsPerBar, Engine.BeatUnit));
         RecentProjects.Add(ProjectPath);
     }
@@ -847,11 +847,13 @@ public sealed class Session : IDisposable
             {
                 track.ChordPatterns.Add(ChordPattern.Decode(p.Id, p.Name, track.Machine ?? MachineRole.Guitar, p.Bars, (ChordStyle)p.Style, p.Chords));
                 track.ChordPatterns[^1].FollowId = p.Follow;
+                track.ChordPatterns[^1].Feel = p.Feel;
             }
 
             foreach (var p in d.Patterns ?? [])
             {
                 track.Patterns.Add(DrumPattern.Decode(p.Id, p.Name, p.Bars, p.Lanes));
+                track.Patterns[^1].Feel = p.Feel;
             }
 
             track.Mute = d.Mute;

@@ -149,6 +149,7 @@ public sealed class ChordWindow : Window
         _patternBar.Children.Add(MakeButton(current.Bars == 1 ? "1 bar" : $"{current.Bars} bars", () => _main.EditChordPattern(current, p => p.Bars = (p.Bars % ChordPattern.MaxBars) + 1, "Change pattern length"), width: 70));
         var styles = ChordPattern.Styles(current.Role);
         _patternBar.Children.Add(MenuButton(ChordPattern.StyleName(current.Style), styles.Select(s => (ChordPattern.StyleName(s), (Action)(() => _main.EditChordPattern(current, p => p.Style = s, "Change style")))), 130));
+        _patternBar.Children.Add(MakeButton($"Feel: {Humanizer.FeelNames[current.Feel]}", () => _main.EditChordPattern(current, p => p.Feel = (p.Feel + 1) % Humanizer.FeelNames.Length, "Change feel"), width: 100));
         _patternBar.Children.Add(MakeButton($"Repeat {_repeat}x", () =>
         {
             _repeat = _repeat >= 8 ? 1 : _repeat * 2;

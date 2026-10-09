@@ -1398,6 +1398,14 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    public void SetDrumFeel(DrumPattern pattern)
+    {
+        if (DrumTrack is { } track)
+        {
+            _session.EditPattern(track, pattern, p => p.Feel = (p.Feel + 1) % Humanizer.FeelNames.Length, "Change feel");
+        }
+    }
+
     public void SetDrumBars(DrumPattern pattern, int bars)
     {
         if (DrumTrack is { } track)
