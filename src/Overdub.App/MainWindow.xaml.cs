@@ -290,6 +290,7 @@ public partial class MainWindow : Window
         });
         mark.IsEnabled = _viewModel.HasRegion;
         menu.Items.Add(mark);
+        menu.Items.Add(Item("Add drum fills and crashes at the section changes", _viewModel.AddFillsAtSections));
         var sections = _viewModel.Sections;
         if (sections.Count == 0)
         {

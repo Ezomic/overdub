@@ -1412,6 +1412,28 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public IReadOnlyList<SectionBand> SectionBands => Sections.Select((x, i) => new SectionBand(SamplesToPixels(x.Start), Math.Max(2, SamplesToPixels(x.Length)), x.Name, i)).ToList();
 
+    public void AddFillsAtSections()
+    {
+        if (_session.DrumTrack is null)
+        {
+            Message = "Add a drum machine and place drum blocks first.";
+            return;
+        }
+
+        if (_session.Sections.Count(x => x.Start > 0) == 0)
+        {
+            Message = "Mark some sections first (Sections menu). The fills go just before each section after the first.";
+            return;
+        }
+
+        var (fills, crashes) = _session.AddSectionFills();
+        Message = fills + crashes == 0 ? "Nothing to add: there is no drum block ending at a section start, or the fills are already there." : "";
+        if (fills + crashes > 0)
+        {
+            Notice = $"Added {fills} fill{(fills == 1 ? "" : "s")} and {crashes} crash{(crashes == 1 ? "" : "es")} at the section changes";
+        }
+    }
+
     public void MarkSection(string name)
     {
         if (!HasRegion)
