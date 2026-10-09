@@ -221,6 +221,45 @@ public partial class MainWindow : Window
         menu.IsOpen = true;
     }
 
+    private void OnSectionsClick(object sender, RoutedEventArgs e)
+    {
+        var menu = MenuFor(sender);
+        var mark = Item("Mark the selected range as a section...", () =>
+        {
+            if (NameDialog.Ask(this, "Mark section", "Name for this part of the song:", $"Section {_viewModel.Sections.Count + 1}") is { } name)
+            {
+                _viewModel.MarkSection(name);
+            }
+        });
+        mark.IsEnabled = _viewModel.HasRegion;
+        menu.Items.Add(mark);
+        var sections = _viewModel.Sections;
+        if (sections.Count == 0)
+        {
+            menu.Items.Add(new MenuItem { Header = "Drag on the ruler to select a range first", IsEnabled = false });
+        }
+
+        foreach (var section in sections)
+        {
+            var current = section;
+            var entry = new MenuItem { Header = current.Name };
+            entry.Items.Add(Item("Go to start", () => _viewModel.GoToSection(current)));
+            entry.Items.Add(Item("Copy to the playhead", () => _viewModel.CopySectionToPlayhead(current, false)));
+            entry.Items.Add(Item("Move to the playhead", () => _viewModel.CopySectionToPlayhead(current, true)));
+            entry.Items.Add(Item("Rename...", () =>
+            {
+                if (NameDialog.Ask(this, "Rename section", "New name:", current.Name) is { } name)
+                {
+                    _viewModel.RenameSection(current, name);
+                }
+            }));
+            entry.Items.Add(Item("Delete label", () => _viewModel.RemoveSection(current)));
+            menu.Items.Add(entry);
+        }
+
+        menu.IsOpen = true;
+    }
+
     private void OnToolsClick(object sender, RoutedEventArgs e)
     {
         var menu = MenuFor(sender);
