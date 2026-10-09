@@ -602,6 +602,15 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public void ToggleClickEighths() => _session.Engine.ClickEighths = !_session.Engine.ClickEighths;
 
+    public int MasterIndex => _session.MasterIndex;
+
+    public void SetMastering(int index)
+    {
+        _session.MasterIndex = index;
+        Notice = index == 0 ? "Mixdown mastering is off" : $"Mixdown mastering: {Mastering.Presets[index].Name}";
+        ScheduleSave();
+    }
+
     public string CountInLabel => _session.Engine.CountInBars switch
     {
         0 => "Count-in: off",
@@ -647,7 +656,9 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         {
             _session.ExportMixdown(path);
             Message = "";
-            Notice = $"Exported {Path.GetFileName(path)}";
+            Notice = _session.LastLoudness is { } loudness
+                ? $"Exported {Path.GetFileName(path)}. Loudness {loudness.Lufs:0.0} LUFS, peak {loudness.PeakDb:0.0} dB"
+                : $"Exported {Path.GetFileName(path)}";
         }
         catch (Exception ex)
         {

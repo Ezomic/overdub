@@ -1041,7 +1041,7 @@ public sealed class Session : IDisposable
             t.Machine is null ? null : t.ChordPatterns.Select(p => new ChordPatternData(p.Id, p.Name, p.Bars, (int)p.Style, p.Encode(), p.FollowId, p.Feel, p.Articulation)).ToList(),
             t.IsDrums ? t.DrumLanes.Select(l => new DrumLaneData(l.Gain, l.Pan, l.Mute)).ToList() : null,
             t.IsDrums ? t.DrumKitStyle : null)).ToList();
-        ProjectFile.Write(ProjectPath, new ProjectData(1, Engine.SampleRate, Engine.Bpm, tracks, Engine.BeatsPerBar, Engine.BeatUnit, Sections.Select(x => new SectionData(x.Id, x.Name, x.Start, x.Length)).ToList()));
+        ProjectFile.Write(ProjectPath, new ProjectData(1, Engine.SampleRate, Engine.Bpm, tracks, Engine.BeatsPerBar, Engine.BeatUnit, Sections.Select(x => new SectionData(x.Id, x.Name, x.Start, x.Length)).ToList(), MasterIndex));
         RecentProjects.Add(ProjectPath);
         try
         {
@@ -1204,6 +1204,7 @@ public sealed class Session : IDisposable
 
         Tracks.Clear();
         Tracks.AddRange(loaded);
+        MasterIndex = Math.Clamp(data.Mastering ?? 0, 0, Mastering.Presets.Count - 1);
         Sections.Clear();
         Sections.AddRange((data.Sections ?? []).Select(x => new SongSection(x.Id, x.Name, x.Start, x.Length)));
         _created = loaded.Count == 0 ? 0 : loaded.Max(t => t.ColorIndex) + 1;
@@ -1285,9 +1286,14 @@ public sealed class Session : IDisposable
         return written;
     }
 
+    public int MasterIndex { get; set; }
+
+    public LoudnessReport? LastLoudness { get; private set; }
+
     public void ExportMixdown(string path)
     {
-        var wavPath = AudioEncoder.IsEncoded(path) ? System.IO.Path.GetTempFileName() : path;
+        var finalWav = AudioEncoder.IsEncoded(path) ? System.IO.Path.GetTempFileName() : path;
+        var wavPath = MasterIndex > 0 ? System.IO.Path.GetTempFileName() : finalWav;
         try
         {
             var keys = Tracks.FirstOrDefault(t => t.IsKeys);
@@ -1319,16 +1325,19 @@ public sealed class Session : IDisposable
                 strips.ForEach(s => s.Processor?.Dispose());
             }
 
-            if (wavPath != path)
+            LastLoudness = MasterIndex > 0 && MasterIndex < Mastering.Presets.Count
+                ? Mastering.Master(wavPath, finalWav, Mastering.Presets[MasterIndex])
+                : Mastering.Measure(wavPath);
+            if (finalWav != path)
             {
-                AudioEncoder.Convert(wavPath, path);
+                AudioEncoder.Convert(finalWav, path);
             }
         }
         finally
         {
-            if (wavPath != path)
+            foreach (var temp in new[] { wavPath, finalWav }.Distinct().Where(f => f != path))
             {
-                File.Delete(wavPath);
+                File.Delete(temp);
             }
         }
     }
