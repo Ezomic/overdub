@@ -704,6 +704,93 @@ public sealed class Session : IDisposable
     public void ImportPattern(Track track, ChordPattern pattern) =>
         Edit("Import chord pattern", () => track.ChordPatterns.Add(pattern), () => track.ChordPatterns.Remove(pattern));
 
+    public (int Fills, int Crashes) AddSectionFills()
+    {
+        var track = DrumTrack;
+        if (track is null || Engine.SampleRate == 0)
+        {
+            return (0, 0);
+        }
+
+        var rate = Engine.SampleRate;
+        var bpm = Engine.Bpm;
+        var tolerance = rate / 20;
+        var newPatterns = new List<DrumPattern>();
+        var fillFor = new Dictionary<string, DrumPattern>();
+        var swaps = new List<(MidiClip Old, MidiClip New)>();
+        var additions = new List<MidiClip>();
+        DrumPattern? crash = track.Patterns.FirstOrDefault(p => p.Name == "Crash");
+        var fillIndex = 0;
+        foreach (var section in Sections.Where(x => x.Start > 0).OrderBy(x => x.Start))
+        {
+            var ending = track.MidiClips.FirstOrDefault(c => c.PatternId is not null && track.Patterns.FirstOrDefault(p => p.Id == c.PatternId) is { } p && !p.Name.EndsWith('+') && Math.Abs(c.StartSample + p.LengthSamples(rate, bpm) - section.Start) <= tolerance && !swaps.Any(x => x.Old == c));
+            if (ending is not null && track.Patterns.Concat(newPatterns).Count() < 8)
+            {
+                var source = track.Patterns.First(p => p.Id == ending.PatternId);
+                if (!fillFor.TryGetValue(source.Id, out var fill))
+                {
+                    fill = source.WithFill(fillIndex++ % DrumPattern.FillNames.Length, source.Name + "+");
+                    fillFor[source.Id] = fill;
+                    newPatterns.Add(fill);
+                }
+
+                var replacement = fill.ToClip(rate, bpm, ending.Shift);
+                replacement.Mute = ending.Mute;
+                replacement.Solo = ending.Solo;
+                swaps.Add((ending, replacement));
+            }
+
+            if (!track.MidiClips.Any(c => c.PatternId is not null && Math.Abs(c.StartSample - section.Start) <= tolerance && track.Patterns.FirstOrDefault(p => p.Id == c.PatternId)?.Name == "Crash") && (crash is not null || track.Patterns.Concat(newPatterns).Count() < 8))
+            {
+                if (crash is null)
+                {
+                    crash = new DrumPattern("Crash");
+                    crash.Set(7, 0, 2);
+                    newPatterns.Add(crash);
+                }
+
+                additions.Add(crash.ToClip(rate, bpm, section.Start));
+            }
+        }
+
+        if (swaps.Count == 0 && additions.Count == 0)
+        {
+            return (0, 0);
+        }
+
+        Edit(
+            "Add drum fills at the sections",
+            () =>
+            {
+                newPatterns.ForEach(p => { if (!track.Patterns.Contains(p)) { track.Patterns.Add(p); } });
+                foreach (var (old, replacement) in swaps)
+                {
+                    var index = track.MidiClips.IndexOf(old);
+                    if (index >= 0)
+                    {
+                        track.MidiClips[index] = replacement;
+                    }
+                }
+
+                additions.ForEach(track.AddMidiClip);
+            },
+            () =>
+            {
+                foreach (var (old, replacement) in swaps)
+                {
+                    var index = track.MidiClips.IndexOf(replacement);
+                    if (index >= 0)
+                    {
+                        track.MidiClips[index] = old;
+                    }
+                }
+
+                additions.ForEach(c => track.MidiClips.Remove(c));
+                newPatterns.ForEach(p => track.Patterns.Remove(p));
+            });
+        return (swaps.Count, additions.Count);
+    }
+
     public DrumPattern AddFillPattern(Track track, DrumPattern source, int type)
     {
         var baseName = source.Name.Split('+')[0] + "+";
