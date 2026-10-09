@@ -1321,7 +1321,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _session.AddMachineTrackUndoable(role, UniqueName(name));
     }
 
-    public void GenerateMelody(Track track, int key, MelodyScale scale, int bars, MelodyDensity density)
+    public void GenerateMelody(Track track, int key, MelodyScale scale, int bars, MelodyDensity density, ChordPattern? follow = null)
     {
         var engine = _session.Engine;
         if (engine.SampleRate == 0)
@@ -1332,7 +1332,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
         var bar = engine.SamplesPerBeat * engine.BeatsPerBar;
         var start = (long)(Math.Round(engine.Position / bar) * bar);
-        var events = MelodyGenerator.Generate(engine.SampleRate, engine.Bpm, engine.BeatsPerBar, key, scale, bars, density, Random.Shared.Next());
+        var barChords = follow is null ? null : Enumerable.Range(0, EffectivePattern(follow).Bars).Select(b => EffectivePattern(follow)[b]).ToList();
+        var events = MelodyGenerator.Generate(engine.SampleRate, engine.Bpm, engine.BeatsPerBar, key, scale, bars, density, Random.Shared.Next(), barChords);
         _session.PlaceMelody(track, events, start);
     }
 
@@ -1340,6 +1341,9 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public IReadOnlyList<(string Label, ChordPattern Pattern)> GuitarPatterns() =>
         _session.Tracks.Where(t => t.Machine == MachineRole.Guitar).SelectMany(t => t.ChordPatterns.Select(p => ($"{t.Name} {p.Name}", p))).ToList();
+
+    public IReadOnlyList<(string Label, ChordPattern Pattern)> BassPatterns() =>
+        _session.Tracks.Where(t => t.Machine == MachineRole.Bass).SelectMany(t => t.ChordPatterns.Select(p => ($"{t.Name} {p.Name}", p))).ToList();
 
     public void PlaceBassIdea(Track track, ChordPattern pattern, ChordStyle style)
     {

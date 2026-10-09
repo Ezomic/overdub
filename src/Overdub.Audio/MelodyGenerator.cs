@@ -47,16 +47,18 @@ public static class MelodyGenerator
 
     private readonly record struct Note(int Start, int Length, int Index);
 
-    public static MidiEvent[] Generate(int sampleRate, double bpm, int beatsPerBar, int keyRoot, MelodyScale scale, int bars, MelodyDensity density, int seed)
+    public static MidiEvent[] Generate(int sampleRate, double bpm, int beatsPerBar, int keyRoot, MelodyScale scale, int bars, MelodyDensity density, int seed, IReadOnlyList<Chord>? chords = null)
     {
         var random = new Random(seed);
         var eighth = sampleRate * 60.0 / bpm / 2;
         var stepsPerBar = beatsPerBar * 2;
-        var pitches = Enumerable.Range(55, 30).Where(n => Offsets[(int)scale].Contains(((n - keyRoot) % 12 + 12) % 12)).ToArray();
-        var rootIndexes = Enumerable.Range(0, pitches.Length).Where(i => ((pitches[i] - keyRoot) % 12 + 12) % 12 == 0).ToArray();
+        var chordTones = chords is { Count: > 0 } ? chords.SelectMany(c => c.Intervals.Select(i => (c.Root + i) % 12)).ToHashSet() : [];
+        var pitches = Enumerable.Range(55, 30).Where(n => Offsets[(int)scale].Contains(((n - keyRoot) % 12 + 12) % 12) || chordTones.Contains(n % 12)).ToArray();
+        Func<int, bool> ToneAt(int bar) => chords is { Count: > 0 } ? p => ChordHas(chords[bar % chords.Count], p) : p => IsChordTone(p, keyRoot);
+        int[] RootsFor(int bar) => Enumerable.Range(0, pitches.Length).Where(i => chords is { Count: > 0 } ? pitches[i] % 12 == chords[bar % chords.Count].Root : ((pitches[i] - keyRoot) % 12 + 12) % 12 == 0).ToArray();
         var cursor = Math.Clamp(Array.FindIndex(pitches, p => p >= 64), 1, pitches.Length - 2);
 
-        var motif = MakeBar(random, stepsPerBar, density, pitches.Length, ref cursor, pitches, keyRoot);
+        var motif = MakeBar(random, stepsPerBar, density, pitches.Length, ref cursor, pitches, ToneAt(0));
         var events = new List<MidiEvent>();
         var total = (long)Math.Round(bars * stepsPerBar * eighth);
         events.Add(new MidiEvent(0, 0, 0, MidiKind.Sustain, 0));
@@ -68,20 +70,20 @@ public static class MelodyGenerator
             switch (bar % 4)
             {
                 case 0:
-                    notes = motif;
+                    notes = bar == 0 || chords is not { Count: > 0 } ? motif : Reassign(random, motif, ref cursor, pitches, ToneAt(bar));
                     break;
                 case 2:
-                    fresh = MakeBar(random, stepsPerBar, density, pitches.Length, ref cursor, pitches, keyRoot);
+                    fresh = MakeBar(random, stepsPerBar, density, pitches.Length, ref cursor, pitches, ToneAt(bar));
                     notes = fresh;
                     break;
                 default:
-                    notes = Vary(random, bar % 4 == 1 ? motif : fresh, pitches.Length);
+                    notes = chords is { Count: > 0 } ? Reassign(random, bar % 4 == 1 ? motif : fresh, ref cursor, pitches, ToneAt(bar)) : Vary(random, bar % 4 == 1 ? motif : fresh, pitches.Length);
                     break;
             }
 
             if (bar == bars - 1 && notes.Count > 0)
             {
-                notes = Resolve(notes, rootIndexes, stepsPerBar);
+                notes = Resolve(notes, RootsFor(bar), stepsPerBar);
             }
 
             foreach (var note in notes)
@@ -99,7 +101,7 @@ public static class MelodyGenerator
         return events.ToArray();
     }
 
-    private static List<Note> MakeBar(Random random, int steps, MelodyDensity density, int count, ref int cursor, int[] pitches, int keyRoot)
+    private static List<Note> MakeBar(Random random, int steps, MelodyDensity density, int count, ref int cursor, int[] pitches, Func<int, bool> isChordTone)
     {
         var notes = new List<Note>();
         var lengths = Lengths[(int)density];
@@ -110,7 +112,7 @@ public static class MelodyGenerator
             var rest = step > 0 && random.NextDouble() < RestChance[(int)density];
             if (!rest)
             {
-                cursor = Walk(random, cursor, count, step % 2 == 0, pitches, keyRoot);
+                cursor = Walk(random, cursor, count, step % 2 == 0, pitches, isChordTone);
                 notes.Add(new Note(step, length, cursor));
             }
 
@@ -120,7 +122,21 @@ public static class MelodyGenerator
         return notes;
     }
 
-    private static int Walk(Random random, int index, int count, bool strong, int[] pitches, int keyRoot)
+    private static List<Note> Reassign(Random random, List<Note> rhythm, ref int cursor, int[] pitches, Func<int, bool> isChordTone)
+    {
+        var notes = new List<Note>();
+        foreach (var note in rhythm)
+        {
+            cursor = Walk(random, cursor, pitches.Length, note.Start % 2 == 0, pitches, isChordTone);
+            notes.Add(note with { Index = cursor });
+        }
+
+        return notes;
+    }
+
+    private static bool ChordHas(Chord chord, int pitch) => chord.Intervals.Any(i => (chord.Root + i) % 12 == ((pitch % 12) + 12) % 12);
+
+    private static int Walk(Random random, int index, int count, bool strong, int[] pitches, Func<int, bool> isChordTone)
     {
         var roll = random.Next(Moves.Sum(m => m.Weight));
         var move = 0;
@@ -148,7 +164,7 @@ public static class MelodyGenerator
             {
                 foreach (var candidate in new[] { next - distance, next + distance })
                 {
-                    if (candidate >= 0 && candidate < count && IsChordTone(pitches[candidate], keyRoot))
+                    if (candidate >= 0 && candidate < count && isChordTone(pitches[candidate]))
                     {
                         return candidate;
                     }
