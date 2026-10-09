@@ -68,6 +68,7 @@
                 <StackPanel Grid.Column="2" Orientation="Horizontal">
                     <Button x:Name="ToolsButton" Style="{StaticResource TransportButton}" Width="Auto" Height="24" FontSize="12" Padding="10,0" Margin="0,0,8,0" Content="Tools ▾" Click="OnToolsClick" Focusable="False" ToolTip="Tuner, keyboard, analysis and latency" />
                     <Button x:Name="SectionsButton" Style="{StaticResource TransportButton}" Width="Auto" Height="24" FontSize="12" Padding="10,0" Margin="0,0,8,0" Content="Sections ▾" Click="OnSectionsClick" Focusable="False" ToolTip="Name parts of the song (verse, chorus) and copy or move them with everything on every track" />
+                    <Button x:Name="KeyButton" Style="{StaticResource TransportButton}" Width="Auto" Height="24" FontSize="12" Padding="10,0" Margin="0,0,8,0" Content="{Binding KeyLabel}" Click="OnKeyClick" Focusable="False" ToolTip="The key of your song, and moving all chords, bass lines and melodies to another key at once" />
                     <Button x:Name="FileButton" Style="{StaticResource TransportButton}" Width="Auto" Height="24" FontSize="12" Padding="10,0" Margin="0,0,8,0" Content="File ▾" Click="OnFileClick" Focusable="False" ToolTip="Open, import and export" />
                     <Button Style="{StaticResource TransportButton}" Width="64" Height="24" FontSize="12" Margin="0" Content="Save" Click="OnSaveClick" Focusable="False" ToolTip="Save the project" />
                 </StackPanel>

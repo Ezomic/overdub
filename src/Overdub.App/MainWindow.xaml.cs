@@ -231,6 +231,27 @@ public partial class MainWindow : Window
         menu.IsOpen = true;
     }
 
+    private void OnKeyClick(object sender, RoutedEventArgs e)
+    {
+        var menu = MenuFor(sender);
+        var move = new MenuItem { Header = "Move the whole song to the key of" };
+        for (var root = 0; root < 12; root++)
+        {
+            var target = root;
+            move.Items.Add(Item(Chord.Roots[target], () => _viewModel.MoveToKey(target)));
+        }
+
+        menu.Items.Add(move);
+        menu.Items.Add(new Separator());
+        foreach (var steps in new[] { 1, -1, 2, -2, 5, -5, 7, -7 })
+        {
+            var amount = steps;
+            menu.Items.Add(Item($"{(amount > 0 ? "Up" : "Down")} {Math.Abs(amount)} semitone{(Math.Abs(amount) == 1 ? "" : "s")}", () => _viewModel.Transpose(amount)));
+        }
+
+        menu.IsOpen = true;
+    }
+
     private void OnSectionsClick(object sender, RoutedEventArgs e)
     {
         var menu = MenuFor(sender);

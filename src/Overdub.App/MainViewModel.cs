@@ -1183,6 +1183,26 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 : clips[0];
     }
 
+    public string KeyLabel => _session.DetectedKey() is { } key ? $"Key: {Chord.Roots[key.Root]}{(key.Scale == MelodyScale.Minor ? "m" : "")} ▾" : "Key ▾";
+
+    public void Transpose(int semitones)
+    {
+        _session.TransposeAll(semitones);
+        Notice = semitones == 0 ? "" : $"Moved everything {(semitones > 0 ? "up" : "down")} {Math.Abs(semitones)} semitone{(Math.Abs(semitones) == 1 ? "" : "s")}";
+    }
+
+    public void MoveToKey(int targetRoot)
+    {
+        if (_session.DetectedKey() is not { } key)
+        {
+            Message = "Add some notes or chords first so Overdub can tell which key the song is in.";
+            return;
+        }
+
+        var shift = (((targetRoot - key.Root) % 12) + 18) % 12 - 6;
+        Transpose(shift);
+    }
+
     public IReadOnlyList<SongSection> Sections => _session.Sections.OrderBy(x => x.Start).ToList();
 
     public IReadOnlyList<SectionBand> SectionBands => Sections.Select((x, i) => new SectionBand(SamplesToPixels(x.Start), Math.Max(2, SamplesToPixels(x.Length)), x.Name, i)).ToList();
@@ -2057,6 +2077,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     private void RefreshTimeline()
     {
+        OnPropertyChanged(nameof(KeyLabel));
         OnPropertyChanged(nameof(SectionBands));
         foreach (var track in Tracks)
         {
