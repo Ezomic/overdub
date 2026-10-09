@@ -11,7 +11,7 @@ public sealed class MelodyWindow : Window
 
     private readonly MainViewModel _main;
     private readonly Track _track;
-    private readonly StackPanel _row = new() { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 14) };
+    private readonly WrapPanel _row = new() { Margin = new Thickness(0, 0, 0, 14), MaxWidth = 860 };
     private int _key;
     private MelodyScale _scale = MelodyScale.MinorPentatonic;
     private int _bars = 4;
@@ -35,7 +35,7 @@ public sealed class MelodyWindow : Window
         FontSize = 13;
         var hint = new TextBlock
         {
-            Text = "Pick a key and scale (and, to make the melody fit a chord progression, Follow a guitar or bass pattern, with the key set to the key of that progression), then Generate to drop a single-note melody at the playhead. Each press writes a new one, and undo removes it. To build on it, double-click the block to edit its notes in the piano roll, or arm this track (R) and play along on your MIDI keyboard to record more.",
+            Text = "Pick a key and scale (and, to make the melody fit a chord progression, Follow a guitar or bass pattern, with the key set to the key of that progression), then Generate to drop a single-note melody at the playhead. Each press writes a new one, and undo removes it. To build on it, make variations of a block (click it first), turn a recorded or imported clip of single notes into a block with Notes from audio clip, double-click the block to edit its notes in the piano roll, or arm this track (R) and play along on your MIDI keyboard to record more.",
             Foreground = (Brush)FindResource("TextDim"),
             TextWrapping = TextWrapping.Wrap,
             MaxWidth = 560,
@@ -79,7 +79,7 @@ public sealed class MelodyWindow : Window
             Height = 26,
             FontSize = 12,
             Padding = new Thickness(12, 0, 12, 0),
-            Margin = new Thickness(0, 0, 6, 0),
+            Margin = new Thickness(0, 0, 6, 6),
             Focusable = false,
         };
         button.Click += (_, _) => click();
@@ -100,5 +100,7 @@ public sealed class MelodyWindow : Window
         choices.AddRange(patterns.Select(p => ($"Follow {p.Label}", (Action)(() => _followId = p.Pattern.Id))));
         _row.Children.Add(MenuButton(followed.Pattern is null ? "No chords" : $"Following {followed.Label}", choices, 190));
         _row.Children.Add(Button("Generate at playhead", () => _main.GenerateMelody(_track, _key, _scale, _bars, _density, followed.Pattern, _ornaments), 160));
+        _row.Children.Add(Button("Notes from audio clip", async () => await _main.TranscribeAudioAsync(_track), 150));
+        _row.Children.Add(Button("Make 4 variations", () => _main.MakeVariations(_track, 4), 140));
     }
 }
