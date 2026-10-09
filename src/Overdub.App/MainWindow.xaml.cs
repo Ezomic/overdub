@@ -250,6 +250,16 @@ public partial class MainWindow : Window
         menu.Items.Add(new Separator());
         menu.Items.Add(Item("Import audio...", () => OnImportClick(FileButton, new RoutedEventArgs())));
         menu.Items.Add(Item("Export mixdown...", () => OnExportClick(FileButton, new RoutedEventArgs())));
+        var mastering = new MenuItem { Header = "Mastering for the mixdown" };
+        for (var i = 0; i < Mastering.Presets.Count; i++)
+        {
+            var index = i;
+            var item = Item(Mastering.Presets[i].Name, () => _viewModel.SetMastering(index));
+            item.IsChecked = _viewModel.MasterIndex == i;
+            mastering.Items.Add(item);
+        }
+
+        menu.Items.Add(mastering);
         menu.Items.Add(Item("Export stems...", () => OnStemsClick(FileButton, new RoutedEventArgs())));
         menu.Items.Add(Item("Export selected MIDI block...", () => _viewModel.ExportSelectedMidi()));
         menu.Items.Add(Item("Export whole song as MIDI...", () => _viewModel.ExportSongMidi()));

@@ -24,7 +24,7 @@ public sealed record PluginData(string Path, string ClassId, string Name, string
 
 public sealed record SectionData(string Id, string Name, long Start, long Length);
 
-public sealed record ProjectData(int Version, int SampleRate, double Bpm, List<TrackData> Tracks, int BeatsPerBar = 4, int BeatUnit = 4, List<SectionData>? Sections = null);
+public sealed record ProjectData(int Version, int SampleRate, double Bpm, List<TrackData> Tracks, int BeatsPerBar = 4, int BeatUnit = 4, List<SectionData>? Sections = null, int? Mastering = null);
 
 public static class ProjectFile
 {
