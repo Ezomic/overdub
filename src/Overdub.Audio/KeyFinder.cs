@@ -100,7 +100,7 @@ public static class KeyFinder
         var relative = key.Minor != firstMinor && ((key.Tonic - first.Root + 12) % 12) == (firstMinor ? 3 : 9);
         var parallel = key.Tonic == first.Root && key.Minor != firstMinor && first.Quality is not ChordQuality.Seventh;
         return relative || parallel
-            ? new SongKey(first.Root, firstMinor, key.Confidence, "the chord patterns, starting on " + first.Name)
+            ? new SongKey(first.Root, firstMinor, key.Confidence, "the chord patterns, starting on " + first.PlainName)
             : new SongKey(key.Tonic, key.Minor, key.Confidence, "the chord patterns");
     }
 }

@@ -6,45 +6,55 @@ using Overdub.Audio;
 
 namespace Overdub.App;
 
-public sealed record LearnCard(string Title, string Description, bool IsNew, Action<MainViewModel, Window> Open);
+public sealed class LearnContext(MainViewModel main, Window owner, Action<UserControl> show, Action back, Action<int> navigate)
+{
+    public MainViewModel Main { get; } = main;
+    public Window Owner { get; } = owner;
+    public void Show(UserControl lesson) => show(lesson);
+    public void Back() => back();
+    public void Navigate(int section) => navigate(section);
+}
+
+public sealed record LearnCard(string Title, string Description, bool IsNew, Action<LearnContext> Open);
 
 public static class LearnCatalog
 {
     public static LearnCard StartHere { get; } = new(
-        "Start here: see your song on the bass neck",
-        "Watch the notes of each chord light up on the bass neck while the song plays, and see where the key lives.",
+        "Start here: understand your song",
+        "See each chord as a number and what it does. Then press Play and watch it follow the music.",
         false,
-        (main, owner) => OpenPractice(main, owner));
+        context => context.Show(new UnderstandSongLesson(context)));
 
     public static IReadOnlyList<LearnCard> Cards { get; } =
     [
-        new("Bass coach", "Bass lines over your chords, shown as tab, to learn and play along with.", false, (main, owner) => OpenCoach(main, owner)),
-        new("Tuner", "Tune your bass or guitar before you play, with a needle that shows how close you are.", false, (main, owner) => new TunerWindow(main) { Owner = owner }.Show()),
+        new("Your song on the bass neck", "Watch the notes of each chord light up on the bass neck while the song plays, and see where the key lives.", false, context => OpenPractice(context)),
+        new("Bass coach", "Bass lines over your chords, shown as tab, to learn and play along with.", false, context => OpenCoach(context)),
+        new("Tuner", "Tune your bass or guitar before you play, with a needle that shows how close you are.", false, context => new TunerWindow(context.Main) { Owner = context.Owner }.Show()),
     ];
 
     private static TrackViewModel? Bass(MainViewModel main) => main.Tracks.FirstOrDefault(t => t.Model.Machine == MachineRole.Bass);
 
-    private static void OpenPractice(MainViewModel main, Window owner)
+    public static void OpenPractice(LearnContext context)
     {
-        if (Bass(main) is { } bass)
+        if (Bass(context.Main) is { } bass)
         {
-            new BassPracticeWindow(main, owner, bass.Model).Show();
+            new BassPracticeWindow(context.Main, context.Owner, bass.Model).Show();
         }
         else
         {
-            main.ShowMessage("Add a bass machine first: go to Build a song and use Add a player.");
+            context.Main.ShowMessage("Add a bass machine first: go to Build a song and use Add a player.");
         }
     }
 
-    private static void OpenCoach(MainViewModel main, Window owner)
+    private static void OpenCoach(LearnContext context)
     {
-        if (Bass(main) is { } bass)
+        if (Bass(context.Main) is { } bass)
         {
-            new BassCoachWindow(main, owner, bass.Model).Show();
+            new BassCoachWindow(context.Main, context.Owner, bass.Model).Show();
         }
         else
         {
-            main.ShowMessage("Add a bass machine first: go to Build a song and use Add a player.");
+            context.Main.ShowMessage("Add a bass machine first: go to Build a song and use Add a player.");
         }
     }
 }
@@ -52,11 +62,17 @@ public static class LearnCatalog
 public sealed class LearnView : UserControl
 {
     private readonly StackPanel _page = new() { Margin = new Thickness(20, 16, 20, 20) };
+    private readonly Border _lessonHost = new() { Visibility = Visibility.Collapsed };
+    private readonly ScrollViewer _home;
     private MainViewModel? _main;
 
     public LearnView()
     {
-        Content = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, Content = _page };
+        _home = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, Content = _page };
+        var grid = new Grid();
+        grid.Children.Add(_home);
+        grid.Children.Add(_lessonHost);
+        Content = grid;
         IsVisibleChanged += (_, e) =>
         {
             if (e.NewValue is true)
@@ -73,7 +89,7 @@ public sealed class LearnView : UserControl
         _main = main;
         main.EditHistoryChanged += () =>
         {
-            if (IsVisible)
+            if (IsVisible && _lessonHost.Child is null)
             {
                 Refresh();
             }
@@ -82,6 +98,23 @@ public sealed class LearnView : UserControl
     }
 
     private Window? Owner => Window.GetWindow(this);
+
+    private LearnContext Context => new(_main!, Owner!, ShowLesson, CloseLesson, index => Navigate?.Invoke(index));
+
+    private void ShowLesson(UserControl lesson)
+    {
+        _lessonHost.Child = lesson;
+        _lessonHost.Visibility = Visibility.Visible;
+        _home.Visibility = Visibility.Collapsed;
+    }
+
+    private void CloseLesson()
+    {
+        _lessonHost.Child = null;
+        _lessonHost.Visibility = Visibility.Collapsed;
+        _home.Visibility = Visibility.Visible;
+        Refresh();
+    }
 
     private void Refresh()
     {
@@ -143,7 +176,19 @@ public sealed class LearnView : UserControl
 
         if (progression.Count > 0)
         {
-            pills.Children.Add(Ui.Pill("Chords: " + string.Join(" · ", progression.Take(8).Select(c => c.Name))));
+            pills.Children.Add(Ui.Pill("Chords: " + string.Join(" · ", progression.Take(8).Select(c => c.PlainName))));
+            if (key is not null)
+            {
+                pills.Children.Add(new TextBlock
+                {
+                    Text = string.Join("  ", progression.Take(8).Select(c => Theory.Numeral(c, key.Root, key.Minor))),
+                    FontFamily = new FontFamily("Georgia"),
+                    FontSize = 16,
+                    Foreground = Ui.AccentBrush,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(6, 0, 0, 0),
+                });
+            }
         }
 
         row.Children.Add(pills);
@@ -167,7 +212,7 @@ public sealed class LearnView : UserControl
         text.Children.Add(new TextBlock { Text = start.Title, FontSize = 16, FontWeight = FontWeights.SemiBold });
         text.Children.Add(new TextBlock { Text = start.Description, FontSize = 13, Foreground = new SolidColorBrush(Color.FromRgb(0xCF, 0xC6, 0xB4)), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 12, 0) });
         var open = Ui.Accent("Open", "Open this lesson");
-        open.OnClick(() => start.Open(_main!, Owner!));
+        open.OnClick(() => start.Open(Context));
         Grid.SetColumn(open, 1);
         grid.Children.Add(text);
         grid.Children.Add(open);
@@ -197,7 +242,7 @@ public sealed class LearnView : UserControl
         head.Children.Add(new TextBlock { Text = card.Title, FontSize = 14, FontWeight = FontWeights.SemiBold });
         text.Children.Add(head);
         text.Children.Add(new TextBlock { Text = card.Description, FontSize = 12.5, Foreground = Ui.Res("TextDim"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 3, 0, 0), LineHeight = 17 });
-        var border = Ui.ClickCard(text, () => card.Open(_main!, Owner!), card.Description);
+        var border = Ui.ClickCard(text, () => card.Open(Context), card.Description);
         border.Margin = new Thickness(0, 0, 10, 10);
         border.Padding = new Thickness(13, 11, 13, 11);
         return border;
