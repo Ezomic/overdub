@@ -58,6 +58,7 @@ public sealed class AsioEngine : IDisposable
     private MidiClip[] _drumMidi = [];
     private readonly MidiSequencer _drumSequencer = new();
     private float[] _drumBuf = new float[4096];
+    private float[] _drumRight = new float[4096];
     private float[] _laneRight = new float[4096];
     public float SynthGain { get; set; } = 1f;
     public float SynthPan { get; set; }
@@ -459,6 +460,8 @@ public sealed class AsioEngine : IDisposable
         Array.Clear(_mixR, 0, frames);
         Array.Clear(_synthBuf, 0, frames);
         Array.Clear(_drumBuf, 0, frames);
+        Array.Clear(_drumRight, 0, frames);
+        Drums.RightBuffer = _drumRight;
         foreach (var buffer in _machineBufs)
         {
             Array.Clear(buffer, 0, frames);
@@ -497,7 +500,7 @@ public sealed class AsioEngine : IDisposable
         }
 
         Mixer.AddPanned(_synthBuf, SynthGain, SynthPan, _mixL, _mixR, frames);
-        Mixer.AddPanned(_drumBuf, DrumGain, DrumPan, _mixL, _mixR, frames);
+        Mixer.AddPannedStereo(_drumBuf, _drumRight, DrumGain, DrumPan, _mixL, _mixR, frames);
         for (var m = 0; m < Machines.Length; m++)
         {
             var lane = Machines[m];
@@ -552,6 +555,7 @@ public sealed class AsioEngine : IDisposable
         _mixR = new float[frames];
         _synthBuf = new float[frames];
         _drumBuf = new float[frames];
+        _drumRight = new float[frames];
         _laneRight = new float[frames];
         for (var m = 0; m < _machineBufs.Length; m++)
         {

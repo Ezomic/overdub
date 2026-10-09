@@ -13,6 +13,13 @@ public interface INoteTarget
 
 public sealed record DrumLane(string Name, byte Note);
 
+public sealed class DrumLaneMix
+{
+    public float Gain { get; set; } = 1f;
+    public float Pan { get; set; }
+    public bool Mute { get; set; }
+}
+
 public sealed class DrumKit : INoteTarget
 {
     private const int MaxVoices = 24;
@@ -46,6 +53,10 @@ public sealed class DrumKit : INoteTarget
     private readonly ConcurrentQueue<(int Note, int Velocity)> _commands = new();
     private int _sampleRate = 44100;
     private uint _seed = 0x1234567;
+
+    public DrumLaneMix[]? Mix { get; set; }
+
+    public float[]? RightBuffer { get; set; }
 
     public void Configure(int sampleRate) => _sampleRate = sampleRate;
 
@@ -106,6 +117,14 @@ public sealed class DrumKit : INoteTarget
             return;
         }
 
+        var mix = Mix is { } lanes && index < lanes.Length ? lanes[index] : null;
+        if (mix is { Mute: true })
+        {
+            return;
+        }
+
+        Mixer.PanGains(mix?.Pan ?? 0f, out var panLeft, out var panRight);
+        var laneGain = mix?.Gain ?? 1f;
         var sound = (Sound)index;
         if (sound == Sound.ClosedHat)
         {
@@ -137,12 +156,13 @@ public sealed class DrumKit : INoteTarget
         }
 
         _seed = (_seed * 1664525u) + 1013904223u;
-        _voices[slot] = new Voice { Active = true, Sound = sound, Gain = (velocity / 127f) * (velocity / 127f) * 0.6f + 0.4f * (velocity / 127f), Noise = _seed | 1u };
+        _voices[slot] = new Voice { Active = true, Sound = sound, Gain = ((velocity / 127f) * (velocity / 127f) * 0.6f + 0.4f * (velocity / 127f)) * laneGain, PanL = panLeft * 1.4142f, PanR = panRight * 1.4142f, Noise = _seed | 1u };
     }
 
     private void RenderVoice(ref Voice voice, float[] destination, int offset, int frames)
     {
         var rate = _sampleRate;
+        var right = RightBuffer;
         for (var i = 0; i < frames; i++)
         {
             var t = voice.Frame / (double)rate;
@@ -153,7 +173,17 @@ public sealed class DrumKit : INoteTarget
                 return;
             }
 
-            destination[offset + i] += sample * voice.Gain * Level;
+            var scaled = sample * voice.Gain * Level;
+            if (right is null)
+            {
+                destination[offset + i] += scaled * (voice.PanL + voice.PanR) * 0.5f;
+            }
+            else
+            {
+                destination[offset + i] += scaled * voice.PanL;
+                right[offset + i] += scaled * voice.PanR;
+            }
+
             voice.Frame++;
         }
     }
@@ -274,6 +304,8 @@ public sealed class DrumKit : INoteTarget
         public Sound Sound;
         public long Frame;
         public float Gain;
+        public float PanL;
+        public float PanR;
         public double Phase;
         public float Lowpass;
         public uint Noise;

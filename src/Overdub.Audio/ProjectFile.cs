@@ -14,9 +14,11 @@ public sealed record MidiClipData(List<MidiEventData> Events, string? Pattern = 
 
 public sealed record ChordPatternData(string Id, string Name, int Bars, int Style, string Chords, string? Follow = null, int Feel = 0);
 
+public sealed record DrumLaneData(float Gain, float Pan, bool Mute);
+
 public sealed record PatternData(string Id, string Name, int Bars, List<string> Lanes, int Feel = 0, int Swing = 0, List<string>? Details = null);
 
-public sealed record TrackData(string Name, bool Mute, bool Solo, float Gain, List<ClipData> Clips, List<MidiClipData>? MidiClips = null, float Pan = 0f, int? Input = null, bool? IsMidi = null, int? Color = null, string? Preset = null, bool? IsBacking = null, Dictionary<string, EffectData>? Effects = null, List<CompData>? Comp = null, PluginData? Plugin = null, PluginData? Instrument = null, bool? IsDrums = null, List<PatternData>? Patterns = null, string? Machine = null, List<ChordPatternData>? ChordPatterns = null);
+public sealed record TrackData(string Name, bool Mute, bool Solo, float Gain, List<ClipData> Clips, List<MidiClipData>? MidiClips = null, float Pan = 0f, int? Input = null, bool? IsMidi = null, int? Color = null, string? Preset = null, bool? IsBacking = null, Dictionary<string, EffectData>? Effects = null, List<CompData>? Comp = null, PluginData? Plugin = null, PluginData? Instrument = null, bool? IsDrums = null, List<PatternData>? Patterns = null, string? Machine = null, List<ChordPatternData>? ChordPatterns = null, List<DrumLaneData>? DrumLanes = null);
 
 public sealed record PluginData(string Path, string ClassId, string Name, string Vendor, string Category, string SubCategories, bool Enabled, string? Component, string? Controller);
 
