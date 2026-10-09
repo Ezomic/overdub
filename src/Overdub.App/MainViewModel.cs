@@ -42,6 +42,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         RebuildTracks();
         _session.History.Changed += OnHistoryChanged;
         _session.NoteActivity += OnNoteForChord;
+        SfzInstrument.Progress += OnSampleProgress;
 
         PlayCommand = new RelayCommand(TogglePlay);
         StopCommand = new RelayCommand(Stop);
@@ -1687,8 +1688,48 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    private DateTime _lastProgressShown = DateTime.MinValue;
+    private readonly System.Diagnostics.Stopwatch _loadClock = new();
+
+    private void OnSampleProgress(string name, int done, int total)
+    {
+        if (!_dispatcher.CheckAccess())
+        {
+            _dispatcher.BeginInvoke(() => OnSampleProgress(name, done, total));
+            return;
+        }
+
+        if (done == 0)
+        {
+            _loadClock.Restart();
+        }
+
+        if (done >= total)
+        {
+            if (_loadClock.Elapsed.TotalSeconds >= 2)
+            {
+                Notice = $"Loaded {name} ({total} samples in {_loadClock.Elapsed.TotalSeconds:0} s).";
+            }
+            else if (Notice.StartsWith("Loading ", StringComparison.Ordinal))
+            {
+                Notice = "";
+            }
+
+            return;
+        }
+
+        if ((DateTime.UtcNow - _lastProgressShown).TotalMilliseconds < 150 && done != 0)
+        {
+            return;
+        }
+
+        _lastProgressShown = DateTime.UtcNow;
+        Notice = $"Loading {name}: {done} of {total} samples...";
+    }
+
     public void Dispose()
     {
+        SfzInstrument.Progress -= OnSampleProgress;
         _timer.Stop();
         _session.Dispose();
     }

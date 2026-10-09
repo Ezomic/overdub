@@ -30,9 +30,41 @@ public sealed class SoundLibraryWindow : Window
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(18, 18, 18, 10),
         };
+        var quality = new DockPanel { Margin = new Thickness(18, 0, 18, 10) };
+        var qualityButton = new Button { Style = (Style)FindResource("TransportButton"), Width = 150, Height = 26, FontSize = 12, Padding = new Thickness(12, 0, 12, 0), Focusable = false, Margin = new Thickness(0, 0, 10, 0) };
+        var qualityNote = new TextBlock { Foreground = (Brush)FindResource("TextDim"), TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
+        void ShowQuality()
+        {
+            qualityButton.Content = $"Load quality: {SampleSettings.QualityNames[SampleSettings.Quality].ToLowerInvariant()}";
+            qualityNote.Text = SampleSettings.Describe(SampleSettings.Quality) + " Applies to sounds loaded from now on.";
+        }
+
+        qualityButton.Click += (_, _) =>
+        {
+            var menu = new ContextMenu { PlacementTarget = qualityButton, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom };
+            for (var i = 0; i < SampleSettings.QualityNames.Length; i++)
+            {
+                var pick = i;
+                var item = new MenuItem { Header = SampleSettings.QualityNames[i], IsCheckable = true, IsChecked = i == SampleSettings.Quality, ToolTip = SampleSettings.Describe(i) };
+                item.Click += (_, _) =>
+                {
+                    SampleSettings.Quality = pick;
+                    ShowQuality();
+                };
+                menu.Items.Add(item);
+            }
+
+            menu.IsOpen = true;
+        };
+        ShowQuality();
+        DockPanel.SetDock(qualityButton, Dock.Left);
+        quality.Children.Add(qualityButton);
+        quality.Children.Add(qualityNote);
         var root = new DockPanel();
         DockPanel.SetDock(intro, Dock.Top);
+        DockPanel.SetDock(quality, Dock.Top);
         root.Children.Add(intro);
+        root.Children.Add(quality);
         root.Children.Add(new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Content = _list, Padding = new Thickness(18, 0, 18, 18) });
         Content = root;
         Closed += (_, _) => _cancel.Cancel();
