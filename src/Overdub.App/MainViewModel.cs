@@ -1750,6 +1750,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public void PlayNote(byte note, byte velocity) => _session.HandleNote(note, velocity);
 
+    public Task PreviewSound(TrackViewModel track, string preset) => _session.PreviewMachineSound(track.Model, preset);
+
     public void Sustain(bool down) => _session.HandleControl(MidiKind.Sustain, down ? 127 : 0);
 
     public int AudioInputCount => Math.Max(1, _session.Engine.InputCount);

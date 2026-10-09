@@ -118,7 +118,7 @@
                                                 Width="Auto" Height="22" FontSize="11" Padding="8,0" Margin="0" ToolTip="Reverb and echo for the drums" Focusable="False" />
                                     </StackPanel>
                                     <StackPanel Orientation="Horizontal" Margin="0,2,0,6" Visibility="{Binding IsMachine, Converter={StaticResource BoolToVis}}">
-                                        <Button Style="{StaticResource TransportButton}" Click="OnPresetClick" Content="{Binding Preset}"
+                                        <Button Style="{StaticResource TransportButton}" Click="OnPresetClick" Content="{Binding PresetTitle}"
                                                 Width="Auto" Height="22" FontSize="11" Padding="8,0" Margin="0,0,6,0" ToolTip="Choose the sound" Focusable="False" />
                                         <Button Style="{StaticResource TransportButton}" Content="FX" Click="OnEffectsClick"
                                                 Width="Auto" Height="22" FontSize="11" Padding="8,0" Margin="0,0,6,0" ToolTip="Amp, EQ, compressor and reverb for this track, and a VST3 instrument such as a sampled guitar" Focusable="False" />
@@ -136,7 +136,7 @@
                                     <StackPanel Orientation="Horizontal" Margin="0,2,0,6" Visibility="{Binding IsKeys, Converter={StaticResource BoolToVis}}">
                                         <Button Style="{StaticResource TransportButton}" Command="{Binding CycleMidi}" Content="{Binding MidiLabel}"
                                                 Width="Auto" Height="22" FontSize="11" Padding="8,0" Margin="0,0,6,0" ToolTip="Click to switch MIDI input" Focusable="False" />
-                                        <Button Style="{StaticResource TransportButton}" Click="OnPresetClick" Content="{Binding Preset}"
+                                        <Button Style="{StaticResource TransportButton}" Click="OnPresetClick" Content="{Binding PresetTitle}"
                                                 Width="Auto" Height="22" FontSize="11" Padding="8,0" Margin="0,0,6,0" ToolTip="Choose the sound" Focusable="False" />
                                         <Button Style="{StaticResource TransportButton}" Content="VST" Click="OnEffectsClick"
                                                 Width="Auto" Height="22" FontSize="11" Padding="8,0" Margin="0" ToolTip="Play this track through a VST3 instrument" Focusable="False" />

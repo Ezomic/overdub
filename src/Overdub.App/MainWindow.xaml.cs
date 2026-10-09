@@ -158,6 +158,12 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (track.Model.Machine is not null)
+        {
+            new SoundPickerWindow(_viewModel, this, track).ShowDialog();
+            return;
+        }
+
         var menu = new ContextMenu { PlacementTarget = target, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom };
         foreach (var option in track.PresetOptions)
         {
