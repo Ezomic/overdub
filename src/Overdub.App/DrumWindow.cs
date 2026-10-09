@@ -171,7 +171,9 @@ public sealed class DrumWindow : Window
                 menu.IsOpen = true;
             };
             _patternBar.Children.Add(presets);
-            _patternBar.Children.Add(MakeButton($"Kit: {DrumKit.StyleNames[Track!.DrumKitStyle].ToLowerInvariant()}", () => _main.CycleDrumKit(), width: 110));
+            Button? kit = null;
+            kit = MakeButton($"Kit: {DrumKit.StyleNames[Track!.DrumKitStyle].ToLowerInvariant()}", () => DrumKitMenu.Show(kit!, _main, Track!.DrumKitStyle), width: 110);
+            _patternBar.Children.Add(kit);
             _patternBar.Children.Add(MakeButton($"Swing: {DrumPattern.SwingNames[current.Swing].ToLowerInvariant()}", () => _main.SetDrumSwing(current), width: 120));
             _patternBar.Children.Add(MakeButton($"Feel: {Humanizer.FeelNames[current.Feel]}", () => _main.SetDrumFeel(current), width: 100));
             _patternBar.Children.Add(MakeButton("Clear", () => _main.ClearDrumPattern(current), width: 60));

@@ -221,6 +221,10 @@ public sealed class TrackViewModel(Track model, Brush color, Action onMixChanged
     public static double RowTop(int lanes, int lane) => 6 + ((lanes - 1 - lane) * 58);
     public bool IsMidi => Model.IsMidi;
     public bool IsDrums => Model.IsDrums;
+
+    public string KitTitle => $"Kit: {DrumKit.StyleNames[Math.Clamp(Model.DrumKitStyle, 0, DrumKit.StyleNames.Length - 1)]}";
+
+    public void NotifyKit() => OnPropertyChanged(nameof(KitTitle));
     public bool IsKeys => Model.IsKeys;
     public bool IsMachine => Model.Machine is not null;
     public bool IsLead => Model.Machine == MachineRole.Lead;
