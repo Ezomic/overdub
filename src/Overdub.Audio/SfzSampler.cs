@@ -442,8 +442,18 @@ public sealed class SfzInstrument
                 continue;
             }
 
-            foreach (var token in line.Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries))
+            var words = line.Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries);
+            for (var i = 0; i < words.Length; i++)
             {
+                var token = words[i];
+                if (token.StartsWith("sample=", StringComparison.Ordinal) || token.StartsWith("default_path=", StringComparison.Ordinal))
+                {
+                    while (i + 1 < words.Length && !words[i + 1].Contains('=') && !words[i + 1].StartsWith('<'))
+                    {
+                        token += " " + words[++i];
+                    }
+                }
+
                 tokens.Add(Substitute(token, defines));
             }
         }
