@@ -104,6 +104,7 @@ public static partial class SoundPrograms
             var folder = new DirectoryInfo(packDir).Name;
             var files = Directory.EnumerateFiles(packDir, "*.sfz", SearchOption.AllDirectories).ToList();
             var included = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var texts = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             foreach (var file in files)
             {
                 string text;
@@ -116,6 +117,7 @@ public static partial class SoundPrograms
                     continue;
                 }
 
+                texts[file] = text;
                 foreach (Match match in IncludePattern().Matches(text))
                 {
                     included.Add(System.IO.Path.GetFullPath(System.IO.Path.Combine(System.IO.Path.GetDirectoryName(file)!, match.Groups[1].Value.Replace('/', System.IO.Path.DirectorySeparatorChar))));
@@ -127,7 +129,7 @@ public static partial class SoundPrograms
             var kind = pack?.Kind ?? "Other";
             var description = pack?.Description ?? "Your own pack in Documents\\Overdub\\Instruments, made from a recording or copied in by hand.";
             var titles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var file in files.Where(f => !included.Contains(System.IO.Path.GetFullPath(f))).OrderBy(f => f, StringComparer.OrdinalIgnoreCase))
+            foreach (var file in files.Where(f => !included.Contains(System.IO.Path.GetFullPath(f)) && texts.TryGetValue(f, out var text) && IsStandalone(f, text)).OrderBy(f => f, StringComparer.OrdinalIgnoreCase))
             {
                 var title = CleanTitle(System.IO.Path.GetFileNameWithoutExtension(file), folder);
                 var unique = title;
@@ -141,6 +143,20 @@ public static partial class SoundPrograms
         }
 
         return result;
+    }
+
+    private static bool IsStandalone(string file, string text)
+    {
+        var defines = DefinePattern().Matches(text).ToDictionary(m => m.Groups[1].Value, m => m.Groups[2].Value.Trim());
+        string Resolve(string value) => defines.OrderByDescending(d => d.Key.Length).Aggregate(value, (v, d) => v.Replace(d.Key, d.Value, StringComparison.Ordinal));
+        var sample = SamplePattern().Match(text);
+        if (!sample.Success)
+        {
+            return text.Contains("#include", StringComparison.Ordinal);
+        }
+
+        var defaultPath = DefaultPathPattern().Match(text) is { Success: true } dp ? Resolve(dp.Groups[1].Value) : "";
+        return SfzInstrument.ResolveSample(System.IO.Path.GetDirectoryName(file)!, defaultPath, Resolve(sample.Groups[1].Value)) is not null;
     }
 
     private static string CleanTitle(string stem, string folder)
@@ -177,6 +193,15 @@ public static partial class SoundPrograms
 
     [GeneratedRegex("#include\\s+\"([^\"]+)\"")]
     private static partial Regex IncludePattern();
+
+    [GeneratedRegex("#define\\s+(\\$\\w+)\\s+(\\S+)")]
+    private static partial Regex DefinePattern();
+
+    [GeneratedRegex("(?m)^\\s*sample=(\\S+)")]
+    private static partial Regex SamplePattern();
+
+    [GeneratedRegex("(?m)^\\s*default_path=(\\S+)")]
+    private static partial Regex DefaultPathPattern();
 
     [GeneratedRegex("^\\d+[-_ ]*")]
     private static partial Regex LeadingNumber();
