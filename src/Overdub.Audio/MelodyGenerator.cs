@@ -38,6 +38,8 @@ public static class MelodyGenerator
 
     private static readonly (int Move, int Weight)[] Moves = [(0, 8), (1, 28), (-1, 28), (2, 14), (-2, 14), (3, 4), (-3, 4)];
 
+    public static IReadOnlyList<int> ScaleOffsets(MelodyScale scale) => Offsets[(int)scale];
+
     public static string ScaleName(MelodyScale scale) => scale switch
     {
         MelodyScale.MinorPentatonic => "Minor pentatonic",

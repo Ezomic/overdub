@@ -111,6 +111,58 @@ public partial class PianoRollWindow : Window
         Roll.Refresh();
     }
 
+    private void OnKeyClick(object sender, RoutedEventArgs e)
+    {
+        var menu = new ContextMenu { PlacementTarget = KeyButton, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom };
+        var off = new MenuItem { Header = "Off" };
+        off.Click += (_, _) => SetKey(null);
+        menu.Items.Add(off);
+        for (var root = 0; root < 12; root++)
+        {
+            var key = root;
+            var item = new MenuItem { Header = Chord.Roots[key], IsChecked = _model.Key == key };
+            item.Click += (_, _) => SetKey(key);
+            menu.Items.Add(item);
+        }
+
+        menu.IsOpen = true;
+    }
+
+    private void SetKey(int? key)
+    {
+        _model.Key = key;
+        KeyButton.Content = key is null ? "Key: off" : $"Key: {Chord.Roots[key.Value]}";
+        Roll.Refresh();
+    }
+
+    private void OnScaleClick(object sender, RoutedEventArgs e)
+    {
+        var menu = new ContextMenu { PlacementTarget = ScaleButton, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom };
+        foreach (var scale in Enum.GetValues<MelodyScale>())
+        {
+            var choice = scale;
+            var item = new MenuItem { Header = MelodyGenerator.ScaleName(choice), IsChecked = _model.Scale == choice };
+            item.Click += (_, _) =>
+            {
+                _model.Scale = choice;
+                ScaleButton.Content = MelodyGenerator.ScaleName(choice);
+                Roll.Refresh();
+            };
+            menu.Items.Add(item);
+        }
+
+        menu.IsOpen = true;
+    }
+
+    private void OnSnapScale(object sender, RoutedEventArgs e)
+    {
+        _model.SnapToScale = SnapButton.IsChecked == true;
+        if (_model.SnapToScale && _model.Key is null)
+        {
+            _viewModel.ReportProblem("Pick a key first, then notes can snap to its scale.");
+        }
+    }
+
     private void OnZoomIn(object sender, RoutedEventArgs e) => Zoom(1.5);
 
     private void OnZoomOut(object sender, RoutedEventArgs e) => Zoom(1 / 1.5);

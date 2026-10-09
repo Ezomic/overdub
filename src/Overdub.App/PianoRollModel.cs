@@ -25,6 +25,36 @@ public sealed class PianoRollModel
     public int BeatsPerBar { get; }
     public int BeatUnit { get; }
     public int Division { get; set; }
+    public int? Key { get; set; }
+    public MelodyScale Scale { get; set; } = MelodyScale.Major;
+    public bool SnapToScale { get; set; }
+
+    public bool InScale(int pitch) => Key is { } key && MelodyGenerator.ScaleOffsets(Scale).Contains((((pitch - key) % 12) + 12) % 12);
+
+    public bool IsRoot(int pitch) => Key is { } key && (((pitch - key) % 12) + 12) % 12 == 0;
+
+    public int ToScale(int pitch)
+    {
+        if (!SnapToScale || Key is null || InScale(pitch))
+        {
+            return pitch;
+        }
+
+        for (var distance = 1; distance <= 6; distance++)
+        {
+            if (InScale(pitch - distance))
+            {
+                return pitch - distance;
+            }
+
+            if (InScale(pitch + distance))
+            {
+                return pitch + distance;
+            }
+        }
+
+        return pitch;
+    }
 
     public long GridSamples => Math.Max(1, (long)(SamplesPerBeat * BeatUnit / Division));
 
@@ -74,7 +104,7 @@ public sealed class PianoRollModel
     public int Add(long start, int pitch)
     {
         var snapped = Math.Max(0, Snap(start));
-        Notes.Add(new MidiNoteData(snapped, snapped + GridSamples, (byte)Math.Clamp(pitch, LowestPitch, HighestPitch), DefaultVelocity));
+        Notes.Add(new MidiNoteData(snapped, snapped + GridSamples, (byte)Math.Clamp(ToScale(pitch), LowestPitch, HighestPitch), DefaultVelocity));
         Selected.Clear();
         Selected.Add(Notes.Count - 1);
         return Notes.Count - 1;
@@ -90,7 +120,7 @@ public sealed class PianoRollModel
         foreach (var index in Selected)
         {
             var note = _snapshot[index];
-            var pitch = (byte)Math.Clamp(note.Pitch + deltaPitch, LowestPitch, HighestPitch);
+            var pitch = (byte)Math.Clamp(ToScale(note.Pitch + deltaPitch), LowestPitch, HighestPitch);
             Notes[index] = note with { Start = note.Start + snappedDelta, End = note.End + snappedDelta, Pitch = pitch };
         }
     }
