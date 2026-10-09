@@ -820,7 +820,7 @@ public sealed class Session : IDisposable
             int? input = isMidi ? null : d.Input ?? (d.Name == "Bass" ? 1 : 0);
             var backing = d.IsBacking == true;
             var track = new Track(d.Name, backing ? null : input) { ColorIndex = d.Color ?? loaded.Count, Preset = d.Preset ?? "Lead", IsBacking = backing, IsDrums = d.IsDrums == true, Machine = Enum.TryParse<MachineRole>(d.Machine, out var machineRole) ? machineRole : null };
-            if (track.Machine is { } migrateRole && PluckSynth.Find(track.Preset) is null && track.Preset is not ("Synth pluck" or "Synth bass" or "Synth lead"))
+            if (track.Machine is { } migrateRole && PluckSynth.Find(track.Preset) is null && track.Preset is not ("Synth pluck" or "Synth bass" or "Synth lead") && SfzInstrument.FindPath(track.Preset) is null)
             {
                 track.Preset = PluckSynth.DefaultName(migrateRole);
             }

@@ -4,6 +4,9 @@ public sealed class MachineLane(MachineRole role)
 {
     private readonly Synth _synth = new();
     private readonly PluckSynth _pluck = new();
+    private readonly SfzPlayer _player = new();
+    private string? _presetName;
+    private bool _usePlayer;
     private int _sampleRate = 44100;
     private bool _usePluck;
     private bool _usePlugin;
@@ -13,7 +16,7 @@ public sealed class MachineLane(MachineRole role)
     public MidiClip[] Clips { get; set; } = [];
     public float Gain { get; set; } = 1f;
     public float Pan { get; set; }
-    public INoteTarget Voice => _usePlugin ? _synth : _usePluck ? _pluck : _synth;
+    public INoteTarget Voice => _usePlugin ? _synth : _usePlayer ? _player : _usePluck ? _pluck : _synth;
 
     public void SetInstrument(Vst3.Vst3Plugin? plugin)
     {
@@ -26,10 +29,41 @@ public sealed class MachineLane(MachineRole role)
         _sampleRate = sampleRate;
         _synth.Configure(sampleRate);
         _pluck.Configure(sampleRate);
+        _player.Configure(sampleRate);
     }
 
-    public void SetPreset(string? name)
+    public void SetPreset(string? name, bool waitForSamples = false)
     {
+        if (name == _presetName && !waitForSamples)
+        {
+            return;
+        }
+
+        _presetName = name;
+        var sfz = SfzInstrument.FindPath(name);
+        _usePlayer = sfz is not null;
+        if (sfz is not null)
+        {
+            _player.SetInstrument(null);
+            if (waitForSamples)
+            {
+                _player.SetInstrument(SfzInstrument.Load(sfz));
+            }
+            else
+            {
+                _ = Task.Run(() =>
+                {
+                    var instrument = SfzInstrument.Load(sfz);
+                    if (_presetName == name)
+                    {
+                        _player.SetInstrument(instrument);
+                    }
+                });
+            }
+
+            return;
+        }
+
         var character = PluckSynth.Find(name);
         if (character is not null)
         {
@@ -46,13 +80,14 @@ public sealed class MachineLane(MachineRole role)
     {
         _synth.AllNotesOff();
         _pluck.AllNotesOff();
+        _player.AllNotesOff();
     }
 
     public static INoteTarget CreateVoice(MachineRole role, string? preset, int sampleRate, Vst3.Vst3Plugin? instrument = null)
     {
         var lane = new MachineLane(role);
         lane.Configure(sampleRate);
-        lane.SetPreset(preset);
+        lane.SetPreset(preset, waitForSamples: true);
         lane.SetInstrument(instrument);
         return lane.Voice;
     }
