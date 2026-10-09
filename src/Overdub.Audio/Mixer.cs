@@ -173,10 +173,7 @@ public static class Mixer
         }
 
         const int block = 4096;
-        var synth = new Synth();
-        synth.Configure(sampleRate);
-        synth.SetPreset(preset);
-        synth.Instrument = instrument;
+        var synth = MachineLane.CreateVoice(MachineRole.Lead, preset, sampleRate, instrument);
         var sequencer = new MidiSequencer();
         var drumKit = new DrumKit();
         drumKit.Configure(sampleRate);

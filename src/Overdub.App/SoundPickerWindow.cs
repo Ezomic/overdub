@@ -66,7 +66,7 @@ public sealed class SoundPickerWindow : Window
         Foreground = (Brush)FindResource("Text");
         FontFamily = new FontFamily("Segoe UI");
         FontSize = 13;
-        _entries = BuildEntries(track.Model.Machine!.Value);
+        _entries = BuildEntries(track.Model.Machine);
 
         var itemStyle = (Style)XamlReader.Parse(ItemStyleXaml);
         foreach (var list in new[] { _packs, _sounds })
@@ -181,13 +181,13 @@ public sealed class SoundPickerWindow : Window
         Loaded += (_, _) => _search.Focus();
     }
 
-    private static List<Entry> BuildEntries(MachineRole role)
+    private static List<Entry> BuildEntries(MachineRole? role)
     {
-        var entries = PluckSynth.BuiltInNames(role)
-            .Select(name => new Entry("Built-in", "Built-in", name, name, "Overdub's own plucked-string and synth voices. No samples needed, so they load instantly."))
-            .ToList();
+        var builtIn = role is { } machine ? PluckSynth.BuiltInNames(machine) : SynthPatch.All.Select(p => p.Name).ToList();
+        var blurb = role is null ? "Overdub's own synth patches. No samples needed, so they load instantly." : "Overdub's own plucked-string and synth voices. No samples needed, so they load instantly.";
+        var entries = builtIn.Select(name => new Entry("Built-in", "Built-in", name, name, blurb)).ToList();
         entries.AddRange(SoundPrograms.Discover()
-            .Where(p => (role == MachineRole.Bass) == p.IsBass)
+            .Where(p => p.Fits(role))
             .Select(p => new Entry(p.Pack, p.Kind, p.Title, p.Name, p.Description)));
         return entries;
     }
@@ -210,7 +210,7 @@ public sealed class SoundPickerWindow : Window
     private void Reload()
     {
         _entries.Clear();
-        _entries.AddRange(BuildEntries(_track.Model.Machine!.Value));
+        _entries.AddRange(BuildEntries(_track.Model.Machine));
         _filling = true;
         _packs.Items.Clear();
         var currentPack = _entries.FirstOrDefault(e => string.Equals(e.Name, _track.Preset, StringComparison.OrdinalIgnoreCase))?.Pack ?? "Built-in";

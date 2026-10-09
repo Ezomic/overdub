@@ -166,7 +166,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (track.Model.Machine is not null)
+        if (track.Model.IsMidi && !track.Model.IsDrums)
         {
             new SoundPickerWindow(_viewModel, this, track).ShowDialog();
             return;

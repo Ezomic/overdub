@@ -21,6 +21,10 @@ public static class SoundCatalog
         new("sneakybass", "Sneakybass", "Upright bass", "A double bass plucked quietly, with ghost notes, mutes and finger noises. Good for jazz and bossa nova.", "https://github.com/sfzinstruments/karoryfer.sneakybass/releases/download/v1.000/Sneakybass_v1.000.zip", 324, "Sneakybass"),
         new("ergo", "Ergo", "Upright bass", "An electric upright bass, bowed and plucked. Smooth and even.", "https://github.com/sfzinstruments/karoryfer.ergo/releases/download/v1.001/Karoryfer.Ergo_EUB.v1.001.zip", 191, "Ergo_EUB"),
         new("smolkenbass", "D. Smolken double bass", "Upright bass", "A Rubner double bass, bowed and plucked, with a switched mapping for both.", "https://github.com/sfzinstruments/dsmolken.double-bass/releases/download/v1.001/DSmolken.double_bass.v1.001.zip", 252, "dsmolken_double_bass"),
+        new("scarypiano", "Scarypiano", "Piano", "A grand piano built from the University of Iowa samples, with a slightly haunted character. Play it from the Keys track.", "https://github.com/sfzinstruments/karoryfer.scarypiano/releases/download/v1.002/Karoryfer.Scarypiano.v1.002.zip", 342, "Scarypiano"),
+        new("clavecin", "Clavecin", "Harpsichord", "A small harpsichord: bright, plucked keys for baroque or chamber-pop colours.", "https://github.com/sfzinstruments/Clavecin/archive/refs/heads/master.zip", 3, "Clavecin-master"),
+        new("orgue", "Orgue d'eglise", "Organ", "A church organ with several stops. Slow pads and big chords.", "https://github.com/sfzinstruments/OrgueEglise/archive/refs/heads/master.zip", 26, "OrgueEglise-master"),
+        new("marimba", "Marimba", "Mallets", "A marimba with three velocity layers. Warm, woody and percussive.", "https://github.com/sfzinstruments/Terkelsen.Marimba/archive/refs/heads/master.zip", 23, "Terkelsen.Marimba-master"),
     ];
 
     public static bool IsInstalled(SoundPack pack, string? root = null) =>
