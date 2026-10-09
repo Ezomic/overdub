@@ -512,7 +512,7 @@ public sealed class Session : IDisposable
         }
     }
 
-    public void EditPattern(Track track, DrumPattern pattern, Action<DrumPattern> change, string name)
+    public void EditPattern(Track track, DrumPattern pattern, Action<DrumPattern> change, string name, string? mergeKey = null)
     {
         var before = pattern.Clone();
         var after = pattern.Clone();
@@ -528,7 +528,9 @@ public sealed class Session : IDisposable
             {
                 pattern.CopyFrom(before);
                 RegeneratePatternClips();
-            });
+            },
+            EditKind.Clips,
+            mergeKey);
     }
 
     public void EditDrumLane(Track track, int lane, float gain, float pan, bool mute)

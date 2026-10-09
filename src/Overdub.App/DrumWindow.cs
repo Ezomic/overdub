@@ -17,6 +17,8 @@ public sealed class DrumWindow : Window
     private readonly TextBlock _hint = new() { Margin = new Thickness(0, 12, 0, 0) };
     private DrumPattern? _current;
     private int _repeat = 1;
+    private bool _painting;
+    private byte _paintLevel;
 
     public DrumWindow(MainViewModel main, Window owner)
     {
@@ -49,7 +51,7 @@ public sealed class DrumWindow : Window
 
     private void OnHistory()
     {
-        if (Mouse.Captured is not Slider)
+        if (Mouse.Captured is not Slider && !_painting)
         {
             Refresh();
         }
@@ -182,8 +184,6 @@ public sealed class DrumWindow : Window
 
     private Border StepCell(DrumPattern pattern, int lane, int step)
     {
-        var level = pattern.Get(lane, step);
-        var color = level == 2 ? Accent : (Brush)FindResource("Good");
         var cell = new Border
         {
             Width = StepWidth,
@@ -192,34 +192,72 @@ public sealed class DrumWindow : Window
             Margin = new Thickness(step % 4 == 0 && step > 0 ? 8 : 2, 0, 2, 0),
             BorderThickness = new Thickness(1),
             BorderBrush = (Brush)FindResource("Border"),
-            Background = (Brush)FindResource(step / 4 % 2 == 0 ? "Panel" : "Lane"),
             Cursor = Cursors.Hand,
         };
-        if (level > 0)
-        {
-            var chance = pattern.Chance(lane, step);
-            cell.Child = new Border
-            {
-                Background = color,
-                CornerRadius = new CornerRadius(2),
-                VerticalAlignment = VerticalAlignment.Bottom,
-                Height = Math.Max(4, 26 * pattern.Velocity(lane, step) / 127.0),
-                Opacity = 0.4 + (0.6 * chance / 100),
-            };
-            cell.ToolTip = $"Velocity {pattern.Velocity(lane, step)}, plays {chance}% of the time. Right-click to change.";
-        }
-
+        Look(cell, pattern, lane, step);
         cell.MouseLeftButtonDown += (_, _) =>
         {
-            var next = (byte)((level + 1) % 3);
-            _main.SetDrumStep(pattern, lane, step, next);
-            if (next > 0)
+            _paintLevel = (byte)((pattern.Get(lane, step) + 1) % 3);
+            _painting = true;
+            Paint(cell, pattern, lane, step);
+        };
+        cell.MouseEnter += (_, _) =>
+        {
+            if (_painting && Mouse.LeftButton == MouseButtonState.Pressed)
             {
-                _main.AuditionDrum(lane, next == 2 ? 127 : 90);
+                Paint(cell, pattern, lane, step);
             }
         };
-        cell.MouseRightButtonDown += (_, _) => StepMenu(cell, pattern, lane, step, level);
+        cell.MouseRightButtonDown += (_, _) => StepMenu(cell, pattern, lane, step, pattern.Get(lane, step));
         return cell;
+    }
+
+    private void Paint(Border cell, DrumPattern pattern, int lane, int step)
+    {
+        if (pattern.Get(lane, step) == _paintLevel)
+        {
+            return;
+        }
+
+        _main.SetDrumStep(pattern, lane, step, _paintLevel, painting: true);
+        Look(cell, pattern, lane, step);
+        if (_paintLevel > 0)
+        {
+            _main.AuditionDrum(lane, _paintLevel == 2 ? 127 : 90);
+        }
+    }
+
+    protected override void OnPreviewMouseLeftButtonUp(MouseButtonEventArgs e)
+    {
+        base.OnPreviewMouseLeftButtonUp(e);
+        if (_painting)
+        {
+            _painting = false;
+            Dispatcher.BeginInvoke(Refresh);
+        }
+    }
+
+    private void Look(Border cell, DrumPattern pattern, int lane, int step)
+    {
+        var level = pattern.Get(lane, step);
+        cell.Background = (Brush)FindResource(step / 4 % 2 == 0 ? "Panel" : "Lane");
+        cell.Child = null;
+        cell.ToolTip = null;
+        if (level == 0)
+        {
+            return;
+        }
+
+        var chance = pattern.Chance(lane, step);
+        cell.Child = new Border
+        {
+            Background = level == 2 ? Accent : (Brush)FindResource("Good"),
+            CornerRadius = new CornerRadius(2),
+            VerticalAlignment = VerticalAlignment.Bottom,
+            Height = Math.Max(4, 26 * pattern.Velocity(lane, step) / 127.0),
+            Opacity = 0.4 + (0.6 * chance / 100),
+        };
+        cell.ToolTip = $"Velocity {pattern.Velocity(lane, step)}, plays {chance}% of the time. Right-click to change.";
     }
 
     private void StepMenu(FrameworkElement target, DrumPattern pattern, int lane, int step, byte level)

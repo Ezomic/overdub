@@ -1382,11 +1382,11 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public DrumPattern AddDrumPattern() => _session.AddPattern(DrumTrack!);
 
-    public void SetDrumStep(DrumPattern pattern, int lane, int step, byte level)
+    public void SetDrumStep(DrumPattern pattern, int lane, int step, byte level, bool painting = false)
     {
         if (DrumTrack is { } track && pattern.Get(lane, step) != level)
         {
-            _session.EditPattern(track, pattern, p => p.Set(lane, step, level), "Edit drum pattern");
+            _session.EditPattern(track, pattern, p => p.Set(lane, step, level), "Edit drum pattern", painting ? $"paint:{pattern.Id}" : null);
         }
     }
 
