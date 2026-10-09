@@ -21,6 +21,8 @@ public sealed class SfzRegion
     public double VolumeDb { get; set; }
     public double RtDecay { get; set; }
     public double Tune { get; set; }
+    public int Transpose { get; set; }
+    public int KeyTrack { get; set; } = 100;
     public int SeqLength { get; set; } = 1;
     public int SeqPosition { get; set; } = 1;
 }
@@ -53,56 +55,80 @@ public sealed class SfzInstrument
     private void Parse()
     {
         var directory = System.IO.Path.GetDirectoryName(Path)!;
+        var defines = new Dictionary<string, string>(StringComparer.Ordinal);
+        var tokens = new List<string>();
+        Expand(Path, defines, tokens, 0);
+
+        var control = new Dictionary<string, string>();
+        var global = new Dictionary<string, string>();
+        var master = new Dictionary<string, string>();
         var group = new Dictionary<string, string>();
-        Dictionary<string, string>? region = null;
-        var samples = new Dictionary<string, (float[] Data, int Rate)>(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, string>? target = null;
         var pending = new List<Dictionary<string, string>>();
-
-        foreach (var raw in System.IO.File.ReadLines(Path))
+        foreach (var token in tokens)
         {
-            var line = raw;
-            var comment = line.IndexOf("//", StringComparison.Ordinal);
-            if (comment >= 0)
+            switch (token)
             {
-                line = line[..comment];
-            }
+                case "<control>":
+                    target = control;
+                    break;
+                case "<global>":
+                    global = [];
+                    master = [];
+                    group = [];
+                    target = global;
+                    break;
+                case "<master>":
+                    master = [];
+                    group = [];
+                    target = master;
+                    break;
+                case "<group>":
+                    group = [];
+                    target = group;
+                    break;
+                case "<region>":
+                    var region = new Dictionary<string, string>(global);
+                    foreach (var (k, v) in master)
+                    {
+                        region[k] = v;
+                    }
 
-            foreach (var token in line.Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries))
-            {
-                if (token.StartsWith("<group>", StringComparison.Ordinal))
-                {
-                    group = [];
-                    region = null;
-                }
-                else if (token.StartsWith("<region>", StringComparison.Ordinal))
-                {
-                    region = new Dictionary<string, string>(group);
+                    foreach (var (k, v) in group)
+                    {
+                        region[k] = v;
+                    }
+
                     pending.Add(region);
-                }
-                else if (token.StartsWith('<'))
-                {
-                    region = null;
-                    group = [];
-                }
-                else if (token.Contains('='))
-                {
-                    var eq = token.IndexOf('=');
-                    var key = token[..eq];
-                    var value = token[(eq + 1)..];
-                    (region ?? group)[key] = value;
-                }
+                    target = region;
+                    break;
+                default:
+                    if (token.StartsWith('<'))
+                    {
+                        target = null;
+                    }
+                    else if (token.Contains('=') && target is not null)
+                    {
+                        var eq = token.IndexOf('=');
+                        target[token[..eq]] = token[(eq + 1)..];
+                    }
+
+                    break;
             }
         }
 
-        foreach (var opcodes in pending)
+        var defaultPath = control.GetValueOrDefault("default_path", "");
+        var playable = pending.Where(o => o.ContainsKey("sample") && Playable(o, control, honourCc: true)).ToList();
+        if (playable.Count == 0)
         {
-            if (!opcodes.TryGetValue("sample", out var sample))
-            {
-                continue;
-            }
+            playable = pending.Where(o => o.ContainsKey("sample") && Playable(o, control, honourCc: false)).ToList();
+        }
 
-            var file = System.IO.Path.Combine(directory, sample.Replace('\\', System.IO.Path.DirectorySeparatorChar));
-            if (!System.IO.File.Exists(file))
+        var samples = new Dictionary<string, (float[] Data, int Rate)>(StringComparer.OrdinalIgnoreCase);
+        foreach (var opcodes in playable)
+        {
+            var file = ResolveSample(directory, defaultPath, opcodes["sample"]);
+            if (file is null)
             {
                 continue;
             }
@@ -113,23 +139,26 @@ public sealed class SfzInstrument
                 samples[file] = data;
             }
 
+            var trigger = opcodes.GetValueOrDefault("trigger", "attack");
             var r = new SfzRegion
             {
                 Samples = data.Data,
                 SampleRate = data.Rate,
                 SamplePath = file,
-                LoKey = Int(opcodes, "lokey", Int(opcodes, "key", 0)),
-                HiKey = Int(opcodes, "hikey", Int(opcodes, "key", 127)),
-                KeyCenter = Int(opcodes, "pitch_keycenter", Int(opcodes, "key", 60)),
+                LoKey = Key(opcodes, "lokey", Key(opcodes, "key", 0)),
+                HiKey = Key(opcodes, "hikey", Key(opcodes, "key", 127)),
+                KeyCenter = Key(opcodes, "pitch_keycenter", Key(opcodes, "key", 60)),
                 LoVel = Int(opcodes, "lovel", 1),
                 HiVel = Int(opcodes, "hivel", 127),
                 LoRand = Dbl(opcodes, "lorand", 0),
                 HiRand = Dbl(opcodes, "hirand", 1),
-                Release = opcodes.TryGetValue("trigger", out var trigger) && trigger == "release",
+                Release = trigger is "release" or "release_key",
                 ReleaseTime = Dbl(opcodes, "ampeg_release", 0.15),
                 VolumeDb = Dbl(opcodes, "volume", 0),
                 RtDecay = Dbl(opcodes, "rt_decay", 0),
                 Tune = Dbl(opcodes, "tune", 0),
+                Transpose = Int(opcodes, "transpose", 0),
+                KeyTrack = Int(opcodes, "pitch_keytrack", 100),
                 SeqLength = Int(opcodes, "seq_length", 1),
                 SeqPosition = Int(opcodes, "seq_position", 1),
             };
@@ -140,6 +169,175 @@ public sealed class SfzInstrument
                 MaxKey = Math.Max(MaxKey, r.HiKey);
             }
         }
+    }
+
+    public static string? ResolveSample(string directory, string defaultPath, string sample)
+    {
+        var relative = sample.Replace('/', System.IO.Path.DirectorySeparatorChar);
+        var prefixed = defaultPath.Contains('$') ? relative : defaultPath.Replace('/', System.IO.Path.DirectorySeparatorChar) + relative;
+        var anchor = directory;
+        for (var level = 0; level < 4 && anchor is not null; level++)
+        {
+            foreach (var candidate in new[] { prefixed, relative, System.IO.Path.Combine("Samples", relative), System.IO.Path.Combine("samples", relative) })
+            {
+                var file = System.IO.Path.GetFullPath(System.IO.Path.Combine(anchor, candidate));
+                if (System.IO.File.Exists(file))
+                {
+                    return file;
+                }
+            }
+
+            if (string.Equals(anchor, System.IO.Path.GetFullPath(Folder), StringComparison.OrdinalIgnoreCase))
+            {
+                break;
+            }
+
+            anchor = System.IO.Path.GetDirectoryName(anchor);
+        }
+
+        return null;
+    }
+
+    private static bool Playable(Dictionary<string, string> opcodes, Dictionary<string, string> control, bool honourCc)
+    {
+        if (opcodes.GetValueOrDefault("trigger") == "legato")
+        {
+            return false;
+        }
+
+        foreach (var (key, value) in opcodes)
+        {
+            if (!honourCc)
+            {
+                break;
+            }
+
+            var low = key.StartsWith("locc", StringComparison.Ordinal);
+            var high = key.StartsWith("hicc", StringComparison.Ordinal);
+            if (!low && !high || !int.TryParse(key[4..], out var cc) || !int.TryParse(value, out var bound))
+            {
+                continue;
+            }
+
+            var current = Int(control, "set_cc" + cc, 0);
+            if (low ? current < bound : current > bound)
+            {
+                return false;
+            }
+        }
+
+        if (opcodes.TryGetValue("sw_last", out _))
+        {
+            var last = Key(opcodes, "sw_last", -1);
+            var fallback = Key(opcodes, "sw_default", Key(opcodes, "sw_lokey", last));
+            return last == fallback;
+        }
+
+        return true;
+    }
+
+    private static void Expand(string file, Dictionary<string, string> defines, List<string> tokens, int depth)
+    {
+        if (depth > 8 || !System.IO.File.Exists(file))
+        {
+            return;
+        }
+
+        var directory = System.IO.Path.GetDirectoryName(file)!;
+        foreach (var raw in System.IO.File.ReadLines(file))
+        {
+            var line = raw;
+            var comment = line.IndexOf("//", StringComparison.Ordinal);
+            if (comment >= 0)
+            {
+                line = line[..comment];
+            }
+
+            line = line.Trim();
+            if (line.Length == 0)
+            {
+                continue;
+            }
+
+            if (line.StartsWith("#include", StringComparison.Ordinal))
+            {
+                var open = line.IndexOf('"');
+                var close = open < 0 ? -1 : line.IndexOf('"', open + 1);
+                if (close > open)
+                {
+                    var include = Substitute(line[(open + 1)..close], defines).Replace('/', System.IO.Path.DirectorySeparatorChar);
+                    Expand(System.IO.Path.GetFullPath(System.IO.Path.Combine(directory, include)), defines, tokens, depth + 1);
+                }
+
+                continue;
+            }
+
+            if (line.StartsWith("#define", StringComparison.Ordinal))
+            {
+                var parts = line.Split([' ', '\t'], 3, StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length == 3 && parts[1].StartsWith('$'))
+                {
+                    defines[parts[1]] = parts[2].Trim();
+                }
+
+                continue;
+            }
+
+            foreach (var token in line.Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries))
+            {
+                tokens.Add(Substitute(token, defines));
+            }
+        }
+    }
+
+    private static string Substitute(string text, Dictionary<string, string> defines)
+    {
+        if (!text.Contains('$') || defines.Count == 0)
+        {
+            return text;
+        }
+
+        foreach (var (name, value) in defines.OrderByDescending(d => d.Key.Length))
+        {
+            text = text.Replace(name, value, StringComparison.Ordinal);
+        }
+
+        return text;
+    }
+
+    private static readonly Dictionary<char, int> NoteOffsets = new() { ['c'] = 0, ['d'] = 2, ['e'] = 4, ['f'] = 5, ['g'] = 7, ['a'] = 9, ['b'] = 11 };
+
+    private static int Key(Dictionary<string, string> opcodes, string key, int fallback)
+    {
+        if (!opcodes.TryGetValue(key, out var value))
+        {
+            return fallback;
+        }
+
+        if (int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var number))
+        {
+            return number;
+        }
+
+        var text = value.ToLowerInvariant();
+        if (text.Length < 2 || !NoteOffsets.TryGetValue(text[0], out var offset))
+        {
+            return fallback;
+        }
+
+        var index = 1;
+        if (text[1] == '#')
+        {
+            offset++;
+            index++;
+        }
+        else if (text[1] == 'b')
+        {
+            offset--;
+            index++;
+        }
+
+        return int.TryParse(text[index..], NumberStyles.Integer, CultureInfo.InvariantCulture, out var octave) ? ((octave + 1) * 12) + offset : fallback;
     }
 
     private static (float[] Data, int Rate) ReadSample(string file)
@@ -322,7 +520,7 @@ public sealed class SfzPlayer : INoteTarget
                 gain *= (float)Math.Pow(10, -region.RtDecay * held / 20);
             }
 
-            var ratio = release ? 1.0 : Math.Pow(2, ((note - region.KeyCenter) / 12.0) + (region.Tune / 1200.0));
+            var ratio = release ? 1.0 : Math.Pow(2, ((((note - region.KeyCenter) * region.KeyTrack / 100.0) + region.Transpose) / 12.0) + (region.Tune / 1200.0));
             _voices[slot] = new Voice
             {
                 Active = true,
