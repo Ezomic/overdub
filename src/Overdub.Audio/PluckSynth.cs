@@ -21,7 +21,9 @@ public sealed class PluckSynth : INoteTarget
         new("Pick bass", MachineRole.Bass, 0.3f, 0.9982f, 0.0f, 0.12f, 0.5f, 0.3f),
     ];
 
-    public static IReadOnlyList<string> Names(MachineRole role) => role == MachineRole.Lead
+    public static IReadOnlyList<string> Names(MachineRole role) => BuiltInNames(role).Concat(SfzInstrument.Discover().Where(d => (role == MachineRole.Bass) == d.Name.Contains("bass", StringComparison.OrdinalIgnoreCase)).Select(d => d.Name)).ToList();
+
+    private static IReadOnlyList<string> BuiltInNames(MachineRole role) => role == MachineRole.Lead
         ? ["Electric lead", "Electric crunch", "Electric clean", "Plectrum", "Acoustic", "Synth lead"]
         : Characters.Where(c => c.Role == role).Select(c => c.Name).Append(role == MachineRole.Guitar ? "Synth pluck" : "Synth bass").ToList();
 
