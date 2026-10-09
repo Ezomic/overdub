@@ -43,6 +43,9 @@ public sealed class PianoRollControl : FrameworkElement
 
     public long SampleAt(double x) => OriginSample + (long)(x / PixelsPerBeat * Model!.SamplesPerBeat);
 
+    private static readonly Brush ScaleTint = new SolidColorBrush(Color.FromArgb(34, 0xE0, 0x9F, 0x3E));
+    private static readonly Brush RootTint = new SolidColorBrush(Color.FromArgb(78, 0xE0, 0x9F, 0x3E));
+
     public static double YOf(int pitch) => (PianoRollModel.HighestPitch - pitch) * RowHeight;
 
     public static int PitchAt(double y) => PianoRollModel.HighestPitch - (int)Math.Floor(y / RowHeight);
@@ -63,6 +66,11 @@ public sealed class PianoRollControl : FrameworkElement
             if (BlackKey[pitch % 12])
             {
                 context.DrawRectangle(shade, null, new Rect(0, y, width, RowHeight));
+            }
+
+            if (Model?.Key is not null && Model.InScale(pitch))
+            {
+                context.DrawRectangle(Model.IsRoot(pitch) ? RootTint : ScaleTint, null, new Rect(0, y, width, RowHeight));
             }
 
             if (pitch % 12 == 0)
