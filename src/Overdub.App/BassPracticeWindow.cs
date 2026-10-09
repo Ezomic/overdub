@@ -13,8 +13,10 @@ public sealed class BassPracticeWindow : Window
     private readonly FretboardControl _fretboard = new() { Height = 190, Margin = new Thickness(0, 6, 0, 6) };
     private readonly TextBlock _chord = new() { FontSize = 22, FontWeight = FontWeights.SemiBold };
     private readonly TextBlock _tones = new() { Margin = new Thickness(14, 8, 0, 0) };
-    private readonly DispatcherTimer _clock = new() { Interval = TimeSpan.FromMilliseconds(80) };
+    private readonly DispatcherTimer _clock = new() { Interval = TimeSpan.FromMilliseconds(33) };
     private string _last = "";
+    private readonly TabScrollControl _tab = new() { Height = 170, Margin = new Thickness(0, 8, 0, 6) };
+    private readonly System.Windows.Controls.Primitives.ToggleButton _mute = new() { Content = "Mute the bass so I play it", Style = null!, Focusable = false };
 
     public BassPracticeWindow(MainViewModel main, Window owner, Track track)
     {
@@ -48,16 +50,46 @@ public sealed class BassPracticeWindow : Window
             _fretboard.ShowScale = scale.IsChecked == true;
             _fretboard.InvalidateVisual();
         };
+        _mute.Style = (Style)FindResource("Chip");
+        _mute.Margin = new Thickness(0, 0, 8, 0);
+        _mute.HorizontalAlignment = HorizontalAlignment.Left;
+        _mute.IsChecked = track.Mute;
+        _mute.Click += (_, _) => _main.SetMachineMute(_track, _mute.IsChecked == true);
+        var tabTitle = new TextBlock { Text = "Play along", FontSize = 15, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 14, 0, 0) };
+        var tabHint = new TextBlock
+        {
+            Text = "The bass line scrolls past the white line as tab. Green notes are coming, amber is now, grey is done. Mute the bass machine, play the line yourself, then unmute to hear it against yours. Use Loop and Speed (or the tempo ramp) in the main window to work on a hard part.",
+            Foreground = (Brush)FindResource("TextDim"),
+            TextWrapping = TextWrapping.Wrap,
+        };
         var panel = new StackPanel { Margin = new Thickness(18) };
         panel.Children.Add(head);
         panel.Children.Add(_fretboard);
         panel.Children.Add(legend);
         panel.Children.Add(scale);
+        panel.Children.Add(tabTitle);
+        panel.Children.Add(tabHint);
+        panel.Children.Add(_tab);
+        panel.Children.Add(_mute);
         Content = panel;
+        _main.EditHistoryChanged += LoadTab;
+        Closed += (_, _) => _main.EditHistoryChanged -= LoadTab;
+        LoadTab();
         _clock.Tick += (_, _) => Update();
         _clock.Start();
         Closed += (_, _) => _clock.Stop();
         Update();
+    }
+
+    private void LoadTab()
+    {
+        if (!_main.HasTrack(_track))
+        {
+            return;
+        }
+
+        (_tab.Notes, _tab.Bars) = _main.BassTabData(_track);
+        _mute.IsChecked = _track.Mute;
     }
 
     private void Update()
@@ -68,6 +100,10 @@ public sealed class BassPracticeWindow : Window
             return;
         }
 
+        _tab.Position = _main.Engine.Position;
+        _tab.SampleRate = Math.Max(1, _main.Engine.SampleRate);
+        _tab.Playing = _main.Engine.IsPlaying;
+        _tab.InvalidateVisual();
         var chord = _main.ChordAtPlayhead(_track);
         var playing = _main.BassPitchAtPlayhead(_track);
         var key = _main.DetectedKey();
