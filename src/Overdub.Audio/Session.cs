@@ -460,6 +460,60 @@ public sealed class Session : IDisposable
         return midi.Count + audio.Count;
     }
 
+    public (int Root, MelodyScale Scale)? DetectedKey()
+    {
+        var notes = Tracks.Where(t => !t.IsDrums).SelectMany(t => t.MidiClips).SelectMany(c => c.NoteData()).ToList();
+        return notes.Count == 0 ? null : MelodyVariations.KeyOf(notes);
+    }
+
+    public void TransposeAll(int semitones)
+    {
+        if (semitones == 0)
+        {
+            return;
+        }
+
+        var tracks = Tracks.Where(t => !t.IsDrums).ToList();
+        var clipsBefore = tracks.Select(t => (Track: t, Clips: t.MidiClips.ToList())).ToList();
+        var patternsBefore = tracks.SelectMany(t => t.ChordPatterns).Select(p => (Pattern: p, Copy: p.Clone())).ToList();
+        Edit(
+            semitones > 0 ? "Transpose up" : "Transpose down",
+            () =>
+            {
+                foreach (var (pattern, _) in patternsBefore)
+                {
+                    for (var i = 0; i < ChordPattern.MaxBars; i++)
+                    {
+                        pattern[i] = pattern[i] with { Root = (((pattern[i].Root + semitones) % 12) + 12) % 12 };
+                    }
+                }
+
+                foreach (var (track, clips) in clipsBefore)
+                {
+                    track.MidiClips.Clear();
+                    foreach (var clip in clips)
+                    {
+                        track.MidiClips.Add(clip.PatternId is not null ? clip : clip.WithNotes(clip.NoteData().Select(n => n with { Pitch = (byte)Math.Clamp(n.Pitch + semitones, 0, 127) })));
+                    }
+                }
+
+                RegeneratePatternClips();
+            },
+            () =>
+            {
+                foreach (var (pattern, copy) in patternsBefore)
+                {
+                    pattern.CopyFrom(copy);
+                }
+
+                foreach (var (track, clips) in clipsBefore)
+                {
+                    track.MidiClips.Clear();
+                    track.MidiClips.AddRange(clips);
+                }
+            });
+    }
+
     public void PlaceClips(Track track, IReadOnlyList<MidiClip> clips, string name) =>
         Edit(name, () => clips.ToList().ForEach(track.AddMidiClip), () => clips.ToList().ForEach(c => track.MidiClips.Remove(c)));
 
