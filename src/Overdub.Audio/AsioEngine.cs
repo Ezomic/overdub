@@ -60,6 +60,10 @@ public sealed class AsioEngine : IDisposable
     private float[] _drumBuf = new float[4096];
     private float[] _drumRight = new float[4096];
     private float[] _laneRight = new float[4096];
+    private MidiClip[] _previewClips = [];
+    private long _previewLength;
+    private long _previewPos;
+    private long _previewPosition;
     public float SynthGain { get; set; } = 1f;
     public float SynthPan { get; set; }
 
@@ -204,6 +208,46 @@ public sealed class AsioEngine : IDisposable
     public void SetMidiClips(IEnumerable<MidiClip> clips) => _midi = clips.ToArray();
 
     public void SetMachineClips(int lane, IEnumerable<MidiClip> clips) => Machines[lane].Clips = clips.ToArray();
+
+    public bool Previewing => _previewClips.Length > 0;
+
+    public long PreviewPosition => Volatile.Read(ref _previewPosition);
+
+    public void SetDrumPreview(MidiClip? clip, long length)
+    {
+        if (clip is null || length <= 0)
+        {
+            _previewClips = [];
+            _previewLength = 0;
+            Drums.Silence();
+            return;
+        }
+
+        _previewLength = length;
+        _previewClips = [clip];
+    }
+
+    private void RenderPreview(int frames)
+    {
+        var clips = _previewClips;
+        var length = _previewLength;
+        if (clips.Length == 0 || length <= 0)
+        {
+            return;
+        }
+
+        var position = _previewPos % length;
+        for (var done = 0; done < frames;)
+        {
+            var chunk = (int)Math.Min(frames - done, length - position);
+            _drumSequencer.Render(Drums, clips, false, position, _drumBuf, chunk, done);
+            done += chunk;
+            position = (position + chunk) % length;
+        }
+
+        _previewPos = position;
+        Volatile.Write(ref _previewPosition, position);
+    }
 
     public void SetDrumClips(IEnumerable<MidiClip> clips) => _drumMidi = clips.ToArray();
 
@@ -468,6 +512,7 @@ public sealed class AsioEngine : IDisposable
         }
 
         var midiPlayed = false;
+        var drumsRendered = false;
         if (_countingIn)
         {
             RenderCountIn(frames);
@@ -479,6 +524,12 @@ public sealed class AsioEngine : IDisposable
         }
         else
         {
+            if (_previewClips.Length > 0)
+            {
+                RenderPreview(frames);
+                drumsRendered = true;
+            }
+
             RecordGateOpen = IsRecording && !_waitingForInput;
             if (IsRecording && !_waitingForInput)
             {
@@ -492,7 +543,11 @@ public sealed class AsioEngine : IDisposable
         if (!midiPlayed)
         {
             Synth.Render(_synthBuf, 0, frames);
-            Drums.Render(_drumBuf, 0, frames);
+            if (!drumsRendered)
+            {
+                Drums.Render(_drumBuf, 0, frames);
+            }
+
             for (var m = 0; m < Machines.Length; m++)
             {
                 Machines[m].Voice.Render(_machineBufs[m], 0, frames);
