@@ -39,6 +39,8 @@ public enum ChordStyle
     Slap,
     Funk16,
     SlideInto,
+    ArpeggioDrill,
+    ScaleRun,
 }
 
 public readonly record struct Chord(int Root, ChordQuality Quality)
@@ -109,6 +111,7 @@ public sealed class ChordPattern
         ChordStyle.WholeNotes, ChordStyle.RootPulse, ChordStyle.RootAndFifth, ChordStyle.Octaves, ChordStyle.Rock8ths,
         ChordStyle.Syncopated, ChordStyle.Motown, ChordStyle.Funk, ChordStyle.Reggae, ChordStyle.Walking, ChordStyle.WalkingApproach,
         ChordStyle.Slap, ChordStyle.Funk16, ChordStyle.SlideInto,
+        ChordStyle.ArpeggioDrill, ChordStyle.ScaleRun,
     ];
 
     public static string StyleDescription(ChordStyle style) => style switch
@@ -125,6 +128,8 @@ public sealed class ChordPattern
         ChordStyle.Walking => "One note per beat: root, third, fifth, sixth. Walks up the chord and works at slow and medium tempos.",
         ChordStyle.Slap => "Slap and pop: the thumb hits the root hard (the low notes) and the index finger pops the octave and fifth (the short bright notes). Keep the ghost notes quiet.",
         ChordStyle.Funk16 => "A busy sixteenth-note funk line: root, fifth and octave with muted ghost notes between them. Lock it to the hi-hat and keep your plucking hand moving the whole time.",
+        ChordStyle.ArpeggioDrill => "Practice drill: the notes of each chord up and back down in eighth notes (root, third, fifth, octave). Play it slowly and evenly, with a count-in, and use Tempo ramp to build speed.",
+        ChordStyle.ScaleRun => "Practice drill: the scale that fits each chord, up on one bar and back down on the next, in eighth notes. This is the quickest way to learn where the notes of a key are on the neck.",
         ChordStyle.SlideInto => "Plays the chord, then slides into the next chord with two quick notes from below, so the change lands smoothly. Slide your finger up the string instead of picking each note.",
         ChordStyle.WalkingApproach => "Like walking, but the last beat steps up a half step into the next chord's root. This is how bass lines lead into a chord change.",
         _ => "",
@@ -136,6 +141,8 @@ public sealed class ChordPattern
         ChordStyle.WalkingApproach => "Walking with approach note",
         ChordStyle.Funk16 => "Funk, sixteenths",
         ChordStyle.SlideInto => "Slide into the change",
+        ChordStyle.ArpeggioDrill => "Arpeggio drill",
+        ChordStyle.ScaleRun => "Scale run drill",
         ChordStyle.FolkStrum => "Folk strum",
         ChordStyle.WholeNotes => "Whole notes",
         ChordStyle.RootPulse => "Root pulse",
@@ -257,7 +264,7 @@ public sealed class ChordPattern
 
                     break;
                 default:
-                    BassBar(events, Style, chord, _chords[(b + 1) % Bars], start, beat, beatsPerBar);
+                    BassBar(events, Style, chord, _chords[(b + 1) % Bars], start, beat, beatsPerBar, b);
                     break;
             }
         }
@@ -296,8 +303,14 @@ public sealed class ChordPattern
         [ChordStyle.SlideInto] = [(0, 'R', 4), (4, '5', 4), (8, 'R', 4), (12, 'a', 2), (14, 'A', 2)],
     };
 
-    private static void BassBar(List<MidiEvent> events, ChordStyle style, Chord chord, Chord next, double start, double beat, int beatsPerBar)
+    private static void BassBar(List<MidiEvent> events, ChordStyle style, Chord chord, Chord next, double start, double beat, int beatsPerBar, int barIndex)
     {
+        if (style is ChordStyle.ArpeggioDrill or ChordStyle.ScaleRun)
+        {
+            DrillBar(events, style, chord, start, beat, beatsPerBar, barIndex);
+            return;
+        }
+
         var sixteenth = beat / 4;
         var steps = beatsPerBar * 4;
         var root = BassRoot(chord);
@@ -324,6 +337,44 @@ public sealed class ChordPattern
             var velocity = ghost ? 40 : pop ? 118 : token is 'a' or 'A' && style == ChordStyle.SlideInto ? 80 : step % 4 == 0 ? 105 : step % 2 == 0 ? 90 : 78;
             var span = Math.Min(length, steps - step) * sixteenth * (ghost ? 0.45 : 0.9);
             Add(events, start + (step * sixteenth), span, pitch, velocity);
+        }
+    }
+
+    private static readonly int[] MajorRun = [0, 2, 4, 5, 7, 9, 11, 12];
+    private static readonly int[] MinorRun = [0, 2, 3, 5, 7, 8, 10, 12];
+    private static readonly int[] MixolydianRun = [0, 2, 4, 5, 7, 9, 10, 12];
+    private static readonly int[] DiminishedRun = [0, 2, 3, 5, 6, 8, 10, 12];
+
+    private static void DrillBar(List<MidiEvent> events, ChordStyle style, Chord chord, double start, double beat, int beatsPerBar, int barIndex)
+    {
+        var root = BassRoot(chord);
+        var steps = beatsPerBar * 2;
+        var minor = chord.Quality is ChordQuality.Minor or ChordQuality.MinorSeventh;
+        int[] offsets;
+        if (style == ChordStyle.ArpeggioDrill)
+        {
+            var third = minor || chord.Quality == ChordQuality.Diminished ? 3 : chord.Quality == ChordQuality.Suspended ? 5 : 4;
+            var fifth = chord.Quality == ChordQuality.Diminished ? 6 : 7;
+            offsets = [0, third, fifth, 12, fifth, third, 0, third];
+        }
+        else
+        {
+            offsets = chord.Quality switch
+            {
+                ChordQuality.Minor or ChordQuality.MinorSeventh => MinorRun,
+                ChordQuality.Seventh => MixolydianRun,
+                ChordQuality.Diminished => DiminishedRun,
+                _ => MajorRun,
+            };
+            if (barIndex % 2 == 1)
+            {
+                offsets = offsets.Reverse().ToArray();
+            }
+        }
+
+        for (var i = 0; i < steps; i++)
+        {
+            Add(events, start + (i * beat / 2), beat * 0.42, root + offsets[i % offsets.Length], i % 2 == 0 ? 96 : 84);
         }
     }
 
