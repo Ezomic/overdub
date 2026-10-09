@@ -182,6 +182,7 @@ public static class Mixer
         var drumRight = new float[block];
         drumKit.RightBuffer = drumRight;
         drumKit.Mix = drums?.Lanes;
+        drumKit.Style = drums?.Kit ?? 0;
         var stereo = new float[block * 2];
         using var writer = new WaveFileWriter(path, WaveFormat.CreateIeeeFloatWaveFormat(sampleRate, 2));
         for (long position = 0; position < length; position += block)
@@ -228,4 +229,4 @@ public static class Mixer
     }
 }
 
-public sealed record DrumMix(IReadOnlyList<MidiClip> Clips, float Gain, float Pan, DrumLaneMix[]? Lanes = null);
+public sealed record DrumMix(IReadOnlyList<MidiClip> Clips, float Gain, float Pan, DrumLaneMix[]? Lanes = null, int Kit = 0);

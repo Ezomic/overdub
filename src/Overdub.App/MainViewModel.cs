@@ -2026,6 +2026,14 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    public void CycleDrumKit()
+    {
+        if (DrumTrack is { } track)
+        {
+            _session.SetDrumKit(track, (track.DrumKitStyle + 1) % DrumKit.StyleNames.Length);
+        }
+    }
+
     public DrumLaneMix? DrumLane(int lane) => DrumTrack?.DrumLanes[lane];
 
     public void SetDrumBars(DrumPattern pattern, int bars)
