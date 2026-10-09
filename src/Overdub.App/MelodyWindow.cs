@@ -42,9 +42,28 @@ public sealed class MelodyWindow : Window
         };
         var panel = new StackPanel { Margin = new Thickness(18) };
         panel.Children.Add(_row);
+        panel.Children.Add(_keyNote);
         panel.Children.Add(hint);
         Content = panel;
+        DetectKey(initial: true);
         Refresh();
+    }
+
+    private readonly TextBlock _keyNote = new() { TextWrapping = TextWrapping.Wrap, MaxWidth = 560, Margin = new Thickness(0, 0, 0, 10) };
+
+    private void DetectKey(bool initial)
+    {
+        var detected = _main.DetectSongKey();
+        _keyNote.Foreground = (Brush)FindResource(detected is null ? "TextDim" : "Good");
+        if (detected is null)
+        {
+            _keyNote.Text = "No key detected yet: add chord patterns, MIDI notes or a recording first, then press Detect key.";
+            return;
+        }
+
+        _key = detected.Root;
+        _scale = detected.Minor ? MelodyScale.MinorPentatonic : MelodyScale.MajorPentatonic;
+        _keyNote.Text = $"Key of {detected.Name} detected from {detected.Source}{(initial ? ", and set above" : "")}. Change it above if the song is somewhere else.";
     }
 
     private Button MenuButton(string text, IEnumerable<(string Label, Action Pick)> items, double width)
@@ -90,6 +109,11 @@ public sealed class MelodyWindow : Window
     {
         _row.Children.Clear();
         _row.Children.Add(MenuButton($"Key of {Chord.Roots[_key]}", Enumerable.Range(0, 12).Select(r => (Chord.Roots[r], (Action)(() => _key = r))), 100));
+        _row.Children.Add(Button("Detect key", () =>
+        {
+            DetectKey(initial: false);
+            Refresh();
+        }, 100));
         _row.Children.Add(MenuButton(MelodyGenerator.ScaleName(_scale), Enum.GetValues<MelodyScale>().Select(s => (MelodyGenerator.ScaleName(s), (Action)(() => _scale = s))), 130));
         _row.Children.Add(MenuButton(_bars == 1 ? "1 bar" : $"{_bars} bars", BarOptions.Select(b => (b == 1 ? "1 bar" : $"{b} bars", (Action)(() => _bars = b))), 80));
         _row.Children.Add(MenuButton(_density.ToString(), Enum.GetValues<MelodyDensity>().Select(d => (d.ToString(), (Action)(() => _density = d))), 80));

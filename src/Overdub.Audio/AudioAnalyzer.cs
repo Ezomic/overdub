@@ -4,7 +4,7 @@ namespace Overdub.Audio;
 
 public readonly record struct TempoResult(double Bpm, double Confidence, double Alternative);
 
-public readonly record struct KeyResult(string Name, double Confidence, string Alternative);
+public readonly record struct KeyResult(string Name, double Confidence, string Alternative, int Tonic = 0, bool Minor = false);
 
 public static class AudioAnalyzer
 {
@@ -147,15 +147,15 @@ public static class AudioAnalyzer
 
     private static KeyResult BestKey(double[] chroma)
     {
-        var scores = new List<(string Name, double Score)>();
+        var scores = new List<(string Name, double Score, int Tonic, bool Minor)>();
         for (var tonic = 0; tonic < 12; tonic++)
         {
-            scores.Add(($"{Notes[tonic]} major", Correlation(chroma, MajorProfile, tonic)));
-            scores.Add(($"{Notes[tonic]} minor", Correlation(chroma, MinorProfile, tonic)));
+            scores.Add(($"{Notes[tonic]} major", Correlation(chroma, MajorProfile, tonic), tonic, false));
+            scores.Add(($"{Notes[tonic]} minor", Correlation(chroma, MinorProfile, tonic), tonic, true));
         }
 
         var ordered = scores.OrderByDescending(s => s.Score).ToList();
-        return new KeyResult(ordered[0].Name, Math.Clamp(ordered[0].Score, 0, 1), ordered[1].Name);
+        return new KeyResult(ordered[0].Name, Math.Clamp(ordered[0].Score, 0, 1), ordered[1].Name, ordered[0].Tonic, ordered[0].Minor);
     }
 
     private static double Correlation(double[] chroma, double[] profile, int tonic)
