@@ -56,6 +56,10 @@ public sealed class DrumKit : INoteTarget
 
     public DrumLaneMix[]? Mix { get; set; }
 
+    public int Style { get; set; }
+
+    public static readonly string[] StyleNames = ["Rock", "Electronic", "Brush"];
+
     public float[]? RightBuffer { get; set; }
 
     public void Configure(int sampleRate) => _sampleRate = sampleRate;
@@ -156,7 +160,7 @@ public sealed class DrumKit : INoteTarget
         }
 
         _seed = (_seed * 1664525u) + 1013904223u;
-        _voices[slot] = new Voice { Active = true, Sound = sound, Gain = ((velocity / 127f) * (velocity / 127f) * 0.6f + 0.4f * (velocity / 127f)) * laneGain, PanL = panLeft * 1.4142f, PanR = panRight * 1.4142f, Noise = _seed | 1u };
+        _voices[slot] = new Voice { Active = true, Sound = sound, Gain = ((velocity / 127f) * (velocity / 127f) * 0.6f + 0.4f * (velocity / 127f)) * laneGain, PanL = panLeft * 1.4142f, PanR = panRight * 1.4142f, Noise = _seed | 1u, Kit = Style };
     }
 
     private void RenderVoice(ref Voice voice, float[] destination, int offset, int frames)
@@ -212,22 +216,45 @@ public sealed class DrumKit : INoteTarget
     private static float Sample(ref Voice voice, double t, int rate, out bool finished)
     {
         finished = false;
+        var kit = voice.Kit;
         switch (voice.Sound)
         {
             case Sound.Kick:
-                if (t > 0.7)
+                if (t > (kit == 1 ? 1.2 : 0.7))
                 {
                     finished = true;
                     return 0;
                 }
 
+                if (kit == 1)
+                {
+                    return Sweep(ref voice, t, rate, 42, 130, 0.05, 0.5) * 1.15f;
+                }
+
+                if (kit == 2)
+                {
+                    return Sweep(ref voice, t, rate, 55, 110, 0.03, 0.12) * 0.8f;
+                }
+
                 var click = t < 0.004 ? NextNoise(ref voice.Noise) * 0.25f : 0f;
                 return (Sweep(ref voice, t, rate, 46, 160, 0.03, 0.2) * 1.1f) + click;
             case Sound.Snare:
-                if (t > 0.45)
+                if (t > (kit == 2 ? 0.5 : 0.45))
                 {
                     finished = true;
                     return 0;
+                }
+
+                if (kit == 2)
+                {
+                    var brushNoise = HighPass(ref voice, NextNoise(ref voice.Noise), 0.45f) * (float)(Math.Min(1, t / 0.01) * Math.Exp(-t / 0.16));
+                    return brushNoise * 0.7f;
+                }
+
+                if (kit == 1)
+                {
+                    var digital = HighPass(ref voice, NextNoise(ref voice.Noise), 0.2f) * (float)Math.Exp(-t / 0.09);
+                    return (digital * 0.6f) + (Sweep(ref voice, t, rate, 190, 260, 0.012, 0.1) * 0.7f);
                 }
 
                 var snareNoise = HighPass(ref voice, NextNoise(ref voice.Noise), 0.15f) * (float)Math.Exp(-t / 0.075);
@@ -239,7 +266,12 @@ public sealed class DrumKit : INoteTarget
                     return 0;
                 }
 
-                return HighPass(ref voice, NextNoise(ref voice.Noise), 0.08f) * (float)Math.Exp(-t / 0.022) * 0.55f;
+                if (kit == 2)
+                {
+                    return HighPass(ref voice, NextNoise(ref voice.Noise), 0.2f) * (float)Math.Exp(-t / 0.03) * 0.3f;
+                }
+
+                return HighPass(ref voice, NextNoise(ref voice.Noise), kit == 1 ? 0.03f : 0.08f) * (float)Math.Exp(-t / (kit == 1 ? 0.015 : 0.022)) * 0.55f;
             case Sound.OpenHat:
                 if (t > 0.8)
                 {
@@ -247,12 +279,22 @@ public sealed class DrumKit : INoteTarget
                     return 0;
                 }
 
-                return HighPass(ref voice, NextNoise(ref voice.Noise), 0.08f) * (float)Math.Exp(-t / 0.14) * 0.5f;
+                if (kit == 2)
+                {
+                    return HighPass(ref voice, NextNoise(ref voice.Noise), 0.2f) * (float)Math.Exp(-t / 0.2) * 0.3f;
+                }
+
+                return HighPass(ref voice, NextNoise(ref voice.Noise), kit == 1 ? 0.03f : 0.08f) * (float)Math.Exp(-t / (kit == 1 ? 0.22 : 0.14)) * 0.5f;
             case Sound.Clap:
                 if (t > 0.4)
                 {
                     finished = true;
                     return 0;
+                }
+
+                if (kit == 2)
+                {
+                    return HighPass(ref voice, NextNoise(ref voice.Noise), 0.35f) * (float)Math.Exp(-t / 0.025) * 0.6f;
                 }
 
                 var envelope = 0.0;
@@ -267,7 +309,7 @@ public sealed class DrumKit : INoteTarget
 
                 if (t >= 0.036)
                 {
-                    envelope += Math.Exp(-(t - 0.036) / 0.07) * 0.8;
+                    envelope += Math.Exp(-(t - 0.036) / (kit == 1 ? 0.11 : 0.07)) * 0.8;
                 }
 
                 return HighPass(ref voice, NextNoise(ref voice.Noise), 0.3f) * (float)envelope * 0.8f;
@@ -278,7 +320,7 @@ public sealed class DrumKit : INoteTarget
                     return 0;
                 }
 
-                return Sweep(ref voice, t, rate, 95, 150, 0.04, 0.2);
+                return kit == 1 ? Sweep(ref voice, t, rate, 75, 125, 0.08, 0.35) : kit == 2 ? Sweep(ref voice, t, rate, 95, 130, 0.04, 0.2) * 0.6f : Sweep(ref voice, t, rate, 95, 150, 0.04, 0.2);
             case Sound.HighTom:
                 if (t > 0.7)
                 {
@@ -286,15 +328,20 @@ public sealed class DrumKit : INoteTarget
                     return 0;
                 }
 
-                return Sweep(ref voice, t, rate, 160, 230, 0.04, 0.17);
+                return kit == 1 ? Sweep(ref voice, t, rate, 130, 210, 0.08, 0.3) : kit == 2 ? Sweep(ref voice, t, rate, 160, 200, 0.04, 0.17) * 0.6f : Sweep(ref voice, t, rate, 160, 230, 0.04, 0.17);
             default:
-                if (t > 2.8)
+                if (t > (kit == 2 ? 3.2 : 2.8))
                 {
                     finished = true;
                     return 0;
                 }
 
-                return HighPass(ref voice, NextNoise(ref voice.Noise), 0.06f) * (float)Math.Exp(-t / 0.55) * 0.5f;
+                if (kit == 2)
+                {
+                    return HighPass(ref voice, NextNoise(ref voice.Noise), 0.1f) * (float)(Math.Min(1, t / 0.08) * Math.Exp(-t / 0.7)) * 0.35f;
+                }
+
+                return HighPass(ref voice, NextNoise(ref voice.Noise), kit == 1 ? 0.03f : 0.06f) * (float)Math.Exp(-t / (kit == 1 ? 0.35 : 0.55)) * 0.5f;
         }
     }
 
@@ -305,6 +352,7 @@ public sealed class DrumKit : INoteTarget
         public long Frame;
         public float Gain;
         public float PanL;
+        public int Kit;
         public float PanR;
         public double Phase;
         public float Lowpass;
