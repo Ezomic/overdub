@@ -11,7 +11,8 @@ public sealed record SoundProgram(string Pack, string PackFolder, string Kind, s
     public bool Fits(MachineRole? role) => role switch
     {
         MachineRole.Bass => IsBass,
-        MachineRole.Guitar or MachineRole.Lead => IsGuitar || Kind == "Other",
+        MachineRole.Guitar => IsGuitar || Kind == "Other",
+        MachineRole.Lead => !IsBass,
         _ => true,
     };
 }
