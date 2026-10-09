@@ -252,6 +252,8 @@ public partial class MainWindow : Window
         menu.Items.Add(Item("Export mixdown...", () => OnExportClick(FileButton, new RoutedEventArgs())));
         menu.Items.Add(Item("Export stems...", () => OnStemsClick(FileButton, new RoutedEventArgs())));
         menu.Items.Add(Item("Export selected MIDI block...", () => _viewModel.ExportSelectedMidi()));
+        menu.Items.Add(Item("Export whole song as MIDI...", () => _viewModel.ExportSongMidi()));
+        menu.Items.Add(Item("Export bass tab (page you can print)...", () => _viewModel.ExportBassTab()));
         menu.IsOpen = true;
     }
 
