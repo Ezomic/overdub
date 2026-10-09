@@ -552,10 +552,24 @@ public sealed class Session : IDisposable
         return pattern;
     }
 
-    public void PlacePattern(Track track, DrumPattern pattern, long start, int repeats = 1)
+    public DrumPattern AddFillPattern(Track track, DrumPattern source, int type)
+    {
+        var baseName = source.Name.Split('+')[0] + "+";
+        var name = baseName;
+        for (var n = 2; track.Patterns.Any(p => p.Name == name); n++)
+        {
+            name = baseName + n;
+        }
+
+        var fill = source.WithFill(type, name);
+        Edit("Add drum fill", () => track.Patterns.Add(fill), () => track.Patterns.Remove(fill));
+        return fill;
+    }
+
+    public void PlacePattern(Track track, DrumPattern pattern, long start, int repeats = 1, DrumPattern? everyFourth = null)
     {
         var length = pattern.LengthSamples(Engine.SampleRate, Engine.Bpm);
-        var clips = Enumerable.Range(0, repeats).Select(i => pattern.ToClip(Engine.SampleRate, Engine.Bpm, start + (i * length))).ToList();
+        var clips = Enumerable.Range(0, repeats).Select(i => (everyFourth is not null && i % 4 == 3 ? everyFourth : pattern).ToClip(Engine.SampleRate, Engine.Bpm, start + (i * length))).ToList();
         Edit("Place drum pattern", () => clips.ForEach(track.AddMidiClip), () => clips.ForEach(c => track.MidiClips.Remove(c)));
     }
 

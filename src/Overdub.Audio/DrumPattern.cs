@@ -150,6 +150,36 @@ public sealed class DrumPattern
         return copy;
     }
 
+    public static readonly string[] FillNames = ["snare roll", "tom run", "kick and snare"];
+
+    public DrumPattern WithFill(int type, string name)
+    {
+        var copy = new DrumPattern(name, Bars);
+        copy.CopyFrom(this);
+        copy.Name = name;
+        var first = Steps - 4;
+        for (var lane = 0; lane < DrumKit.Lanes.Count; lane++)
+        {
+            for (var step = first; step < Steps; step++)
+            {
+                copy.Set(lane, step, 0);
+            }
+        }
+
+        (int Lane, int Offset, byte Level)[] hits = (type % FillNames.Length) switch
+        {
+            0 => [(1, 0, 1), (1, 1, 1), (1, 2, 1), (1, 3, 2)],
+            1 => [(6, 0, 1), (6, 1, 1), (5, 2, 1), (5, 3, 2)],
+            _ => [(0, 0, 2), (1, 1, 1), (0, 2, 2), (1, 3, 2)],
+        };
+        foreach (var (lane, offset, level) in hits)
+        {
+            copy.Set(lane, first + offset, level);
+        }
+
+        return copy;
+    }
+
     public bool IsEmpty => _steps.All(row => row.All(level => level == 0));
 
     public void Clear()
