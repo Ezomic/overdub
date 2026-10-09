@@ -38,6 +38,10 @@ public static class MelodyGenerator
 
     private static readonly (int Move, int Weight)[] Moves = [(0, 8), (1, 28), (-1, 28), (2, 14), (-2, 14), (3, 4), (-3, 4)];
 
+    public static readonly string[] OrnamentNames = ["None", "Hammer-ons", "Slides", "Both"];
+
+    public const byte HammerVelocity = 26;
+
     public static IReadOnlyList<int> ScaleOffsets(MelodyScale scale) => Offsets[(int)scale];
 
     public static string ScaleName(MelodyScale scale) => scale switch
@@ -49,7 +53,7 @@ public static class MelodyGenerator
 
     private readonly record struct Note(int Start, int Length, int Index);
 
-    public static MidiEvent[] Generate(int sampleRate, double bpm, int beatsPerBar, int keyRoot, MelodyScale scale, int bars, MelodyDensity density, int seed, IReadOnlyList<Chord>? chords = null)
+    public static MidiEvent[] Generate(int sampleRate, double bpm, int beatsPerBar, int keyRoot, MelodyScale scale, int bars, MelodyDensity density, int seed, IReadOnlyList<Chord>? chords = null, int ornaments = 0)
     {
         var random = new Random(seed);
         var eighth = sampleRate * 60.0 / bpm / 2;
@@ -66,6 +70,7 @@ public static class MelodyGenerator
         events.Add(new MidiEvent(0, 0, 0, MidiKind.Sustain, 0));
         events.Add(new MidiEvent(total, 0, 0, MidiKind.Sustain, 0));
         var fresh = motif;
+        var previous = (Pitch: -1, Start: 0L, Length: 0, OffIndex: -1);
         for (var bar = 0; bar < bars; bar++)
         {
             List<Note> notes;
@@ -93,10 +98,34 @@ public static class MelodyGenerator
                 var at = ((bar * stepsPerBar) + note.Start) * eighth;
                 var length = note.Length * eighth * 0.92;
                 var accent = note.Start == 0 ? 104 : note.Start % 2 == 0 ? 92 : 78 + random.Next(0, 10);
-                var pitch = (byte)pitches[note.Index];
+                var pitch = pitches[note.Index];
                 var start = (long)Math.Round(at);
-                events.Add(new MidiEvent(start, pitch, (byte)accent));
-                events.Add(new MidiEvent(Math.Min(total, start + Math.Max(1, (long)length)), pitch, 0));
+                var interval = previous.Pitch < 0 ? 0 : pitch - previous.Pitch;
+                if ((ornaments & 1) != 0 && Math.Abs(interval) is 1 or 2 && previous.Length >= 2 && random.NextDouble() < 0.35)
+                {
+                    accent = HammerVelocity;
+                }
+                else if ((ornaments & 2) != 0 && Math.Abs(interval) >= 3 && previous.Length >= 2 && random.NextDouble() < 0.3)
+                {
+                    var grace = (long)(sampleRate * 0.045);
+                    var direction = interval > 0 ? 1 : -1;
+                    var first = start - (2 * grace);
+                    if (first > previous.Start + 1)
+                    {
+                        events[previous.OffIndex] = events[previous.OffIndex] with { At = Math.Min(events[previous.OffIndex].At, first) };
+                        for (var g = 0; g < 2; g++)
+                        {
+                            var gracePitch = (byte)(pitch - (direction * (2 - g)));
+                            events.Add(new MidiEvent(first + (g * grace), gracePitch, 40));
+                            events.Add(new MidiEvent(first + ((g + 1) * grace), gracePitch, 0));
+                        }
+                    }
+                }
+
+                var off = Math.Min(total, start + Math.Max(1, (long)length));
+                events.Add(new MidiEvent(start, (byte)pitch, (byte)accent));
+                events.Add(new MidiEvent(off, (byte)pitch, 0));
+                previous = (pitch, start, note.Length, events.Count - 1);
             }
         }
 

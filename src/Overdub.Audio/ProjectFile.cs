@@ -12,7 +12,7 @@ public sealed record MidiEventData(long At, int Note, int Velocity, int Kind = 0
 
 public sealed record MidiClipData(List<MidiEventData> Events, string? Pattern = null);
 
-public sealed record ChordPatternData(string Id, string Name, int Bars, int Style, string Chords, string? Follow = null, int Feel = 0);
+public sealed record ChordPatternData(string Id, string Name, int Bars, int Style, string Chords, string? Follow = null, int Feel = 0, int Articulation = 0);
 
 public sealed record DrumLaneData(float Gain, float Pan, bool Mute);
 

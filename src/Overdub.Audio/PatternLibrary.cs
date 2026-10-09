@@ -46,7 +46,7 @@ public static class PatternLibrary
         Write(name, new LibraryFile(DrumKind, name, new PatternData(pattern.Id, name, pattern.Bars, pattern.Encode().ToList(), pattern.Feel, pattern.Swing, pattern.Details().ToList())));
 
     public static string Save(ChordPattern pattern, string name) =>
-        Write(name, new LibraryFile(ChordKind(pattern.Role), name, Chord: new ChordPatternData(pattern.Id, name, pattern.Bars, (int)pattern.Style, pattern.Encode(), null, pattern.Feel)));
+        Write(name, new LibraryFile(ChordKind(pattern.Role), name, Chord: new ChordPatternData(pattern.Id, name, pattern.Bars, (int)pattern.Style, pattern.Encode(), null, pattern.Feel, pattern.Articulation)));
 
     public static DrumPattern LoadDrum(string path)
     {
@@ -63,6 +63,7 @@ public static class PatternLibrary
         var data = Read(path).Chord ?? throw new InvalidDataException("This file does not hold a chord pattern.");
         var pattern = ChordPattern.Decode(Guid.NewGuid().ToString("N")[..8], data.Name, role, data.Bars, (ChordStyle)data.Style, data.Chords);
         pattern.Feel = data.Feel;
+        pattern.Articulation = Math.Clamp(data.Articulation, 0, ChordPattern.ArticulationNames.Length - 1);
         return pattern;
     }
 
