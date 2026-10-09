@@ -232,6 +232,16 @@ public partial class MainWindow : Window
         menu.Items.Add(Item("Open...", () => OnOpenClick(FileButton, new RoutedEventArgs())));
         menu.Items.Add(Item("Save", () => _viewModel.Save()));
         menu.Items.Add(new Separator());
+        var templates = new MenuItem { Header = "Start from a song template" };
+        foreach (var template in SongTemplates.All)
+        {
+            var chosen = template;
+            var item = Item($"{chosen.Name}  ({chosen.TotalBars} bars, {chosen.Bpm:0} BPM)", () => _viewModel.ApplyTemplate(chosen));
+            item.ToolTip = chosen.Description;
+            templates.Items.Add(item);
+        }
+
+        menu.Items.Add(templates);
         var restore = new MenuItem { Header = "Restore a backup" };
         var backups = _viewModel.Backups;
         if (backups.Count == 0)

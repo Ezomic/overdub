@@ -602,6 +602,22 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public void ToggleClickEighths() => _session.Engine.ClickEighths = !_session.Engine.ClickEighths;
 
+    public void ApplyTemplate(SongTemplate template)
+    {
+        if (IsRecording)
+        {
+            return;
+        }
+
+        Bpm = template.Bpm;
+        var problem = _session.ApplyTemplate(template);
+        Message = problem ?? "";
+        if (problem is null)
+        {
+            Notice = $"Laid out {template.Name}: {template.Sections.Count} sections, {template.TotalBars} bars, with drums, guitar and bass. Press play.";
+        }
+    }
+
     public int MasterIndex => _session.MasterIndex;
 
     public void SetMastering(int index)

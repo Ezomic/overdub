@@ -1295,6 +1295,155 @@ public sealed class Session : IDisposable
 
     public int MasterIndex { get; set; }
 
+    public string? ApplyTemplate(SongTemplate template)
+    {
+        var rate = Engine.SampleRate;
+        if (rate == 0)
+        {
+            return "Connect your Komplete Audio first.";
+        }
+
+        var bpm = Engine.Bpm;
+        var beatsPerBar = Engine.BeatsPerBar;
+        var bar = Engine.SamplesPerBeat * beatsPerBar;
+        var start = (long)(Math.Ceiling(LengthSamples / bar) * bar);
+        var addedTracks = new List<Track>();
+        var drums = DrumTrack;
+        var guitar = Tracks.FirstOrDefault(t => t.Machine == MachineRole.Guitar);
+        var bass = Tracks.FirstOrDefault(t => t.Machine == MachineRole.Bass);
+        if (drums is null)
+        {
+            drums = new Track("Drums", null) { IsDrums = true, ColorIndex = _created++ };
+            addedTracks.Add(drums);
+        }
+
+        if (guitar is null)
+        {
+            guitar = new Track("Guitar machine", null) { Machine = MachineRole.Guitar, ColorIndex = _created++, Preset = PluckSynth.DefaultName(MachineRole.Guitar), Gain = 0.6f };
+            addedTracks.Add(guitar);
+        }
+
+        if (bass is null)
+        {
+            bass = new Track("Bass machine", null) { Machine = MachineRole.Bass, ColorIndex = _created++, Preset = PluckSynth.DefaultName(MachineRole.Bass), Gain = 0.6f };
+            addedTracks.Add(bass);
+        }
+
+        var drumPatterns = new Dictionary<string, DrumPattern>();
+        var fillPatterns = new Dictionary<string, DrumPattern>();
+        var guitarPatterns = new Dictionary<(int, ChordStyle), ChordPattern>();
+        var bassPatterns = new Dictionary<(int, ChordStyle), ChordPattern>();
+        var guitarSource = new Dictionary<int, ChordPattern>();
+        var newDrumPatterns = new List<DrumPattern>();
+        var newGuitarPatterns = new List<ChordPattern>();
+        var newBassPatterns = new List<ChordPattern>();
+        var drumClips = new List<MidiClip>();
+        var guitarClips = new List<MidiClip>();
+        var bassClips = new List<MidiClip>();
+        var sections = new List<SongSection>();
+        var cursor = start;
+        for (var index = 0; index < template.Sections.Count; index++)
+        {
+            var plan = template.Sections[index];
+            var progression = template.Progressions[plan.Progression];
+            var chordBars = progression.Count;
+            var key = (plan.Progression, plan.Guitar);
+            if (!guitarPatterns.TryGetValue(key, out var guitarPattern))
+            {
+                guitarPattern = new ChordPattern(((char)('A' + guitar.ChordPatterns.Count + newGuitarPatterns.Count)).ToString(), MachineRole.Guitar, chordBars) { Style = plan.Guitar };
+                for (var i = 0; i < chordBars; i++)
+                {
+                    guitarPattern[i] = new Chord((template.KeyRoot + progression[i].Offset) % 12, progression[i].Quality);
+                }
+
+                guitarPatterns[key] = guitarPattern;
+                newGuitarPatterns.Add(guitarPattern);
+                guitarSource.TryAdd(plan.Progression, guitarPattern);
+            }
+
+            var bassKey = (plan.Progression, plan.Bass);
+            if (!bassPatterns.TryGetValue(bassKey, out var bassPattern))
+            {
+                bassPattern = new ChordPattern(((char)('A' + bass.ChordPatterns.Count + newBassPatterns.Count)).ToString(), MachineRole.Bass, chordBars) { Style = plan.Bass, FollowId = guitarSource[plan.Progression].Id };
+                bassPatterns[bassKey] = bassPattern;
+                newBassPatterns.Add(bassPattern);
+            }
+
+            if (!drumPatterns.TryGetValue(plan.DrumPreset, out var drumPattern))
+            {
+                drumPattern = new DrumPattern(plan.DrumPreset);
+                drumPattern.ApplyPreset(plan.DrumPreset);
+                drumPatterns[plan.DrumPreset] = drumPattern;
+                newDrumPatterns.Add(drumPattern);
+            }
+
+            DrumPattern? fill = null;
+            if (plan.Fill && index < template.Sections.Count - 1)
+            {
+                if (!fillPatterns.TryGetValue(plan.DrumPreset, out fill))
+                {
+                    fill = drumPattern.WithFill(fillPatterns.Count % DrumPattern.FillNames.Length, drumPattern.Name + "+");
+                    fillPatterns[plan.DrumPreset] = fill;
+                    newDrumPatterns.Add(fill);
+                }
+            }
+
+            var chordLength = (long)Math.Round(chordBars * bar);
+            var repeats = Math.Max(1, plan.Bars / chordBars);
+            for (var r = 0; r < repeats; r++)
+            {
+                var at = cursor + (r * chordLength);
+                guitarClips.Add(guitarPattern.ToClip(rate, bpm, beatsPerBar, at));
+                bassClips.Add(bassPattern.WithChordsFrom(guitarSource[plan.Progression]).ToClip(rate, bpm, beatsPerBar, at));
+            }
+
+            var drumBars = repeats * chordBars;
+            for (var b = 0; b < drumBars; b++)
+            {
+                var useFill = fill is not null && b == drumBars - 1;
+                drumClips.Add((useFill ? fill! : drumPattern).ToClip(rate, bpm, cursor + (long)Math.Round(b * bar)));
+            }
+
+            sections.Add(new SongSection(Guid.NewGuid().ToString("N")[..8], plan.Name, cursor, (long)Math.Round(plan.Bars * bar)));
+            cursor += (long)Math.Round(plan.Bars * bar);
+        }
+
+        if (drums.Patterns.Count + newDrumPatterns.Count > 8 || guitar.ChordPatterns.Count + newGuitarPatterns.Count > 8 || bass.ChordPatterns.Count + newBassPatterns.Count > 8)
+        {
+            return "This project already has too many patterns for the template (the limit is 8 per track). Remove some, or start a new project.";
+        }
+
+        Edit(
+            "Apply song template",
+            () =>
+            {
+                addedTracks.ForEach(Tracks.Add);
+                drums.Patterns.AddRange(newDrumPatterns);
+                guitar.ChordPatterns.AddRange(newGuitarPatterns);
+                bass.ChordPatterns.AddRange(newBassPatterns);
+                drumClips.ForEach(drums.AddMidiClip);
+                guitarClips.ForEach(guitar.AddMidiClip);
+                bassClips.ForEach(bass.AddMidiClip);
+                Sections.AddRange(sections);
+                ApplyMixerState();
+            },
+            () =>
+            {
+                drumClips.ForEach(c => drums.MidiClips.Remove(c));
+                guitarClips.ForEach(c => guitar.MidiClips.Remove(c));
+                bassClips.ForEach(c => bass.MidiClips.Remove(c));
+                newDrumPatterns.ForEach(p => drums.Patterns.Remove(p));
+                newGuitarPatterns.ForEach(p => guitar.ChordPatterns.Remove(p));
+                newBassPatterns.ForEach(p => bass.ChordPatterns.Remove(p));
+                sections.ForEach(x => Sections.Remove(x));
+                addedTracks.ForEach(t => Tracks.Remove(t));
+                ApplyMixerState();
+            },
+            EditKind.Tracks);
+        return null;
+    }
+
+
     public LoudnessReport? LastLoudness { get; private set; }
 
     public void ExportMixdown(string path)
