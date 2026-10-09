@@ -6,9 +6,37 @@
         Background="{StaticResource Bg}" Foreground="{StaticResource Text}" FontFamily="Segoe UI" FontSize="13" PreviewKeyDown="OnPreviewKeyDown">
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
+        <Style x:Key="SectionTab" TargetType="RadioButton">
+            <Setter Property="Foreground" Value="{StaticResource TextDim}" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Margin" Value="0,0,2,0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="Frame" Padding="18,8,18,8" Background="Transparent" BorderBrush="Transparent" BorderThickness="1,2,1,0" CornerRadius="6,6,0,0">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="{StaticResource Text}" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Frame" Property="Background" Value="{StaticResource Bg}" />
+                                <Setter TargetName="Frame" Property="BorderBrush" Value="{StaticResource Border}" />
+                                <Setter Property="Foreground" Value="{StaticResource Text}" />
+                                <Setter Property="FontWeight" Value="SemiBold" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
     <Grid>
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -45,7 +73,31 @@
             </StackPanel>
         </Border>
 
-        <Border Grid.Row="1" Background="{StaticResource Panel}" BorderBrush="{StaticResource Border}" BorderThickness="0,0,0,1" Padding="14,6">
+        <Border Grid.Row="1" Background="{StaticResource Panel}" BorderBrush="{StaticResource Border}" BorderThickness="0,0,0,1" Padding="14,0,14,0">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Bottom">
+                    <RadioButton x:Name="TabRecord" Style="{StaticResource SectionTab}" Content="Record and mix" IsChecked="True" GroupName="Sections" Checked="OnSectionTab" Tag="0" ToolTip="Record, edit and mix on the timeline (Ctrl+1)" />
+                    <RadioButton x:Name="TabBuild" Style="{StaticResource SectionTab}" Content="Build a song" GroupName="Sections" Checked="OnSectionTab" Tag="1" ToolTip="Start from a template and shape your band: drums, guitar, bass and lead (Ctrl+2)" />
+                    <RadioButton x:Name="TabLearn" Style="{StaticResource SectionTab}" Content="Learn" GroupName="Sections" Checked="OnSectionTab" Tag="2" ToolTip="Learn music theory and mixing on your own song (Ctrl+3)" />
+                    <RadioButton x:Name="TabSounds" Style="{StaticResource SectionTab}" Content="Sounds" GroupName="Sections" Checked="OnSectionTab" Tag="3" ToolTip="Install instruments and manage sounds (Ctrl+4)" />
+                </StackPanel>
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,5,0,5">
+                    <Button Style="{StaticResource TransportButton}" Width="Auto" Height="24" FontSize="12" Padding="10,0" Margin="0,0,4,0" Content="Undo" Click="OnUndoClick" Focusable="False" ToolTip="Undo the last change (Ctrl+Z)" />
+                    <Button Style="{StaticResource TransportButton}" Width="Auto" Height="24" FontSize="12" Padding="10,0" Margin="0,0,14,0" Content="Redo" Click="OnRedoClick" Focusable="False" ToolTip="Redo (Ctrl+Y)" />
+                    <Button x:Name="ToolsButton" Style="{StaticResource TransportButton}" Width="Auto" Height="24" FontSize="12" Padding="10,0" Margin="0,0,8,0" Content="Tools ▾" Click="OnToolsClick" Focusable="False" ToolTip="Tuner, keyboard, analysis and latency" />
+                    <Button x:Name="SectionsButton" Style="{StaticResource TransportButton}" Width="Auto" Height="24" FontSize="12" Padding="10,0" Margin="0,0,8,0" Content="Sections ▾" Click="OnSectionsClick" Focusable="False" ToolTip="Name parts of the song (verse, chorus) and copy or move them with everything on every track" />
+                    <Button x:Name="KeyButton" Style="{StaticResource TransportButton}" Width="Auto" Height="24" FontSize="12" Padding="10,0" Margin="0,0,8,0" Content="{Binding KeyLabel}" Click="OnKeyClick" Focusable="False" ToolTip="The key of your song, and moving all chords, bass lines and melodies to another key at once" />
+                    <Button x:Name="FileButton" Style="{StaticResource TransportButton}" Width="Auto" Height="24" FontSize="12" Padding="10,0" Margin="0,0,8,0" Content="File ▾" Click="OnFileClick" Focusable="False" ToolTip="Open, import and export" />
+                    <Button Style="{StaticResource TransportButton}" Width="64" Height="24" FontSize="12" Margin="0" Content="Save" Click="OnSaveClick" Focusable="False" ToolTip="Save the project" />
+                </StackPanel>
+            </Grid>
+        </Border>
+        <Border x:Name="ToolbarRow" Grid.Row="2" Background="{StaticResource Panel}" BorderBrush="{StaticResource Border}" BorderThickness="0,0,0,1" Padding="14,6">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
@@ -57,8 +109,6 @@
                     <ToggleButton Style="{StaticResource Chip}" IsChecked="{Binding LoopOn}" Content="Loop" ToolTip="Repeat a range. Loops the selected clip, or the whole song, unless you drag a range on the ruler first. Recording makes one take per pass" Focusable="False" />
                     <ToggleButton Style="{StaticResource Chip}" IsChecked="{Binding PunchOn}" Content="Punch" ToolTip="Record only inside the region" Focusable="False" />
                     <Button Style="{StaticResource TransportButton}" Width="Auto" Height="24" FontSize="12" Padding="10,0" Margin="4,0,4,0" Content="{Binding SnapLabel}" Click="OnSnapClick" Focusable="False" ToolTip="Snap regions and clips to the grid" />
-                    <Button Style="{StaticResource TransportButton}" Width="Auto" Height="24" FontSize="12" Padding="10,0" Margin="12,0,4,0" Content="Undo" Click="OnUndoClick" Focusable="False" ToolTip="Undo the last change (Ctrl+Z)" />
-                    <Button Style="{StaticResource TransportButton}" Width="Auto" Height="24" FontSize="12" Padding="10,0" Margin="0,0,0,0" Content="Redo" Click="OnRedoClick" Focusable="False" ToolTip="Redo (Ctrl+Y)" />
                     <Button Style="{StaticResource TransportButton}" Width="Auto" Height="24" FontSize="12" Padding="10,0" Margin="12,0,4,0" Content="Split" Click="OnSplitClick" Focusable="False" ToolTip="Split the clip at the playhead (S)" />
                     <Button Style="{StaticResource TransportButton}" Width="Auto" Height="24" FontSize="12" Padding="10,0" Margin="0,0,4,0" Content="Duplicate" Click="OnDuplicateClick" Focusable="False" ToolTip="Duplicate the selected clip (Ctrl+D)" />
                     <Button Style="{StaticResource TransportButton}" Width="Auto" Height="24" FontSize="12" Padding="10,0" Margin="0,0,4,0" Content="Delete" Click="OnDeleteClick" Focusable="False" ToolTip="Delete the selected clip (Delete)" />
@@ -66,17 +116,11 @@
                     <Button Style="{StaticResource TransportButton}" Width="Auto" Height="24" FontSize="12" Padding="8,0" Margin="2,0,4,0" Content="{Binding QuantizeGridLabel}" Click="OnQuantizeGridClick" Focusable="False" ToolTip="Quantize grid: note value" />
                 </StackPanel>
                 <TextBlock Grid.Column="1" Text="{Binding RegionText}" Foreground="{StaticResource TextDim}" FontSize="12" VerticalAlignment="Center" Margin="12,0,12,0" TextTrimming="CharacterEllipsis" />
-                <StackPanel Grid.Column="2" Orientation="Horizontal">
-                    <Button x:Name="ToolsButton" Style="{StaticResource TransportButton}" Width="Auto" Height="24" FontSize="12" Padding="10,0" Margin="0,0,8,0" Content="Tools ▾" Click="OnToolsClick" Focusable="False" ToolTip="Tuner, keyboard, analysis and latency" />
-                    <Button x:Name="SectionsButton" Style="{StaticResource TransportButton}" Width="Auto" Height="24" FontSize="12" Padding="10,0" Margin="0,0,8,0" Content="Sections ▾" Click="OnSectionsClick" Focusable="False" ToolTip="Name parts of the song (verse, chorus) and copy or move them with everything on every track" />
-                    <Button x:Name="KeyButton" Style="{StaticResource TransportButton}" Width="Auto" Height="24" FontSize="12" Padding="10,0" Margin="0,0,8,0" Content="{Binding KeyLabel}" Click="OnKeyClick" Focusable="False" ToolTip="The key of your song, and moving all chords, bass lines and melodies to another key at once" />
-                    <Button x:Name="FileButton" Style="{StaticResource TransportButton}" Width="Auto" Height="24" FontSize="12" Padding="10,0" Margin="0,0,8,0" Content="File ▾" Click="OnFileClick" Focusable="False" ToolTip="Open, import and export" />
-                    <Button Style="{StaticResource TransportButton}" Width="64" Height="24" FontSize="12" Margin="0" Content="Save" Click="OnSaveClick" Focusable="False" ToolTip="Save the project" />
-                </StackPanel>
             </Grid>
         </Border>
 
-        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+        <Grid Grid.Row="3">
+        <ScrollViewer x:Name="RecordPage" VerticalScrollBarVisibility="Auto">
         <Grid>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="270" />
@@ -300,8 +344,12 @@
             </ScrollViewer>
         </Grid>
         </ScrollViewer>
+        <local:BuildView x:Name="BuildPage" Visibility="Collapsed" />
+        <local:LearnView x:Name="LearnPage" Visibility="Collapsed" />
+        <local:SoundLibraryView x:Name="SoundsPage" Visibility="Collapsed" />
+        </Grid>
 
-        <Border Grid.Row="3" Background="{StaticResource Panel}" BorderBrush="{StaticResource Border}" BorderThickness="0,1,0,0" Padding="14,8">
+        <Border Grid.Row="4" Background="{StaticResource Panel}" BorderBrush="{StaticResource Border}" BorderThickness="0,1,0,0" Padding="14,8">
             <DockPanel>
                 <TextBlock DockPanel.Dock="Left" Text="{Binding Status}" Foreground="{StaticResource TextDim}" FontSize="12" />
                 <TextBlock DockPanel.Dock="Right" Text="{Binding Message}" Foreground="{StaticResource Danger}" FontSize="12" Margin="12,0,0,0" />

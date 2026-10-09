@@ -14,6 +14,10 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         DataContext = _viewModel;
+        BuildPage.Attach(_viewModel);
+        LearnPage.Attach(_viewModel);
+        LearnPage.Navigate = SelectSection;
+        SoundsPage.Attach(_viewModel);
         var args = Environment.GetCommandLineArgs();
         if (args.Length > 1 && File.Exists(args[1]))
         {
@@ -21,6 +25,29 @@ public partial class MainWindow : Window
         }
 
         Closed += (_, _) => _viewModel.Dispose();
+    }
+
+    private void OnSectionTab(object sender, RoutedEventArgs e)
+    {
+        if (sender is RadioButton { Tag: string tag } && int.TryParse(tag, out var index) && IsLoaded)
+        {
+            ShowSection(index);
+        }
+    }
+
+    public void SelectSection(int index)
+    {
+        var tabs = new[] { TabRecord, TabBuild, TabLearn, TabSounds };
+        tabs[Math.Clamp(index, 0, tabs.Length - 1)].IsChecked = true;
+    }
+
+    private void ShowSection(int index)
+    {
+        RecordPage.Visibility = index == 0 ? Visibility.Visible : Visibility.Collapsed;
+        BuildPage.Visibility = index == 1 ? Visibility.Visible : Visibility.Collapsed;
+        LearnPage.Visibility = index == 2 ? Visibility.Visible : Visibility.Collapsed;
+        SoundsPage.Visibility = index == 3 ? Visibility.Visible : Visibility.Collapsed;
+        ToolbarRow.Visibility = index == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void OnSliderReset(object sender, MouseButtonEventArgs e)
@@ -355,7 +382,7 @@ public partial class MainWindow : Window
     private void OnToolsClick(object sender, RoutedEventArgs e)
     {
         var menu = MenuFor(sender);
-        menu.Items.Add(Item("Sound library...", () => new SoundLibraryWindow(_viewModel, this).Show()));
+        menu.Items.Add(Item("Sounds", () => SelectSection(3)));
         menu.Items.Add(Item("Edit history...", () => new HistoryWindow(_viewModel, this).Show()));
         menu.Items.Add(Item("Keyboard shortcuts (F1)", () => new ShortcutsWindow(this).Show()));
         menu.Items.Add(Item("Tuner", () => OnTunerClick(ToolsButton, new RoutedEventArgs())));
