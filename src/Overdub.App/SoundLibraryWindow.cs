@@ -60,11 +60,26 @@ public sealed class SoundLibraryWindow : Window
         DockPanel.SetDock(qualityButton, Dock.Left);
         quality.Children.Add(qualityButton);
         quality.Children.Add(qualityNote);
+        var cache = new DockPanel { Margin = new Thickness(18, 0, 18, 10) };
+        var clearCache = new Button { Content = "Clear cache", Style = (Style)FindResource("TransportButton"), Width = 150, Height = 26, FontSize = 12, Padding = new Thickness(12, 0, 12, 0), Focusable = false, Margin = new Thickness(0, 0, 10, 0) };
+        var cacheNote = new TextBlock { Foreground = (Brush)FindResource("TextDim"), TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
+        void ShowCache() => cacheNote.Text = $"Decoded samples are kept in a cache ({SampleCache.SizeBytes() / 1048576.0:0} MB in {SampleCache.Directory}) so a sound loads instantly after its first use. Clearing it only costs the next load.";
+        clearCache.Click += (_, _) =>
+        {
+            SampleCache.Clear();
+            ShowCache();
+        };
+        ShowCache();
+        DockPanel.SetDock(clearCache, Dock.Left);
+        cache.Children.Add(clearCache);
+        cache.Children.Add(cacheNote);
         var root = new DockPanel();
         DockPanel.SetDock(intro, Dock.Top);
         DockPanel.SetDock(quality, Dock.Top);
+        DockPanel.SetDock(cache, Dock.Top);
         root.Children.Add(intro);
         root.Children.Add(quality);
+        root.Children.Add(cache);
         root.Children.Add(new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Content = _list, Padding = new Thickness(18, 0, 18, 18) });
         Content = root;
         Closed += (_, _) => _cancel.Cancel();

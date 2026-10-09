@@ -6,8 +6,15 @@ namespace Overdub.Audio;
 
 public sealed class SfzRegion
 {
-    public float[] Samples { get; set; } = [];
-    public int SampleRate { get; set; } = 44100;
+    private SampleData _samples = SampleData.Empty;
+
+    public SampleData Samples
+    {
+        get => Volatile.Read(ref _samples);
+        set => Volatile.Write(ref _samples, value);
+    }
+
+    public bool Loaded => Samples.Length > 0;
     public string SamplePath { get; set; } = "";
     public int LoKey { get; set; }
     public int HiKey { get; set; } = 127;
@@ -52,7 +59,73 @@ public sealed class SfzInstrument
 
     public static string? FindPath(string? presetName) => SoundPrograms.FindPath(presetName);
 
-    public bool Covers(int note) => Regions.Any(r => !r.Release && note >= r.LoKey && note <= r.HiKey && r.Samples.Length > 0);
+    public bool Covers(int note) => Regions.Any(r => !r.Release && note >= r.LoKey && note <= r.HiKey);
+
+    private Task _loading = Task.CompletedTask;
+
+    public bool FullyLoaded => _loading.IsCompleted;
+
+    public void WaitUntilLoaded() => _loading.Wait();
+
+    private void StartLoading(string name, Dictionary<string, List<SfzRegion>> byFile)
+    {
+        var total = byFile.Count;
+        var done = 0;
+        Progress?.Invoke(name, 0, total);
+        var pending = new List<string>();
+        foreach (var (file, regions) in byFile)
+        {
+            var cached = SampleCache.TryOpen(file);
+            if (cached is null)
+            {
+                pending.Add(file);
+                continue;
+            }
+
+            foreach (var region in regions)
+            {
+                region.Samples = cached;
+            }
+
+            done++;
+        }
+
+        if (pending.Count == 0)
+        {
+            Progress?.Invoke(name, total, total);
+            return;
+        }
+
+        Progress?.Invoke(name, done, total);
+        var ordered = pending
+            .OrderBy(f => byFile[f].Min(r => Math.Abs(((r.LoVel + r.HiVel) / 2) - 96) + (Math.Abs(((r.LoKey + r.HiKey) / 2) - 60) / 4)))
+            .ToList();
+        var partitioner = Partitioner.Create(ordered, EnumerablePartitionerOptions.NoBuffering);
+        _loading = Task.Run(() =>
+        {
+            Parallel.ForEach(partitioner, new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount - 1) }, file =>
+            {
+                try
+                {
+                    var (mono, rate) = ReadSample(file);
+                    var data = SampleCache.Store(file, mono, rate);
+                    foreach (var region in byFile[file])
+                    {
+                        region.Samples = data;
+                    }
+                }
+                catch (Exception ex) when (ex is IOException or InvalidDataException or FormatException or UnauthorizedAccessException)
+                {
+                }
+
+                var count = Interlocked.Increment(ref done);
+                if (count == total || count % 8 == 0)
+                {
+                    Progress?.Invoke(name, count, total);
+                }
+            });
+        });
+    }
 
     public static event Action<string, int, int>? Progress;
 
@@ -194,32 +267,13 @@ public sealed class SfzInstrument
 
         playable = ThinLayers(playable, LayerStride);
         var resolved = playable.Select(o => ResolveSample(directory, defaultPath, o["sample"])).ToList();
-        var files = resolved.Where(f => f is not null).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-        var done = 0;
         var name = DisplayName;
-        Progress?.Invoke(name, 0, files.Count);
-        var samples = new ConcurrentDictionary<string, (float[] Data, int Rate)>(StringComparer.OrdinalIgnoreCase);
-        Parallel.ForEach(files!, new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount - 1) }, file =>
-        {
-            try
-            {
-                samples[file!] = ReadSample(file!);
-            }
-            catch (Exception ex) when (ex is IOException or InvalidDataException or FormatException)
-            {
-            }
-
-            var count = Interlocked.Increment(ref done);
-            if (count == files.Count || count % 16 == 0)
-            {
-                Progress?.Invoke(name, count, files.Count);
-            }
-        });
+        var byFile = new Dictionary<string, List<SfzRegion>>(StringComparer.OrdinalIgnoreCase);
         for (var index = 0; index < playable.Count; index++)
         {
             var opcodes = playable[index];
             var file = resolved[index];
-            if (file is null || !samples.TryGetValue(file, out var data))
+            if (file is null)
             {
                 continue;
             }
@@ -227,8 +281,6 @@ public sealed class SfzInstrument
             var trigger = opcodes.GetValueOrDefault("trigger", "attack");
             var r = new SfzRegion
             {
-                Samples = data.Data,
-                SampleRate = data.Rate,
                 SamplePath = file,
                 LoKey = Key(opcodes, "lokey", Key(opcodes, "key", 0)),
                 HiKey = Key(opcodes, "hikey", Key(opcodes, "key", 127)),
@@ -247,8 +299,8 @@ public sealed class SfzInstrument
                 SeqLength = Int(opcodes, "seq_length", 1),
                 SeqPosition = Int(opcodes, "seq_position", 1),
                 LoopMode = opcodes.GetValueOrDefault("loop_mode") switch { "loop_continuous" => 1, "loop_sustain" => 2, _ => 0 },
-                LoopStart = Math.Clamp(Int(opcodes, "loop_start", 0), 0, Math.Max(0, data.Data.Length - 2)),
-                LoopEnd = Math.Clamp(Int(opcodes, "loop_end", data.Data.Length - 1), 1, Math.Max(1, data.Data.Length - 1)),
+                LoopStart = Math.Max(0, Int(opcodes, "loop_start", 0)),
+                LoopEnd = Int(opcodes, "loop_end", -1),
                 Attack = Env(opcodes, control, "ampeg_attack", 0),
                 Hold = Env(opcodes, control, "ampeg_hold", 0),
                 Decay = Env(opcodes, control, "ampeg_decay", 0),
@@ -261,12 +313,21 @@ public sealed class SfzInstrument
             }
 
             Regions.Add(r);
+            if (!byFile.TryGetValue(file, out var list))
+            {
+                list = [];
+                byFile[file] = list;
+            }
+
+            list.Add(r);
             if (!r.Release)
             {
                 MinKey = Math.Min(MinKey, r.LoKey);
                 MaxKey = Math.Max(MaxKey, r.HiKey);
             }
         }
+
+        StartLoading(name, byFile);
     }
 
     public static string? ResolveSample(string directory, string defaultPath, string sample)
@@ -605,12 +666,23 @@ public sealed class SfzPlayer : INoteTarget
     {
         var roll = _random.NextDouble();
         var lookup = release ? note : Math.Clamp(note, instrument.MinKey, Math.Max(instrument.MinKey, instrument.MaxKey));
-        var matches = instrument.Regions.Where(region => region.Release == release && lookup >= region.LoKey && lookup <= region.HiKey && velocity >= region.LoVel && velocity <= region.HiVel && roll >= region.LoRand && roll < region.HiRand && region.Samples.Length > 0).ToList();
+        var matches = instrument.Regions.Where(region => region.Release == release && lookup >= region.LoKey && lookup <= region.HiKey && velocity >= region.LoVel && velocity <= region.HiVel && roll >= region.LoRand && roll < region.HiRand).ToList();
         if (matches.Any(m => m.SeqLength > 1))
         {
             matches = matches.Where(m => m.SeqLength <= 1 || m.SeqPosition == (_sequence % m.SeqLength) + 1).ToList();
             _sequence++;
         }
+
+        if (matches.Count > 0 && !matches.Any(m => m.Loaded))
+        {
+            var substitute = instrument.Regions
+                .Where(r => r.Release == release && r.Loaded && lookup >= r.LoKey && lookup <= r.HiKey)
+                .OrderBy(r => Math.Abs(((r.LoVel + r.HiVel) / 2) - velocity))
+                .FirstOrDefault();
+            matches = substitute is null ? [] : [substitute];
+        }
+
+        matches = matches.Where(m => m.Loaded).ToList();
 
         var layerGain = 1f / (float)Math.Sqrt(Math.Max(1, matches.Count));
         foreach (var region in matches)
@@ -639,12 +711,14 @@ public sealed class SfzPlayer : INoteTarget
             }
 
             var ratio = release ? 1.0 : Math.Pow(2, ((((note - region.KeyCenter) * region.KeyTrack / 100.0) + region.Transpose) / 12.0) + (region.Tune / 1200.0));
+            var data = region.Samples;
             _voices[slot] = new Voice
             {
                 Active = true,
                 Region = region,
+                Samples = data,
                 Note = note,
-                Step = ratio * region.SampleRate / _sampleRate,
+                Step = ratio * data.Rate / _sampleRate,
                 Gain = gain,
                 IsReleaseSample = release,
                 Started = _clock,
@@ -657,7 +731,10 @@ public sealed class SfzPlayer : INoteTarget
     private void Mix(ref Voice voice, float[] destination, int offset, int frames)
     {
         var region = voice.Region!;
-        var samples = region.Samples;
+        var samples = voice.Samples!;
+        var length = samples.Length;
+        var loopEnd = region.LoopEnd >= 0 ? Math.Min(region.LoopEnd, length - 1) : length - 1;
+        var loopStart = Math.Min(region.LoopStart, Math.Max(0, loopEnd - 1));
         var looping = region.LoopMode == 1 || (region.LoopMode == 2 && !voice.Releasing);
         var attack = Math.Max(64f, (float)(region.Attack * _sampleRate));
         var hold = (float)(region.Hold * _sampleRate);
@@ -665,13 +742,13 @@ public sealed class SfzPlayer : INoteTarget
         var sustain = (float)region.Sustain;
         for (var i = 0; i < frames; i++)
         {
-            if (looping && voice.Position >= region.LoopEnd && region.LoopEnd > region.LoopStart)
+            if (looping && voice.Position >= loopEnd && loopEnd > loopStart)
             {
-                voice.Position -= region.LoopEnd - region.LoopStart;
+                voice.Position -= loopEnd - loopStart;
             }
 
             var index = (int)voice.Position;
-            if (index + 1 >= samples.Length)
+            if (index + 1 >= length)
             {
                 voice.Active = false;
                 return;
@@ -688,7 +765,8 @@ public sealed class SfzPlayer : INoteTarget
             }
 
             var fraction = (float)(voice.Position - index);
-            var sample = samples[index] + ((samples[index + 1] - samples[index]) * fraction);
+            var current = samples.At(index);
+            var sample = current + ((samples.At(index + 1) - current) * fraction);
             var age = voice.Age;
             var envelope = age < attack ? age / attack
                 : age < attack + hold ? 1f
@@ -704,6 +782,7 @@ public sealed class SfzPlayer : INoteTarget
     {
         public bool Active;
         public SfzRegion? Region;
+        public SampleData? Samples;
         public int Note;
         public double Position;
         public double Step;

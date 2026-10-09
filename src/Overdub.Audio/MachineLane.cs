@@ -50,7 +50,9 @@ public sealed class MachineLane(MachineRole role)
             _player.SetInstrument(null);
             if (waitForSamples)
             {
-                _player.SetInstrument(SfzInstrument.Load(sfz));
+                var ready = SfzInstrument.Load(sfz);
+                ready.WaitUntilLoaded();
+                _player.SetInstrument(ready);
             }
             else
             {
