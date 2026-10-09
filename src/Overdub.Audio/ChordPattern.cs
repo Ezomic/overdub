@@ -86,6 +86,7 @@ public sealed class ChordPattern
     public int Bars { get; set; }
     public ChordStyle Style { get; set; }
     public string? FollowId { get; set; }
+    public int Feel { get; set; }
 
     public Chord this[int bar]
     {
@@ -136,6 +137,7 @@ public sealed class ChordPattern
         Bars = other.Bars;
         Style = other.Style;
         FollowId = other.FollowId;
+        Feel = other.Feel;
         Array.Copy(other._chords, _chords, MaxBars);
     }
 
@@ -194,9 +196,9 @@ public sealed class ChordPattern
 
     public long LengthSamples(int sampleRate, double bpm, int beatsPerBar) => (long)Math.Round(Bars * beatsPerBar * Beat(sampleRate, bpm));
 
-    public MidiClip ToClip(int sampleRate, double bpm, int beatsPerBar, long start) => new(ToEvents(sampleRate, bpm, beatsPerBar), start) { PatternId = Id };
+    public MidiClip ToClip(int sampleRate, double bpm, int beatsPerBar, long start) => new(ToEvents(sampleRate, bpm, beatsPerBar, Humanizer.StableSeed(Id, start)), start) { PatternId = Id };
 
-    public MidiEvent[] ToEvents(int sampleRate, double bpm, int beatsPerBar)
+    public MidiEvent[] ToEvents(int sampleRate, double bpm, int beatsPerBar, int seed = 0)
     {
         var beat = Beat(sampleRate, bpm);
         var bar = beat * beatsPerBar;
@@ -214,7 +216,7 @@ public sealed class ChordPattern
                 case ChordStyle.Strum:
                     for (var i = 0; i < beatsPerBar; i++)
                     {
-                        Strum(events, chord, start + (i * beat), beat * 0.92, i == 0 ? 105 : 88, true, sampleRate);
+                        Strum(events, chord, start + (i * beat), beat * 0.92, i == 0 ? 105 : i % 2 == 0 ? 88 : 76, Feel == 0 || i % 2 == 0, sampleRate);
                     }
 
                     break;
@@ -248,7 +250,8 @@ public sealed class ChordPattern
         }
 
         var total = LengthSamples(sampleRate, bpm, beatsPerBar);
-        return events.Select(e => e.At > total ? e with { At = total } : e).ToArray();
+        var clamped = events.Select(e => e.At > total ? e with { At = total } : e).ToList();
+        return seed != 0 && Feel > 0 ? Humanizer.Apply(clamped, Feel, seed, sampleRate, total) : clamped.ToArray();
     }
 
     private static readonly Dictionary<ChordStyle, (int Step, char Token, int Length)[]> BassGrid = new()

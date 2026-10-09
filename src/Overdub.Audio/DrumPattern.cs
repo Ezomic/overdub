@@ -19,6 +19,7 @@ public sealed class DrumPattern
     public string Name { get; set; }
     public int Bars { get; private set; }
     public int Steps => Bars * StepsPerBar;
+    public int Feel { get; set; }
 
     public byte Get(int lane, int step) => _steps[lane][step];
 
@@ -48,6 +49,7 @@ public sealed class DrumPattern
     {
         Name = other.Name;
         Bars = other.Bars;
+        Feel = other.Feel;
         _steps = other._steps.Select(row => (byte[])row.Clone()).ToArray();
     }
 
@@ -86,7 +88,7 @@ public sealed class DrumPattern
 
     public long LengthSamples(int sampleRate, double bpm) => (long)Math.Round(Steps * StepSamples(sampleRate, bpm));
 
-    public MidiEvent[] ToEvents(int sampleRate, double bpm)
+    public MidiEvent[] ToEvents(int sampleRate, double bpm, int seed = 0)
     {
         var step = StepSamples(sampleRate, bpm);
         var events = new List<MidiEvent>
@@ -110,10 +112,10 @@ public sealed class DrumPattern
             }
         }
 
-        return events.ToArray();
+        return seed != 0 && Feel > 0 ? Humanizer.Apply(events, Feel, seed, sampleRate, LengthSamples(sampleRate, bpm)) : events.ToArray();
     }
 
-    public MidiClip ToClip(int sampleRate, double bpm, long start) => new(ToEvents(sampleRate, bpm), start) { PatternId = Id };
+    public MidiClip ToClip(int sampleRate, double bpm, long start) => new(ToEvents(sampleRate, bpm, Humanizer.StableSeed(Id, start)), start) { PatternId = Id };
 
     public static IReadOnlyList<(string Name, string[] Lanes)> Presets { get; } =
     [

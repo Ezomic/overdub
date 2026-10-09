@@ -118,6 +118,7 @@ public sealed class DrumWindow : Window
                 menu.IsOpen = true;
             };
             _patternBar.Children.Add(presets);
+            _patternBar.Children.Add(MakeButton($"Feel: {Humanizer.FeelNames[current.Feel]}", () => _main.SetDrumFeel(current), width: 100));
             _patternBar.Children.Add(MakeButton("Clear", () => _main.ClearDrumPattern(current), width: 60));
             _patternBar.Children.Add(MakeButton($"Repeat {_repeat}x", () =>
             {
