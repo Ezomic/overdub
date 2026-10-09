@@ -1761,6 +1761,20 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public Task PreviewSound(TrackViewModel track, string preset) => _session.PreviewMachineSound(track.Model, preset, PreviewSettings.Volume);
 
+    public Task PreviewEffects(TrackViewModel track, Action<EffectChain>? change)
+    {
+        if (track.Model.Machine is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        var chain = new EffectChain();
+        chain.CopyFrom(track.Model.Effects);
+        change?.Invoke(chain);
+        chain.Touch();
+        return _session.PreviewMachineSound(track.Model, track.Preset, PreviewSettings.Volume, chain);
+    }
+
     public IReadOnlyList<(string Label, Clip Clip)> AudioTakes
     {
         get
