@@ -245,6 +245,23 @@ public sealed class TrackViewModel(Track model, Brush color, Action onMixChanged
         EffectsChanged?.Invoke();
     }
 
+    public Sends Sends => Model.Sends;
+
+    public void SetSends(float? reverb, float? delay)
+    {
+        if (reverb is { } r)
+        {
+            Model.Sends.Reverb = Math.Clamp(r, 0, 1);
+        }
+
+        if (delay is { } d)
+        {
+            Model.Sends.Delay = Math.Clamp(d, 0, 1);
+        }
+
+        onMixChanged();
+    }
+
     public static readonly (string Name, double[] Values)[] AmpPresets =
     [
         ("Clean", [0, 0.2, 1, 0, 2, 0.35, 1, 0]),

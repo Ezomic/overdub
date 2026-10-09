@@ -23,11 +23,42 @@ public partial class EffectsWindow : Window
         _main = main;
         _track = track;
         InitializeComponent();
-        Title = track.Model is { IsMidi: true, Machine: null } ? $"Instrument: {track.Name}" : $"Effects: {track.Name}";
+        Title = track.Model.IsDrums ? $"Sends: {track.Name}" : track.Model is { IsMidi: true, Machine: null } ? $"Instrument and sends: {track.Name}" : $"Effects: {track.Name}";
         Build();
         _track.EffectsChanged += Sync;
         Closed += (_, _) => _track.EffectsChanged -= Sync;
         Sync();
+    }
+
+    private void BuildSends()
+    {
+        Panels.Children.Add(new TextBlock { Text = "Sends", FontSize = 15, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 6) });
+        Panels.Children.Add(new TextBlock { Text = "How much of this track goes to the shared reverb and the shared echo. The echo is a dotted eighth note at the project tempo.", Foreground = (Brush)FindResource("TextDim"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8) });
+        Panels.Children.Add(SendRow("Reverb send", _track.Sends.Reverb, value => _track.SetSends(value, null)));
+        Panels.Children.Add(SendRow("Echo send", _track.Sends.Delay, value => _track.SetSends(null, value)));
+        Panels.Children.Add(new Border { Height = 18 });
+    }
+
+    private Grid SendRow(string label, float value, Action<float> change)
+    {
+        var row = new Grid { Margin = new Thickness(0, 2, 0, 2) };
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(200) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
+        row.Children.Add(new TextBlock { Text = label, Foreground = (Brush)FindResource("TextDim"), VerticalAlignment = VerticalAlignment.Center });
+        var slider = new Slider { Minimum = 0, Maximum = 1, Value = value, Focusable = false, Margin = new Thickness(6, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center };
+        var readout = new TextBlock { Text = $"{value:P0}", HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center, FontFamily = new FontFamily("Consolas") };
+        slider.ValueChanged += (_, e) =>
+        {
+            readout.Text = $"{e.NewValue:P0}";
+            change((float)e.NewValue);
+        };
+        slider.MouseDoubleClick += (_, _) => slider.Value = 0;
+        Grid.SetColumn(slider, 1);
+        Grid.SetColumn(readout, 2);
+        row.Children.Add(slider);
+        row.Children.Add(readout);
+        return row;
     }
 
     private void BuildPluginRow()
@@ -77,6 +108,12 @@ public partial class EffectsWindow : Window
 
     private void Build()
     {
+        BuildSends();
+        if (_track.Model.IsDrums)
+        {
+            return;
+        }
+
         BuildPluginRow();
         if (_track.Model.IsMidi && _track.Model.Machine is null)
         {

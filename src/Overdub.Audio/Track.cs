@@ -22,6 +22,7 @@ public sealed class Track(string name, int? input)
     public List<ChordPattern> ChordPatterns { get; } = [];
     public bool IsMidi => Input is null && !IsBacking;
     public List<DrumPattern> Patterns { get; } = [];
+    public Sends Sends { get; } = new();
     public int DrumKitStyle { get; set; }
     public DrumLaneMix[] DrumLanes { get; } = Enumerable.Range(0, DrumKit.Lanes.Count).Select(_ => new DrumLaneMix()).ToArray();
     public string Preset { get; set; } = "Lead";
