@@ -1341,6 +1341,24 @@ public sealed class Session : IDisposable
 
     public int MasterIndex { get; set; }
 
+    private static MelodyDensity? LeadDensity(string section)
+    {
+        var name = section.ToLowerInvariant();
+        if (name.StartsWith("intro") || name.StartsWith("outro") || name.StartsWith("loop"))
+        {
+            return null;
+        }
+
+        if (name.StartsWith("solo"))
+        {
+            return MelodyDensity.Busy;
+        }
+
+        return name.StartsWith("chorus") || name.StartsWith("last chorus") || name.StartsWith("hook") || name.StartsWith("head") || name.StartsWith("drop") || name.StartsWith("turnaround")
+            ? MelodyDensity.Medium
+            : MelodyDensity.Sparse;
+    }
+
     public string? ApplyTemplate(SongTemplate template)
     {
         var rate = Engine.SampleRate;
@@ -1374,6 +1392,22 @@ public sealed class Session : IDisposable
             bass = new Track("Bass machine", null) { Machine = MachineRole.Bass, ColorIndex = _created++, Preset = PluckSynth.DefaultName(MachineRole.Bass), Gain = 0.6f };
             addedTracks.Add(bass);
         }
+
+        var lead = Tracks.FirstOrDefault(t => t.Machine == MachineRole.Lead);
+        if (lead is null)
+        {
+            lead = new Track("Lead machine", null) { Machine = MachineRole.Lead, ColorIndex = _created++, Preset = PluckSynth.DefaultName(MachineRole.Lead), Gain = 0.5f };
+            addedTracks.Add(lead);
+        }
+
+        var keyQuality = template.Progressions.SelectMany(p => p).FirstOrDefault(c => c.Offset == 0).Quality;
+        var leadScale = keyQuality switch
+        {
+            ChordQuality.Minor => MelodyScale.MinorPentatonic,
+            ChordQuality.Seventh => MelodyScale.Blues,
+            _ => MelodyScale.MajorPentatonic,
+        };
+        var leadClips = new List<MidiClip>();
 
         var drumPatterns = new Dictionary<string, DrumPattern>();
         var fillPatterns = new Dictionary<string, DrumPattern>();
@@ -1441,6 +1475,12 @@ public sealed class Session : IDisposable
                 var at = cursor + (r * chordLength);
                 guitarClips.Add(guitarPattern.ToClip(rate, bpm, beatsPerBar, at));
                 bassClips.Add(bassPattern.WithChordsFrom(guitarSource[plan.Progression]).ToClip(rate, bpm, beatsPerBar, at));
+                if (LeadDensity(plan.Name) is { } density)
+                {
+                    var chords = Enumerable.Range(0, chordBars).Select(i => guitarPattern[i]).ToList();
+                    var seed = HashCode.Combine(template.Name, plan.Progression, density);
+                    leadClips.Add(new MidiClip(MelodyGenerator.Generate(rate, bpm, beatsPerBar, template.KeyRoot, leadScale, chordBars, density, seed, chords), at));
+                }
             }
 
             var drumBars = repeats * chordBars;
@@ -1452,6 +1492,11 @@ public sealed class Session : IDisposable
 
             sections.Add(new SongSection(Guid.NewGuid().ToString("N")[..8], plan.Name, cursor, (long)Math.Round(plan.Bars * bar)));
             cursor += (long)Math.Round(plan.Bars * bar);
+        }
+
+        if (leadClips.Count == 0)
+        {
+            addedTracks.Remove(lead);
         }
 
         if (drums.Patterns.Count + newDrumPatterns.Count > 8 || guitar.ChordPatterns.Count + newGuitarPatterns.Count > 8 || bass.ChordPatterns.Count + newBassPatterns.Count > 8)
@@ -1470,6 +1515,7 @@ public sealed class Session : IDisposable
                 drumClips.ForEach(drums.AddMidiClip);
                 guitarClips.ForEach(guitar.AddMidiClip);
                 bassClips.ForEach(bass.AddMidiClip);
+                leadClips.ForEach(lead.AddMidiClip);
                 Sections.AddRange(sections);
                 ApplyMixerState();
             },
@@ -1478,6 +1524,7 @@ public sealed class Session : IDisposable
                 drumClips.ForEach(c => drums.MidiClips.Remove(c));
                 guitarClips.ForEach(c => guitar.MidiClips.Remove(c));
                 bassClips.ForEach(c => bass.MidiClips.Remove(c));
+                leadClips.ForEach(c => lead.MidiClips.Remove(c));
                 newDrumPatterns.ForEach(p => drums.Patterns.Remove(p));
                 newGuitarPatterns.ForEach(p => guitar.ChordPatterns.Remove(p));
                 newBassPatterns.ForEach(p => bass.ChordPatterns.Remove(p));

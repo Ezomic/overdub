@@ -614,7 +614,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         Message = problem ?? "";
         if (problem is null)
         {
-            Notice = $"Laid out {template.Name}: {template.Sections.Count} sections, {template.TotalBars} bars, with drums, guitar and bass. Press play.";
+            Notice = $"Laid out {template.Name}: {template.Sections.Count} sections, {template.TotalBars} bars, with drums, guitar, bass and a lead line. Press play.";
         }
     }
 
