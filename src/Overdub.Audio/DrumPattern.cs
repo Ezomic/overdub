@@ -20,6 +20,10 @@ public sealed class DrumPattern
     public int Bars { get; private set; }
     public int Steps => Bars * StepsPerBar;
     public int Feel { get; set; }
+    public int Swing { get; set; }
+
+    public static readonly string[] SwingNames = ["Straight", "Light", "Medium", "Heavy"];
+    private static readonly double[] SwingAmounts = [0, 0.4, 0.7, 1.0];
 
     public byte Get(int lane, int step) => _steps[lane][step];
 
@@ -50,6 +54,7 @@ public sealed class DrumPattern
         Name = other.Name;
         Bars = other.Bars;
         Feel = other.Feel;
+        Swing = other.Swing;
         _steps = other._steps.Select(row => (byte[])row.Clone()).ToArray();
     }
 
@@ -106,7 +111,7 @@ public sealed class DrumPattern
                     continue;
                 }
 
-                var at = (long)Math.Round(s * step);
+                var at = (long)Math.Round((s * step) + SwingDelay(s) * step);
                 events.Add(new MidiEvent(at, DrumKit.Lanes[lane].Note, level == 2 ? (byte)127 : (byte)90));
                 events.Add(new MidiEvent(at + (long)(step / 2), DrumKit.Lanes[lane].Note, 0));
             }
@@ -164,6 +169,8 @@ public sealed class DrumPattern
 
         return pattern;
     }
+
+    private double SwingDelay(int step) => step % 4 == 2 ? SwingAmounts[Swing] * (2.0 / 3) : step % 2 == 1 ? SwingAmounts[Swing] / 3 : 0;
 
     private static double StepSamples(int sampleRate, double bpm) => sampleRate * 60.0 / bpm / 4.0;
 

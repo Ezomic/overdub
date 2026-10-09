@@ -1406,6 +1406,14 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    public void SetDrumSwing(DrumPattern pattern)
+    {
+        if (DrumTrack is { } track)
+        {
+            _session.EditPattern(track, pattern, p => p.Swing = (p.Swing + 1) % DrumPattern.SwingNames.Length, "Change swing");
+        }
+    }
+
     public void SetDrumBars(DrumPattern pattern, int bars)
     {
         if (DrumTrack is { } track)
