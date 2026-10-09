@@ -5,6 +5,15 @@ namespace Overdub.Audio;
 public sealed record SoundProgram(string Pack, string PackFolder, string Kind, string Description, string Title, string Name, string Path)
 {
     public bool IsBass => Kind.Contains("bass", StringComparison.OrdinalIgnoreCase) || Pack.Contains("bass", StringComparison.OrdinalIgnoreCase);
+
+    public bool IsGuitar => Kind.Contains("guitar", StringComparison.OrdinalIgnoreCase) || Pack.Contains("guitar", StringComparison.OrdinalIgnoreCase);
+
+    public bool Fits(MachineRole? role) => role switch
+    {
+        MachineRole.Bass => IsBass,
+        MachineRole.Guitar or MachineRole.Lead => IsGuitar || Kind == "Other",
+        _ => true,
+    };
 }
 
 public static partial class SoundPrograms

@@ -237,7 +237,7 @@ public sealed class TrackViewModel(Track model, Brush color, Action onMixChanged
 
     public string Preset => Model.Preset;
 
-    public string PresetTitle => Model.Machine is null ? Model.Preset : SoundPrograms.DisplayTitle(Model.Preset);
+    public string PresetTitle => Model.IsMidi ? SoundPrograms.DisplayTitle(Model.Preset) : Model.Preset;
 
     public bool CanHaveEffects => !Model.IsMidi;
     public bool HasEffects => Model.Effects.AnyEnabled;

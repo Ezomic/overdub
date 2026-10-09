@@ -49,7 +49,7 @@ public sealed class AsioEngine : IDisposable
 
     public const int MaxInputs = 8;
 
-    public Synth Synth { get; } = new();
+    public MachineLane Keys { get; } = new(MachineRole.Lead);
     public DrumKit Drums { get; } = new();
     public MachineLane[] Machines { get; } = Enumerable.Range(0, MaxMachines).Select(_ => new MachineLane(MachineRole.Guitar)).ToArray();
     public const int MaxMachines = 8;
@@ -110,7 +110,7 @@ public sealed class AsioEngine : IDisposable
 
         DriverName = driverName;
         SampleRate = sampleRate;
-        Synth.Configure(sampleRate);
+        Keys.Configure(sampleRate);
         Drums.Configure(sampleRate);
         _bus.Configure(sampleRate);
         foreach (var lane in Machines)
@@ -378,7 +378,7 @@ public sealed class AsioEngine : IDisposable
     {
         _playing = false;
         _countingIn = false;
-        Synth.AllNotesOff();
+        Keys.AllNotesOff();
         Drums.Silence();
         foreach (var lane in Machines)
         {
@@ -389,7 +389,7 @@ public sealed class AsioEngine : IDisposable
     public void Seek(long sample)
     {
         Volatile.Write(ref _position, (long)(Math.Max(0, sample) / Speed));
-        Synth.AllNotesOff();
+        Keys.AllNotesOff();
         Drums.Silence();
         foreach (var lane in Machines)
         {
@@ -595,7 +595,7 @@ public sealed class AsioEngine : IDisposable
 
         if (!midiPlayed)
         {
-            Synth.Render(_synthBuf, 0, frames);
+            Keys.Voice.Render(_synthBuf, 0, frames);
             if (!drumsRendered)
             {
                 Drums.Render(_drumBuf, 0, frames);
@@ -719,7 +719,7 @@ public sealed class AsioEngine : IDisposable
             }
 
             Mixer.MixChannels(channels, anySolo, position, _mixL, _mixR, chunk, done, _fxScratch, _bus);
-            _sequencer.Render(Synth, midi, anySolo, position, _synthBuf, chunk, done);
+            _sequencer.Render(Keys.Voice, midi, anySolo, position, _synthBuf, chunk, done);
             _drumSequencer.Render(Drums, drumMidi, anySolo, position, _drumBuf, chunk, done);
             for (var m = 0; m < Machines.Length; m++)
             {
@@ -752,7 +752,7 @@ public sealed class AsioEngine : IDisposable
 
                 position = loopStart;
                 Interlocked.Increment(ref _loopPasses);
-                Synth.AllNotesOff();
+                Keys.AllNotesOff();
             }
 
             if (punchOn && IsRecording && position >= punchOut)

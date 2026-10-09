@@ -269,8 +269,8 @@ public sealed class Session : IDisposable
         Engine.SynthGain = keys?.Gain ?? 1f;
         Engine.SynthSends = keys?.Sends;
         Engine.SynthPan = keys?.Pan ?? 0f;
-        Engine.Synth.SetPreset(keys?.Preset);
-        Engine.Synth.Instrument = keys is { Instrument.Active: true } ? keys.Instrument.Instance : null;
+        Engine.Keys.SetPreset(keys?.Preset);
+        Engine.Keys.SetInstrument(keys is { Instrument.Active: true } ? keys.Instrument.Instance : null);
     }
 
     private static void AddTake(Track track, Clip clip)
@@ -608,7 +608,7 @@ public sealed class Session : IDisposable
     {
         var armed = Tracks.FirstOrDefault(t => t is { Armed: true, IsMidi: true });
         var lane = armed is null ? -1 : MachineTracks.IndexOf(armed);
-        return lane >= 0 ? Engine.Machines[lane].Voice : Engine.Synth;
+        return lane >= 0 ? Engine.Machines[lane].Voice : Engine.Keys.Voice;
     }
 
     public List<Track> MachineTracks => Tracks.Where(t => t.Machine is not null).Take(AsioEngine.MaxMachines).ToList();
@@ -990,7 +990,7 @@ public sealed class Session : IDisposable
         }
         else
         {
-            (_liveTarget ?? Engine.Synth).NoteOff(note);
+            (_liveTarget ?? Engine.Keys.Voice).NoteOff(note);
         }
 
         lock (_midiLock)
@@ -1008,11 +1008,11 @@ public sealed class Session : IDisposable
     {
         if (kind == MidiKind.Sustain)
         {
-            Engine.Synth.SustainPedal(value >= 64);
+            Engine.Keys.Voice.SustainPedal(value >= 64);
         }
         else if (kind == MidiKind.PitchBend)
         {
-            Engine.Synth.PitchBend(value);
+            Engine.Keys.Voice.PitchBend(value);
         }
 
         lock (_midiLock)
@@ -1582,7 +1582,7 @@ public sealed class Session : IDisposable
                     Engine.SynthGain,
                     Engine.SynthPan,
                     0,
-                    Engine.Synth.PresetName,
+                    keys?.Preset,
                     instrument?.Instance,
                     drumMix,
                     machineMixes,
