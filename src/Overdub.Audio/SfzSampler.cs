@@ -25,6 +25,13 @@ public sealed class SfzRegion
     public int KeyTrack { get; set; } = 100;
     public int SeqLength { get; set; } = 1;
     public int SeqPosition { get; set; } = 1;
+    public int LoopMode { get; set; }
+    public int LoopStart { get; set; }
+    public int LoopEnd { get; set; }
+    public double Attack { get; set; }
+    public double Hold { get; set; }
+    public double Decay { get; set; }
+    public double Sustain { get; set; } = 1;
 }
 
 public sealed class SfzInstrument
@@ -124,19 +131,25 @@ public sealed class SfzInstrument
             playable = pending.Where(o => o.ContainsKey("sample") && Playable(o, control, honourCc: false)).ToList();
         }
 
-        var samples = new Dictionary<string, (float[] Data, int Rate)>(StringComparer.OrdinalIgnoreCase);
-        foreach (var opcodes in playable)
+        var resolved = playable.Select(o => ResolveSample(directory, defaultPath, o["sample"])).ToList();
+        var samples = new ConcurrentDictionary<string, (float[] Data, int Rate)>(StringComparer.OrdinalIgnoreCase);
+        Parallel.ForEach(resolved.Where(f => f is not null).Distinct(StringComparer.OrdinalIgnoreCase)!, new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount - 1) }, file =>
         {
-            var file = ResolveSample(directory, defaultPath, opcodes["sample"]);
-            if (file is null)
+            try
+            {
+                samples[file!] = ReadSample(file!);
+            }
+            catch (Exception ex) when (ex is IOException or InvalidDataException or FormatException)
+            {
+            }
+        });
+        for (var index = 0; index < playable.Count; index++)
+        {
+            var opcodes = playable[index];
+            var file = resolved[index];
+            if (file is null || !samples.TryGetValue(file, out var data))
             {
                 continue;
-            }
-
-            if (!samples.TryGetValue(file, out var data))
-            {
-                data = ReadSample(file);
-                samples[file] = data;
             }
 
             var trigger = opcodes.GetValueOrDefault("trigger", "attack");
@@ -161,7 +174,20 @@ public sealed class SfzInstrument
                 KeyTrack = Int(opcodes, "pitch_keytrack", 100),
                 SeqLength = Int(opcodes, "seq_length", 1),
                 SeqPosition = Int(opcodes, "seq_position", 1),
+                LoopMode = opcodes.GetValueOrDefault("loop_mode") switch { "loop_continuous" => 1, "loop_sustain" => 2, _ => 0 },
+                LoopStart = Math.Clamp(Int(opcodes, "loop_start", 0), 0, Math.Max(0, data.Data.Length - 2)),
+                LoopEnd = Math.Clamp(Int(opcodes, "loop_end", data.Data.Length - 1), 1, Math.Max(1, data.Data.Length - 1)),
+                Attack = Env(opcodes, control, "ampeg_attack", 0),
+                Hold = Env(opcodes, control, "ampeg_hold", 0),
+                Decay = Env(opcodes, control, "ampeg_decay", 0),
+                Sustain = Math.Clamp(Env(opcodes, control, "ampeg_sustain", 100) / 100.0, 0, 1),
             };
+            if (r.Sustain <= 0 && r.Hold + r.Decay < 0.05)
+            {
+                r.Sustain = 1;
+                r.Decay = 0;
+            }
+
             Regions.Add(r);
             if (!r.Release)
             {
@@ -342,6 +368,11 @@ public sealed class SfzInstrument
 
     private static (float[] Data, int Rate) ReadSample(string file)
     {
+        if (FlacDecoder.IsFlac(file))
+        {
+            return FlacDecoder.DecodeMono(file);
+        }
+
         using var reader = new AudioFileReader(file);
         var provider = (ISampleProvider)reader;
         var channels = reader.WaveFormat.Channels;
@@ -377,6 +408,21 @@ public sealed class SfzInstrument
         }
 
         return (mono, reader.WaveFormat.SampleRate);
+    }
+
+    private static double Env(Dictionary<string, string> opcodes, Dictionary<string, string> control, string key, double fallback)
+    {
+        var value = Dbl(opcodes, key, fallback);
+        var prefix = key + "_oncc";
+        foreach (var (name, text) in opcodes)
+        {
+            if (name.StartsWith(prefix, StringComparison.Ordinal) && int.TryParse(name[prefix.Length..], out var cc) && double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var depth))
+            {
+                value += depth * Int(control, "set_cc" + cc, 0) / 127.0;
+            }
+        }
+
+        return value;
     }
 
     private static int Int(Dictionary<string, string> opcodes, string key, int fallback) =>
@@ -538,9 +584,20 @@ public sealed class SfzPlayer : INoteTarget
 
     private void Mix(ref Voice voice, float[] destination, int offset, int frames)
     {
-        var samples = voice.Region!.Samples;
+        var region = voice.Region!;
+        var samples = region.Samples;
+        var looping = region.LoopMode == 1 || (region.LoopMode == 2 && !voice.Releasing);
+        var attack = Math.Max(64f, (float)(region.Attack * _sampleRate));
+        var hold = (float)(region.Hold * _sampleRate);
+        var decay = (float)(region.Decay * _sampleRate);
+        var sustain = (float)region.Sustain;
         for (var i = 0; i < frames; i++)
         {
+            if (looping && voice.Position >= region.LoopEnd && region.LoopEnd > region.LoopStart)
+            {
+                voice.Position -= region.LoopEnd - region.LoopStart;
+            }
+
             var index = (int)voice.Position;
             if (index + 1 >= samples.Length)
             {
@@ -560,8 +617,12 @@ public sealed class SfzPlayer : INoteTarget
 
             var fraction = (float)(voice.Position - index);
             var sample = samples[index] + ((samples[index + 1] - samples[index]) * fraction);
-            var attack = voice.Age < 64 ? voice.Age / 64f : 1f;
-            destination[offset + i] += sample * voice.Gain * voice.Fade * attack * Volume;
+            var age = voice.Age;
+            var envelope = age < attack ? age / attack
+                : age < attack + hold ? 1f
+                : decay > 0 && age < attack + hold + decay ? 1f - ((1f - sustain) * ((age - attack - hold) / decay))
+                : decay > 0 ? sustain : 1f;
+            destination[offset + i] += sample * voice.Gain * voice.Fade * envelope * Volume;
             voice.Position += voice.Step;
             voice.Age++;
         }
