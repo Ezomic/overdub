@@ -2,7 +2,7 @@ namespace Overdub.Audio;
 
 public sealed record SongKey(int Root, bool Minor, double Confidence, string Source)
 {
-    public string Name => $"{Chord.Roots[Root]} {(Minor ? "minor" : "major")}";
+    public string Name => NoteSpelling.KeyName(this);
 }
 
 public static class KeyFinder

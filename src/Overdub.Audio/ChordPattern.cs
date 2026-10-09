@@ -49,7 +49,7 @@ public readonly record struct Chord(int Root, ChordQuality Quality)
 
     public static readonly string[] QualityNames = ["maj", "min", "7", "maj7", "m7", "sus4", "dim", "5"];
 
-    public string Name => Roots[Root] + (Quality switch { ChordQuality.Major => "", ChordQuality.Minor => "m", _ => QualityNames[(int)Quality] });
+    public string Name => NoteSpelling.Name(Root) + (Quality switch { ChordQuality.Major => "", ChordQuality.Minor => "m", _ => QualityNames[(int)Quality] });
 
     public int[] Intervals => Quality switch
     {
