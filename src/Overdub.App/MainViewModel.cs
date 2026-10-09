@@ -540,6 +540,14 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    public AsioEngine Clicker => _session.Engine;
+
+    public void SetClickSound(int sound) => _session.Engine.ClickSound = sound;
+
+    public void ToggleClickAccent() => _session.Engine.ClickAccent = !_session.Engine.ClickAccent;
+
+    public void ToggleClickEighths() => _session.Engine.ClickEighths = !_session.Engine.ClickEighths;
+
     public string CountInLabel => _session.Engine.CountInBars switch
     {
         0 => "Count-in: off",

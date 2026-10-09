@@ -134,6 +134,52 @@ public sealed class AsioEngine : IDisposable
 
     public bool IsPlaying => _playing;
     public bool IsCountingIn => _countingIn;
+    public int ClickSound { get; set; }
+    public bool ClickAccent { get; set; } = true;
+    public bool ClickEighths { get; set; }
+
+    public static readonly string[] ClickSoundNames = ["Click", "Wood block", "Beep"];
+
+    private float ClickValue(double at, double samplesPerBeat)
+    {
+        var beat = (long)(at / samplesPerBeat);
+        var offset = (int)(at - (beat * samplesPerBeat));
+        var value = ClickWave(offset, ClickAccent && beat % BeatsPerBar == 0, 0.4f);
+        if (ClickEighths)
+        {
+            var half = (int)(at - ((beat + 0.5) * samplesPerBeat));
+            if (half >= 0)
+            {
+                value += ClickWave(half, false, 0.2f);
+            }
+        }
+
+        return value;
+    }
+
+    private float ClickWave(int offset, bool accent, float level)
+    {
+        var length = ClickSound switch { 1 => SampleRate / 35, 2 => SampleRate / 18, _ => SampleRate / 50 };
+        if (offset < 0 || offset >= length)
+        {
+            return 0f;
+        }
+
+        var envelope = 1f - ((float)offset / length);
+        var seconds = offset / (double)SampleRate;
+        switch (ClickSound)
+        {
+            case 1:
+                var tone = Math.Sin(2 * Math.PI * (accent ? 1250 : 850) * seconds) * envelope * envelope;
+                var knock = ((((offset * 2654435761u) >> 7) & 1023) / 512f - 1f) * Math.Max(0f, 1f - (offset / (SampleRate / 400f))) * 0.5f;
+                return (float)(tone + knock) * level * 0.85f;
+            case 2:
+                var square = Math.Sin(2 * Math.PI * (accent ? 1760 : 1175) * seconds) >= 0 ? 1f : -1f;
+                return square * envelope * level * 0.7f;
+            default:
+                return (float)Math.Sin(2 * Math.PI * (accent ? 1500.0 : 1000.0) * seconds) * envelope * level;
+        }
+    }
     public int LoopPasses => Volatile.Read(ref _loopPasses);
     public bool IsWaitingForInput => _waitingForInput;
     public float TriggerThreshold { get; set; } = 0.01f;
@@ -741,7 +787,6 @@ public sealed class AsioEngine : IDisposable
     private void RenderCountIn(int frames)
     {
         var samplesPerBeat = SamplesPerBeat;
-        var clickLength = SampleRate / 50;
         for (var i = 0; i < frames; i++)
         {
             var t = _countInPos + i - _countInLead;
@@ -756,15 +801,7 @@ public sealed class AsioEngine : IDisposable
                 continue;
             }
 
-            var offset = (int)(t - (beat * samplesPerBeat));
-            if (offset >= clickLength)
-            {
-                continue;
-            }
-
-            var frequency = beat % BeatsPerBar == 0 ? 1500.0 : 1000.0;
-            var envelope = 1f - ((float)offset / clickLength);
-            var click = (float)Math.Sin(2 * Math.PI * frequency * offset / SampleRate) * envelope * 0.4f;
+            var click = ClickValue(t, samplesPerBeat);
             _mixL[i] += click;
             _mixR[i] += click;
         }
@@ -780,20 +817,9 @@ public sealed class AsioEngine : IDisposable
     private void MixClick(long position, int frames, int destOffset)
     {
         var samplesPerBeat = SamplesPerBeat / Speed;
-        var clickLength = SampleRate / 50;
         for (var i = 0; i < frames; i++)
         {
-            var at = position + i;
-            var beat = (long)(at / samplesPerBeat);
-            var offset = (int)(at - (beat * samplesPerBeat));
-            if (offset >= clickLength)
-            {
-                continue;
-            }
-
-            var frequency = beat % BeatsPerBar == 0 ? 1500.0 : 1000.0;
-            var envelope = 1f - ((float)offset / clickLength);
-            var click = (float)Math.Sin(2 * Math.PI * frequency * offset / SampleRate) * envelope * 0.4f;
+            var click = ClickValue(position + i, samplesPerBeat);
             _mixL[destOffset + i] += click;
             _mixR[destOffset + i] += click;
         }
