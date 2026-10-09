@@ -54,12 +54,71 @@ public sealed class SfzInstrument
 
     public bool Covers(int note) => Regions.Any(r => !r.Release && note >= r.LoKey && note <= r.HiKey && r.Samples.Length > 0);
 
-    public static SfzInstrument Load(string path) => Cache.GetOrAdd(System.IO.Path.GetFullPath(path), full =>
+    public static event Action<string, int, int>? Progress;
+
+    public static SfzInstrument Load(string path)
     {
-        var instrument = new SfzInstrument(full);
-        instrument.Parse();
-        return instrument;
-    });
+        var stride = SampleSettings.LayerStride;
+        var full = System.IO.Path.GetFullPath(path);
+        return Cache.GetOrAdd($"{full}#{stride}", _ =>
+        {
+            var instrument = new SfzInstrument(full) { LayerStride = stride };
+            instrument.Parse();
+            return instrument;
+        });
+    }
+
+    public int LayerStride { get; private init; } = 1;
+
+    public string DisplayName
+    {
+        get
+        {
+            var root = System.IO.Path.GetFullPath(Folder);
+            var relative = Path.StartsWith(root, StringComparison.OrdinalIgnoreCase) ? Path[root.Length..].TrimStart(System.IO.Path.DirectorySeparatorChar) : System.IO.Path.GetFileName(Path);
+            var top = relative.Split(System.IO.Path.DirectorySeparatorChar)[0];
+            return top.EndsWith(".sfz", StringComparison.OrdinalIgnoreCase) ? System.IO.Path.GetFileNameWithoutExtension(top) : top.Replace('_', ' ');
+        }
+    }
+
+    private static List<Dictionary<string, string>> ThinLayers(List<Dictionary<string, string>> regions, int stride)
+    {
+        if (stride <= 1)
+        {
+            return regions;
+        }
+
+        static string GroupKey(Dictionary<string, string> o) => string.Join("|", new[] { "lokey", "hikey", "key", "trigger", "seq_position", "lorand", "hirand", "sw_last", "pitch_keycenter" }.Select(k => o.GetValueOrDefault(k, "")));
+        var kept = new List<Dictionary<string, string>>();
+        foreach (var group in regions.GroupBy(GroupKey))
+        {
+            var bands = group.GroupBy(o => (Lo: Int(o, "lovel", 1), Hi: Int(o, "hivel", 127))).OrderBy(b => b.Key.Lo).ToList();
+            if (bands.Count < 4)
+            {
+                kept.AddRange(group);
+                continue;
+            }
+
+            var chosen = Enumerable.Range(0, bands.Count).Where(i => i % stride == 0 || i == bands.Count - 1).ToList();
+            var previousHi = 0;
+            foreach (var i in chosen)
+            {
+                var band = bands[i];
+                var lo = previousHi + 1;
+                var hi = i == bands.Count - 1 ? 127 : band.Key.Hi;
+                foreach (var region in band)
+                {
+                    region["lovel"] = lo.ToString(CultureInfo.InvariantCulture);
+                    region["hivel"] = hi.ToString(CultureInfo.InvariantCulture);
+                    kept.Add(region);
+                }
+
+                previousHi = hi;
+            }
+        }
+
+        return kept;
+    }
 
     private void Parse()
     {
@@ -133,9 +192,14 @@ public sealed class SfzInstrument
             playable = pending.Where(o => o.ContainsKey("sample") && Playable(o, control, honourCc: false)).ToList();
         }
 
+        playable = ThinLayers(playable, LayerStride);
         var resolved = playable.Select(o => ResolveSample(directory, defaultPath, o["sample"])).ToList();
+        var files = resolved.Where(f => f is not null).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        var done = 0;
+        var name = DisplayName;
+        Progress?.Invoke(name, 0, files.Count);
         var samples = new ConcurrentDictionary<string, (float[] Data, int Rate)>(StringComparer.OrdinalIgnoreCase);
-        Parallel.ForEach(resolved.Where(f => f is not null).Distinct(StringComparer.OrdinalIgnoreCase)!, new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount - 1) }, file =>
+        Parallel.ForEach(files!, new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount - 1) }, file =>
         {
             try
             {
@@ -143,6 +207,12 @@ public sealed class SfzInstrument
             }
             catch (Exception ex) when (ex is IOException or InvalidDataException or FormatException)
             {
+            }
+
+            var count = Interlocked.Increment(ref done);
+            if (count == files.Count || count % 16 == 0)
+            {
+                Progress?.Invoke(name, count, files.Count);
             }
         });
         for (var index = 0; index < playable.Count; index++)
