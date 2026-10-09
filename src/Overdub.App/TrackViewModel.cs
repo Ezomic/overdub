@@ -303,7 +303,28 @@ public sealed class TrackViewModel(Track model, Brush color, Action onMixChanged
             return;
         }
 
-        onEdit("Change sound", () => ApplyPreset(preset), () => ApplyPreset(old), null);
+        var bypass = Model.Instrument.Active;
+        onEdit(
+            "Change sound",
+            () =>
+            {
+                if (bypass)
+                {
+                    Model.Instrument.Enabled = false;
+                }
+
+                ApplyPreset(preset);
+            },
+            () =>
+            {
+                if (bypass)
+                {
+                    Model.Instrument.Enabled = true;
+                }
+
+                ApplyPreset(old);
+            },
+            null);
     }
 
     private void ApplyPreset(string preset)
