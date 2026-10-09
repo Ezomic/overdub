@@ -163,6 +163,27 @@ public partial class MainWindow
             case Key.Delete:
                 _viewModel.DeleteSelection();
                 break;
+            case Key.S when control:
+                _viewModel.Save();
+                break;
+            case Key.L when !control:
+                _viewModel.LoopOn = !_viewModel.LoopOn;
+                break;
+            case Key.C when !control:
+                _viewModel.Metronome = !_viewModel.Metronome;
+                break;
+            case Key.Escape:
+                _viewModel.StopCommand.Execute(null);
+                break;
+            case Key.Home:
+                _viewModel.Engine.Seek(0);
+                break;
+            case Key.Left or Key.Right:
+                _viewModel.NudgePlayhead(e.Key == Key.Right ? 1 : -1, control);
+                break;
+            case Key.F1:
+                new ShortcutsWindow(this).Show();
+                break;
             case Key.Z when control && Keyboard.Modifiers.HasFlag(ModifierKeys.Shift):
             case Key.Y when control:
                 _viewModel.Redo();

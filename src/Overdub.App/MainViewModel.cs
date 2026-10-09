@@ -540,6 +540,18 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    public void NudgePlayhead(int direction, bool bar)
+    {
+        var engine = _session.Engine;
+        if (engine.SampleRate == 0)
+        {
+            return;
+        }
+
+        var step = engine.SamplesPerBeat * (bar ? engine.BeatsPerBar : 1);
+        engine.Seek(Math.Max(0, (long)(engine.Position + (direction * step))));
+    }
+
     public AsioEngine Clicker => _session.Engine;
 
     public void SetClickSound(int sound) => _session.Engine.ClickSound = sound;
