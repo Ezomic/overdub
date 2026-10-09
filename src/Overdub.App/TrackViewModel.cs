@@ -245,6 +245,36 @@ public sealed class TrackViewModel(Track model, Brush color, Action onMixChanged
         EffectsChanged?.Invoke();
     }
 
+    public static readonly (string Name, double[] Values)[] AmpPresets =
+    [
+        ("Clean", [0, 0.2, 1, 0, 2, 0.35, 1, 0]),
+        ("Crunch", [1, 0.5, 2, 1, 1, 0.4, 1, -1]),
+        ("Lead", [2, 0.65, 1, 3, 0, 0.5, 1, -3]),
+        ("Bass", [3, 0.3, 4, -1, 1, 0.15, 1, 0]),
+    ];
+
+    public void ApplyEffectPreset(int effect, string name, double[] values)
+    {
+        var target = Model.Effects.Effects[effect];
+        var oldValues = (double[])target.Values.Clone();
+        var oldEnabled = target.Enabled;
+        onEdit($"{name} amp preset", () => SetAllEffectValues(effect, values, true), () => SetAllEffectValues(effect, oldValues, oldEnabled), null);
+    }
+
+    private void SetAllEffectValues(int effect, double[] values, bool enabled)
+    {
+        var target = Model.Effects.Effects[effect];
+        for (var i = 0; i < Math.Min(values.Length, target.Values.Length); i++)
+        {
+            target.Set(i, values[i]);
+        }
+
+        target.Enabled = enabled;
+        Model.Effects.Touch();
+        OnPropertyChanged(nameof(HasEffects));
+        EffectsChanged?.Invoke();
+    }
+
     public void SetEffectEnabled(int effect, bool enabled)
     {
         var target = Model.Effects.Effects[effect];

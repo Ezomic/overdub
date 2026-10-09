@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Media;
+using Overdub.Audio;
 
 namespace Overdub.App;
 
@@ -90,6 +91,26 @@ public partial class EffectsWindow : Window
             var header = new DockPanel { Margin = new Thickness(0, e == 0 ? 0 : 20, 0, 8) };
             var toggle = new ToggleButton { Content = "On", Style = (Style)FindResource("Chip"), Focusable = false, Margin = new Thickness(0) };
             DockPanel.SetDock(toggle, Dock.Right);
+            Button? presets = null;
+            if (effect is AmpSim)
+            {
+                presets = new Button { Content = "Presets", Style = (Style)FindResource("TransportButton"), Width = 80, Height = 24, FontSize = 12, Focusable = false, Margin = new Thickness(0, 0, 8, 0) };
+                presets.Click += (_, _) =>
+                {
+                    var menu = new ContextMenu { PlacementTarget = presets, Placement = PlacementMode.Bottom };
+                    foreach (var (presetName, values) in TrackViewModel.AmpPresets)
+                    {
+                        var chosen = (presetName, values);
+                        var item = new MenuItem { Header = presetName };
+                        item.Click += (_, _) => _track.ApplyEffectPreset(index, chosen.presetName, chosen.values);
+                        menu.Items.Add(item);
+                    }
+
+                    menu.IsOpen = true;
+                };
+                DockPanel.SetDock(presets, Dock.Right);
+            }
+
             void Changed(object sender, RoutedEventArgs args)
             {
                 if (!_syncing)
@@ -102,6 +123,11 @@ public partial class EffectsWindow : Window
             toggle.Unchecked += Changed;
             _toggles.Add(toggle);
             header.Children.Add(toggle);
+            if (presets is not null)
+            {
+                header.Children.Add(presets);
+            }
+
             header.Children.Add(new TextBlock { Text = effect.Name, FontSize = 15, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center });
             Panels.Children.Add(header);
 
