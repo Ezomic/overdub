@@ -303,6 +303,7 @@ public partial class MainWindow : Window
     {
         var menu = MenuFor(sender);
         menu.Items.Add(Item("Sound library...", () => new SoundLibraryWindow(_viewModel, this).Show()));
+        menu.Items.Add(Item("Keyboard shortcuts (F1)", () => new ShortcutsWindow(this).Show()));
         menu.Items.Add(Item("Tuner", () => OnTunerClick(ToolsButton, new RoutedEventArgs())));
         menu.Items.Add(Item("On-screen keyboard", () => OnKeyboardClick(ToolsButton, new RoutedEventArgs())));
         menu.Items.Add(Item("Piano roll", OpenPianoRoll));
