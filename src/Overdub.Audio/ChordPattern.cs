@@ -36,6 +36,9 @@ public enum ChordStyle
     Motown,
     Reggae,
     WalkingApproach,
+    Slap,
+    Funk16,
+    SlideInto,
 }
 
 public readonly record struct Chord(int Root, ChordQuality Quality)
@@ -105,6 +108,7 @@ public sealed class ChordPattern
     [
         ChordStyle.WholeNotes, ChordStyle.RootPulse, ChordStyle.RootAndFifth, ChordStyle.Octaves, ChordStyle.Rock8ths,
         ChordStyle.Syncopated, ChordStyle.Motown, ChordStyle.Funk, ChordStyle.Reggae, ChordStyle.Walking, ChordStyle.WalkingApproach,
+        ChordStyle.Slap, ChordStyle.Funk16, ChordStyle.SlideInto,
     ];
 
     public static string StyleDescription(ChordStyle style) => style switch
@@ -119,6 +123,9 @@ public sealed class ChordPattern
         ChordStyle.Funk => "Sixteenth-note feel with muted ghost notes (the x marks) between the main notes. Keep the ghost notes quiet and short.",
         ChordStyle.Reggae => "Beat 1 left empty with long notes after it. The space is the style, so do not fill it.",
         ChordStyle.Walking => "One note per beat: root, third, fifth, sixth. Walks up the chord and works at slow and medium tempos.",
+        ChordStyle.Slap => "Slap and pop: the thumb hits the root hard (the low notes) and the index finger pops the octave and fifth (the short bright notes). Keep the ghost notes quiet.",
+        ChordStyle.Funk16 => "A busy sixteenth-note funk line: root, fifth and octave with muted ghost notes between them. Lock it to the hi-hat and keep your plucking hand moving the whole time.",
+        ChordStyle.SlideInto => "Plays the chord, then slides into the next chord with two quick notes from below, so the change lands smoothly. Slide your finger up the string instead of picking each note.",
         ChordStyle.WalkingApproach => "Like walking, but the last beat steps up a half step into the next chord's root. This is how bass lines lead into a chord change.",
         _ => "",
     };
@@ -127,6 +134,8 @@ public sealed class ChordPattern
     {
         ChordStyle.Rock8ths => "Rock eighths",
         ChordStyle.WalkingApproach => "Walking with approach note",
+        ChordStyle.Funk16 => "Funk, sixteenths",
+        ChordStyle.SlideInto => "Slide into the change",
         ChordStyle.FolkStrum => "Folk strum",
         ChordStyle.WholeNotes => "Whole notes",
         ChordStyle.RootPulse => "Root pulse",
@@ -282,6 +291,9 @@ public sealed class ChordPattern
         [ChordStyle.Reggae] = [(4, 'R', 3), (10, 'R', 3), (14, '5', 2)],
         [ChordStyle.Walking] = [(0, 'R', 4), (4, '3', 4), (8, '5', 4), (12, '6', 4)],
         [ChordStyle.WalkingApproach] = [(0, 'R', 4), (4, '3', 4), (8, '5', 4), (12, 'A', 4)],
+        [ChordStyle.Slap] = [(0, 'R', 2), (3, 'G', 1), (4, 'O', 1), (6, 'G', 1), (8, 'R', 2), (10, '5', 1), (12, 'O', 1), (14, 'G', 1)],
+        [ChordStyle.Funk16] = [(0, 'R', 2), (2, 'G', 1), (3, 'R', 1), (4, '5', 2), (6, 'G', 1), (7, 'O', 1), (8, 'R', 2), (10, 'G', 1), (11, 'R', 1), (12, '5', 1), (13, 'G', 1), (14, 'O', 1), (15, 'G', 1)],
+        [ChordStyle.SlideInto] = [(0, 'R', 4), (4, '5', 4), (8, 'R', 4), (12, 'a', 2), (14, 'A', 2)],
     };
 
     private static void BassBar(List<MidiEvent> events, ChordStyle style, Chord chord, Chord next, double start, double beat, int beatsPerBar)
@@ -305,15 +317,19 @@ public sealed class ChordPattern
                 '3' => root + third,
                 '6' => root + 9,
                 'A' => ApproachNote(BassRoot(next)),
+                'a' => SlideStart(BassRoot(next)),
                 _ => root,
             };
-            var velocity = ghost ? 40 : step % 4 == 0 ? 105 : step % 2 == 0 ? 90 : 78;
+            var pop = style == ChordStyle.Slap && token is 'O' or '5' && step % 4 != 0;
+            var velocity = ghost ? 40 : pop ? 118 : token is 'a' or 'A' && style == ChordStyle.SlideInto ? 80 : step % 4 == 0 ? 105 : step % 2 == 0 ? 90 : 78;
             var span = Math.Min(length, steps - step) * sixteenth * (ghost ? 0.45 : 0.9);
             Add(events, start + (step * sixteenth), span, pitch, velocity);
         }
     }
 
     private static int ApproachNote(int nextRoot) => nextRoot - 1 >= 28 ? nextRoot - 1 : nextRoot + 1;
+
+    private static int SlideStart(int nextRoot) => nextRoot - 2 >= 28 ? nextRoot - 2 : nextRoot + 2;
 
     public static int BassRootNote(Chord chord) => BassRoot(chord);
 
