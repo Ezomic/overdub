@@ -61,6 +61,9 @@ public sealed class AsioEngine : IDisposable
     private float[] _drumBuf = new float[4096];
     private float[] _drumRight = new float[4096];
     private float[] _laneRight = new float[4096];
+    private readonly SendBus _bus = new();
+    public Sends? SynthSends { get; set; }
+    public Sends? DrumSends { get; set; }
     private MidiClip[] _previewClips = [];
     private long _previewLength;
     private long _previewPos;
@@ -109,6 +112,7 @@ public sealed class AsioEngine : IDisposable
         SampleRate = sampleRate;
         Synth.Configure(sampleRate);
         Drums.Configure(sampleRate);
+        _bus.Configure(sampleRate);
         foreach (var lane in Machines)
         {
             lane.Configure(sampleRate);
@@ -553,6 +557,7 @@ public sealed class AsioEngine : IDisposable
         Array.Clear(_synthBuf, 0, frames);
         Array.Clear(_drumBuf, 0, frames);
         Array.Clear(_drumRight, 0, frames);
+        _bus.Clear(frames);
         Drums.RightBuffer = _drumRight;
         foreach (var buffer in _machineBufs)
         {
@@ -603,7 +608,12 @@ public sealed class AsioEngine : IDisposable
         }
 
         Mixer.AddPanned(_synthBuf, SynthGain, SynthPan, _mixL, _mixR, frames);
+        _bus.AddMono(_synthBuf, SynthGain, frames, SynthSends);
         Mixer.AddPannedStereo(_drumBuf, _drumRight, DrumGain, DrumPan, _mixL, _mixR, frames);
+        if (DrumSends is { Any: true } drumSends)
+        {
+            _bus.Add(_drumBuf, _drumRight, 0, 0, frames, new Sends { Reverb = drumSends.Reverb * DrumGain, Delay = drumSends.Delay * DrumGain });
+        }
         for (var m = 0; m < Machines.Length; m++)
         {
             var lane = Machines[m];
@@ -617,12 +627,19 @@ public sealed class AsioEngine : IDisposable
                 Array.Copy(_machineBufs[m], _laneRight, frames);
                 processor.Process(_machineBufs[m], _laneRight, frames);
                 Mixer.AddPannedStereo(_machineBufs[m], _laneRight, lane.Gain, lane.Pan, _mixL, _mixR, frames);
+                if (lane.Sends is { Any: true } laneSends)
+                {
+                    _bus.Add(_machineBufs[m], _laneRight, 0, 0, frames, new Sends { Reverb = laneSends.Reverb * lane.Gain, Delay = laneSends.Delay * lane.Gain });
+                }
             }
             else
             {
                 Mixer.AddPanned(_machineBufs[m], lane.Gain, lane.Pan, _mixL, _mixR, frames);
+                _bus.AddMono(_machineBufs[m], lane.Gain, frames, lane.Sends);
             }
         }
+
+        _bus.Render(_mixL, _mixR, frames, SamplesPerBeat);
         for (var i = 0; i < frames; i++)
         {
             _mixL[i] = Mixer.SoftLimit(_mixL[i] + _monitorL[i]);
@@ -701,7 +718,7 @@ public sealed class AsioEngine : IDisposable
                 chunk = (int)Math.Min(chunk, punchOut - position);
             }
 
-            Mixer.MixChannels(channels, anySolo, position, _mixL, _mixR, chunk, done, _fxScratch);
+            Mixer.MixChannels(channels, anySolo, position, _mixL, _mixR, chunk, done, _fxScratch, _bus);
             _sequencer.Render(Synth, midi, anySolo, position, _synthBuf, chunk, done);
             _drumSequencer.Render(Drums, drumMidi, anySolo, position, _drumBuf, chunk, done);
             for (var m = 0; m < Machines.Length; m++)

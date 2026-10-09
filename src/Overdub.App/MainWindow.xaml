@@ -113,7 +113,9 @@
                                     <TextBlock Text="{Binding TakesText}" Foreground="{StaticResource Good}" FontSize="11" Margin="0,-3,0,6" TextWrapping="Wrap" Visibility="{Binding IsMultiLane, Converter={StaticResource BoolToVis}}" />
                                     <StackPanel Orientation="Horizontal" Margin="0,2,0,6" Visibility="{Binding IsDrums, Converter={StaticResource BoolToVis}}">
                                         <Button Style="{StaticResource TransportButton}" Content="Drum machine" Click="OnDrumsClick"
-                                                Width="Auto" Height="22" FontSize="11" Padding="8,0" Margin="0" ToolTip="Edit drum patterns and place them on the timeline" Focusable="False" />
+                                                Width="Auto" Height="22" FontSize="11" Padding="8,0" Margin="0,0,6,0" ToolTip="Edit drum patterns and place them on the timeline" Focusable="False" />
+                                        <Button Style="{StaticResource TransportButton}" Content="Sends" Click="OnEffectsClick"
+                                                Width="Auto" Height="22" FontSize="11" Padding="8,0" Margin="0" ToolTip="Reverb and echo for the drums" Focusable="False" />
                                     </StackPanel>
                                     <StackPanel Orientation="Horizontal" Margin="0,2,0,6" Visibility="{Binding IsMachine, Converter={StaticResource BoolToVis}}">
                                         <Button Style="{StaticResource TransportButton}" Click="OnPresetClick" Content="{Binding Preset}"
