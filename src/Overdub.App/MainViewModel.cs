@@ -1099,6 +1099,41 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 : clips[0];
     }
 
+    public IReadOnlyList<SongSection> Sections => _session.Sections.OrderBy(x => x.Start).ToList();
+
+    public IReadOnlyList<SectionBand> SectionBands => Sections.Select((x, i) => new SectionBand(SamplesToPixels(x.Start), Math.Max(2, SamplesToPixels(x.Length)), x.Name, i)).ToList();
+
+    public void MarkSection(string name)
+    {
+        if (!HasRegion)
+        {
+            Message = "Drag on the ruler to select the part of the song first, then mark it as a section.";
+            return;
+        }
+
+        _session.AddSection(name, _regionStart, _regionEnd - _regionStart);
+        Message = "";
+    }
+
+    public void RenameSection(SongSection section, string name) => _session.RenameSection(section, name);
+
+    public void RemoveSection(SongSection section) => _session.RemoveSection(section);
+
+    public void GoToSection(SongSection section) => _session.Engine.Seek(section.Start);
+
+    public void CopySectionToPlayhead(SongSection section, bool move)
+    {
+        var engine = _session.Engine;
+        var bar = engine.SamplesPerBeat * engine.BeatsPerBar;
+        var destination = (long)(Math.Round(engine.Position / bar) * bar);
+        var count = _session.CopySection(section, destination, move);
+        Message = count == 0 ? "Nothing to copy there, or the playhead is already at the start of the section." : "";
+        if (count > 0)
+        {
+            Notice = $"{(move ? "Moved" : "Copied")} {count} block{(count == 1 ? "" : "s")}";
+        }
+    }
+
     public void ExportSelectedMidi(string? path = null)
     {
         if (_selection is not MidiClip clip || Tracks.FirstOrDefault(t => t.Model.MidiClips.Contains(clip)) is not { } track)
@@ -1938,6 +1973,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     private void RefreshTimeline()
     {
+        OnPropertyChanged(nameof(SectionBands));
         foreach (var track in Tracks)
         {
             track.RefreshClips(_session.Engine.SampleRate);

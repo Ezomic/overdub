@@ -66,6 +66,7 @@
                 <TextBlock Grid.Column="1" Text="{Binding RegionText}" Foreground="{StaticResource TextDim}" FontSize="12" VerticalAlignment="Center" Margin="12,0,12,0" TextTrimming="CharacterEllipsis" />
                 <StackPanel Grid.Column="2" Orientation="Horizontal">
                     <Button x:Name="ToolsButton" Style="{StaticResource TransportButton}" Width="Auto" Height="24" FontSize="12" Padding="10,0" Margin="0,0,8,0" Content="Tools ▾" Click="OnToolsClick" Focusable="False" ToolTip="Tuner, keyboard, analysis and latency" />
+                    <Button x:Name="SectionsButton" Style="{StaticResource TransportButton}" Width="Auto" Height="24" FontSize="12" Padding="10,0" Margin="0,0,8,0" Content="Sections ▾" Click="OnSectionsClick" Focusable="False" ToolTip="Name parts of the song (verse, chorus) and copy or move them with everything on every track" />
                     <Button x:Name="FileButton" Style="{StaticResource TransportButton}" Width="Auto" Height="24" FontSize="12" Padding="10,0" Margin="0,0,8,0" Content="File ▾" Click="OnFileClick" Focusable="False" ToolTip="Open, import and export" />
                     <Button Style="{StaticResource TransportButton}" Width="64" Height="24" FontSize="12" Margin="0" Content="Save" Click="OnSaveClick" Focusable="False" ToolTip="Save the project" />
                 </StackPanel>
@@ -193,7 +194,7 @@
                         <RowDefinition Height="26" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
-                    <local:RulerControl x:Name="Ruler" Grid.Row="0" TimeGrid="{Binding Grid}" Cursor="IBeam" ToolTip="Drag to set a region, click to move the playhead, double-click to clear"
+                    <local:RulerControl x:Name="Ruler" Grid.Row="0" TimeGrid="{Binding Grid}" Sections="{Binding SectionBands}" Cursor="IBeam" ToolTip="Drag to set a region, click to move the playhead, double-click to clear"
                                         MouseLeftButtonDown="OnRulerDown" MouseMove="OnRulerMove" MouseLeftButtonUp="OnRulerUp" />
                     <ItemsControl Grid.Row="1" ItemsSource="{Binding Tracks}">
                         <ItemsControl.ItemTemplate>

@@ -27,6 +27,7 @@ public sealed class Session : IDisposable
     public EditHistory History { get; } = new();
     public double PracticeSpeed { get; private set; } = 1.0;
     public List<Track> Tracks { get; } = [];
+    public List<SongSection> Sections { get; } = [];
 
     public Track AddTrack(string name, int? input)
     {
@@ -376,6 +377,87 @@ public sealed class Session : IDisposable
         var track = new Track(name, input) { ColorIndex = _created++ };
         Edit("Add track", () => { Tracks.Add(track); ApplyMixerState(); }, () => { Tracks.Remove(track); ApplyMixerState(); }, EditKind.Tracks);
         return track;
+    }
+
+    public void AddSection(string name, long start, long length)
+    {
+        var section = new SongSection(Guid.NewGuid().ToString("N")[..8], name, start, length);
+        Edit("Mark section", () => Sections.Add(section), () => Sections.Remove(section));
+    }
+
+    public void RenameSection(SongSection section, string name)
+    {
+        var index = Sections.IndexOf(section);
+        if (index < 0)
+        {
+            return;
+        }
+
+        var renamed = section with { Name = name };
+        Edit("Rename section", () => Sections[index] = renamed, () => Sections[index] = section);
+    }
+
+    public void RemoveSection(SongSection section)
+    {
+        var index = Sections.IndexOf(section);
+        if (index >= 0)
+        {
+            Edit("Delete section", () => Sections.RemoveAt(index), () => Sections.Insert(index, section));
+        }
+    }
+
+    public int CopySection(SongSection section, long destination, bool move)
+    {
+        var delta = destination - section.Start;
+        if (delta == 0 || destination < 0)
+        {
+            return 0;
+        }
+
+        var end = section.Start + section.Length;
+        var midi = Tracks.SelectMany(t => t.MidiClips.Where(c => c.StartSample >= section.Start && c.StartSample < end).Select(c => (Track: t, Original: c, Copy: c.Copy(delta)))).ToList();
+        var audio = Tracks.SelectMany(t => t.Clips.Where(c => c.StartSample >= section.Start && c.StartSample < end).Select(c => (Track: t, Original: c, Copy: c.Copy(c.StartSample + delta, c.Playback.Offset, c.Length)))).ToList();
+        var index = Sections.IndexOf(section);
+        var target = move ? section with { Start = destination } : new SongSection(Guid.NewGuid().ToString("N")[..8], section.Name + " 2", destination, section.Length);
+        Edit(
+            move ? "Move section" : "Copy section",
+            () =>
+            {
+                midi.ForEach(m => m.Track.AddMidiClip(m.Copy));
+                audio.ForEach(a => a.Track.AddClip(a.Copy));
+                if (move)
+                {
+                    midi.ForEach(m => m.Track.MidiClips.Remove(m.Original));
+                    audio.ForEach(a => a.Track.Clips.Remove(a.Original));
+                    if (index >= 0)
+                    {
+                        Sections[index] = target;
+                    }
+                }
+                else
+                {
+                    Sections.Add(target);
+                }
+            },
+            () =>
+            {
+                midi.ForEach(m => m.Track.MidiClips.Remove(m.Copy));
+                audio.ForEach(a => a.Track.Clips.Remove(a.Copy));
+                if (move)
+                {
+                    midi.ForEach(m => m.Track.AddMidiClip(m.Original));
+                    audio.ForEach(a => a.Track.AddClip(a.Original));
+                    if (index >= 0)
+                    {
+                        Sections[index] = section;
+                    }
+                }
+                else
+                {
+                    Sections.Remove(target);
+                }
+            });
+        return midi.Count + audio.Count;
     }
 
     public void PlaceClips(Track track, IReadOnlyList<MidiClip> clips, string name) =>
@@ -810,7 +892,7 @@ public sealed class Session : IDisposable
             t.Machine?.ToString(),
             t.Machine is null ? null : t.ChordPatterns.Select(p => new ChordPatternData(p.Id, p.Name, p.Bars, (int)p.Style, p.Encode(), p.FollowId, p.Feel, p.Articulation)).ToList(),
             t.IsDrums ? t.DrumLanes.Select(l => new DrumLaneData(l.Gain, l.Pan, l.Mute)).ToList() : null)).ToList();
-        ProjectFile.Write(ProjectPath, new ProjectData(1, Engine.SampleRate, Engine.Bpm, tracks, Engine.BeatsPerBar, Engine.BeatUnit));
+        ProjectFile.Write(ProjectPath, new ProjectData(1, Engine.SampleRate, Engine.Bpm, tracks, Engine.BeatsPerBar, Engine.BeatUnit, Sections.Select(x => new SectionData(x.Id, x.Name, x.Start, x.Length)).ToList()));
         RecentProjects.Add(ProjectPath);
     }
 
@@ -961,6 +1043,8 @@ public sealed class Session : IDisposable
 
         Tracks.Clear();
         Tracks.AddRange(loaded);
+        Sections.Clear();
+        Sections.AddRange((data.Sections ?? []).Select(x => new SongSection(x.Id, x.Name, x.Start, x.Length)));
         _created = loaded.Count == 0 ? 0 : loaded.Max(t => t.ColorIndex) + 1;
         Directory = directory;
         PracticeSpeed = 1.0;

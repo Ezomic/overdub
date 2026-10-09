@@ -22,7 +22,9 @@ public sealed record TrackData(string Name, bool Mute, bool Solo, float Gain, Li
 
 public sealed record PluginData(string Path, string ClassId, string Name, string Vendor, string Category, string SubCategories, bool Enabled, string? Component, string? Controller);
 
-public sealed record ProjectData(int Version, int SampleRate, double Bpm, List<TrackData> Tracks, int BeatsPerBar = 4, int BeatUnit = 4);
+public sealed record SectionData(string Id, string Name, long Start, long Length);
+
+public sealed record ProjectData(int Version, int SampleRate, double Bpm, List<TrackData> Tracks, int BeatsPerBar = 4, int BeatUnit = 4, List<SectionData>? Sections = null);
 
 public static class ProjectFile
 {
