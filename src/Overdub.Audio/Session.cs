@@ -186,6 +186,12 @@ public sealed class Session : IDisposable
             lane.Pan = machine?.Pan ?? 0f;
             lane.SetPreset(machine?.Preset);
             lane.SetInstrument(machine is { Instrument.Active: true } ? machine.Instrument.Instance : null);
+            lane.Source = machine?.Effects;
+            lane.Processor = machine?.PlaybackFx;
+            if (machine is not null && Engine.SampleRate > 0)
+            {
+                machine.PlaybackFx.Configure(Engine.SampleRate);
+            }
         }
 
         var keys = Tracks.FirstOrDefault(t => t.IsKeys);
@@ -955,7 +961,7 @@ public sealed class Session : IDisposable
                 if (track.Machine is { } role)
                 {
                     using var copy = track.Instrument.Active ? track.Instrument.CreateCopy(Engine.SampleRate) : null;
-                    Mixer.Export([], [], Engine.SampleRate, path, 1f, 0f, length, null, null, null, [new MachineMix(role, midi, track.Gain, track.Pan, track.Preset, copy?.Instance)]);
+                    Mixer.Export([], [], Engine.SampleRate, path, 1f, 0f, length, null, null, null, [new MachineMix(role, midi, track.Gain, track.Pan, track.Preset, copy?.Instance, track.Effects.CloneForProcessing(Engine.SampleRate))]);
                 }
                 else if (track.IsDrums)
                 {
@@ -990,7 +996,7 @@ public sealed class Session : IDisposable
         {
             var keys = Tracks.FirstOrDefault(t => t.IsKeys);
             var machineCopies = Tracks.Where(t => t.Machine is not null).Select(t => (Track: t, Copy: t.Instrument.Active ? t.Instrument.CreateCopy(Engine.SampleRate) : null)).ToList();
-            var machineMixes = machineCopies.Select(c => new MachineMix(c.Track.Machine!.Value, c.Track.MidiClips.Select(m => m.Copy(0)).ToList(), c.Track.Gain, c.Track.Pan, c.Track.Preset, c.Copy?.Instance)).ToList();
+            var machineMixes = machineCopies.Select(c => new MachineMix(c.Track.Machine!.Value, c.Track.MidiClips.Select(m => m.Copy(0)).ToList(), c.Track.Gain, c.Track.Pan, c.Track.Preset, c.Copy?.Instance, c.Track.Effects.CloneForProcessing(Engine.SampleRate))).ToList();
             var drumTrack = DrumTrack;
             var drumMix = drumTrack is null ? null : new DrumMix(drumTrack.MidiClips.Select(m => m.Copy(0)).ToList(), drumTrack.Gain, drumTrack.Pan);
             var instrument = keys is { Instrument.Active: true } ? keys.Instrument.CreateCopy(Engine.SampleRate) : null;

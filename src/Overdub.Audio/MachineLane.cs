@@ -16,6 +16,8 @@ public sealed class MachineLane(MachineRole role)
     public MidiClip[] Clips { get; set; } = [];
     public float Gain { get; set; } = 1f;
     public float Pan { get; set; }
+    public EffectChain? Source { get; set; }
+    public EffectChain? Processor { get; set; }
     public INoteTarget Voice => _usePlugin ? _synth : _usePlayer ? _player : _usePluck ? _pluck : _synth;
 
     public void SetInstrument(Vst3.Vst3Plugin? plugin)
@@ -93,4 +95,4 @@ public sealed class MachineLane(MachineRole role)
     }
 }
 
-public sealed record MachineMix(MachineRole Role, IReadOnlyList<MidiClip> Clips, float Gain, float Pan, string Preset, Vst3.Vst3Plugin? Instrument = null);
+public sealed record MachineMix(MachineRole Role, IReadOnlyList<MidiClip> Clips, float Gain, float Pan, string Preset, Vst3.Vst3Plugin? Instrument = null, EffectChain? Effects = null);
