@@ -1555,6 +1555,45 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    public void PreviewDrums(DrumPattern? pattern)
+    {
+        var engine = _session.Engine;
+        if (pattern is null || engine.SampleRate == 0)
+        {
+            engine.SetDrumPreview(null, 0);
+            return;
+        }
+
+        engine.SetDrumPreview(pattern.ToClip(engine.SampleRate, engine.Bpm, 0), pattern.LengthSamples(engine.SampleRate, engine.Bpm));
+    }
+
+    public int DrumStepNow(DrumPattern pattern)
+    {
+        var engine = _session.Engine;
+        if (engine.SampleRate == 0)
+        {
+            return -1;
+        }
+
+        var step = engine.SampleRate * 60.0 / engine.Bpm / 4;
+        if (engine.Previewing)
+        {
+            return (int)(engine.PreviewPosition / step);
+        }
+
+        if (engine.IsPlaying && DrumTrack is { } track)
+        {
+            var position = engine.Position;
+            var clip = track.MidiClips.FirstOrDefault(c => c.PatternId == pattern.Id && position >= c.StartSample && position < c.StartSample + pattern.LengthSamples(engine.SampleRate, engine.Bpm));
+            if (clip is not null)
+            {
+                return (int)((position - clip.StartSample) / step);
+            }
+        }
+
+        return -1;
+    }
+
     public DrumPattern? MakeDrumFill(DrumPattern source, int type)
     {
         if (DrumTrack is not { } track)

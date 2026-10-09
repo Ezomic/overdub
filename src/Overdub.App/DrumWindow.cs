@@ -20,6 +20,10 @@ public sealed class DrumWindow : Window
     private int _fillType;
     private string? _everyFourthId;
     private bool _painting;
+    private bool _preview;
+    private int _lastStep = -1;
+    private readonly System.Windows.Threading.DispatcherTimer _clock = new() { Interval = TimeSpan.FromMilliseconds(30) };
+    private readonly Dictionary<int, List<Border>> _columns = [];
     private byte _paintLevel;
 
     public DrumWindow(MainViewModel main, Window owner)
@@ -46,7 +50,44 @@ public sealed class DrumWindow : Window
         Content = panel;
         _main.EditHistoryChanged += OnHistory;
         Closed += (_, _) => _main.EditHistoryChanged -= OnHistory;
+        _clock.Tick += (_, _) => UpdateStep();
+        _clock.Start();
+        Closed += (_, _) =>
+        {
+            _clock.Stop();
+            _main.PreviewDrums(null);
+        };
         Refresh();
+    }
+
+    private void UpdateStep()
+    {
+        if (_current is not { } pattern)
+        {
+            return;
+        }
+
+        var step = _main.DrumStepNow(pattern);
+        if (step == _lastStep)
+        {
+            return;
+        }
+
+        SetColumn(_lastStep, false);
+        SetColumn(step, true);
+        _lastStep = step;
+    }
+
+    private void SetColumn(int step, bool on)
+    {
+        if (step >= 0 && _columns.TryGetValue(step, out var cells))
+        {
+            foreach (var cell in cells)
+            {
+                cell.BorderBrush = on ? Accent : (Brush)FindResource("Border");
+                cell.BorderThickness = new Thickness(on ? 2 : 1);
+            }
+        }
     }
 
     private Track? Track => _main.DrumTrack;
@@ -176,6 +217,12 @@ public sealed class DrumWindow : Window
                 menu.IsOpen = true;
             };
             _patternBar.Children.Add(everyButton);
+            _patternBar.Children.Add(MakeButton(_preview ? "Stop preview" : "Preview", () =>
+            {
+                _preview = !_preview;
+                _main.PreviewDrums(_preview ? _current : null);
+                Refresh();
+            }, _preview, 100));
             _patternBar.Children.Add(MakeButton("Save to library", () =>
             {
                 if (NameDialog.Ask(this, "Save pattern", "Name for this drum pattern in your library:", $"Drums {current.Name}") is { } name)
@@ -213,6 +260,13 @@ public sealed class DrumWindow : Window
     private void BuildGrid()
     {
         _grid.Children.Clear();
+        _columns.Clear();
+        _lastStep = -1;
+        if (_preview)
+        {
+            _main.PreviewDrums(_current);
+        }
+
         if (_current is not { } pattern)
         {
             return;
@@ -224,7 +278,14 @@ public sealed class DrumWindow : Window
             row.Children.Add(LaneControls(lane));
             for (var step = 0; step < pattern.Steps; step++)
             {
-                row.Children.Add(StepCell(pattern, lane, step));
+                var cell = StepCell(pattern, lane, step);
+                row.Children.Add(cell);
+                if (!_columns.TryGetValue(step, out var column))
+                {
+                    _columns[step] = column = [];
+                }
+
+                column.Add(cell);
             }
 
             _grid.Children.Add(row);
