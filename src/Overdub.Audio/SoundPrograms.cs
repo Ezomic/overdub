@@ -157,7 +157,13 @@ public static partial class SoundPrograms
             var candidates = Directory.Exists(programsDir)
                 ? files.Where(f => string.Equals(System.IO.Path.GetDirectoryName(f), programsDir, StringComparison.OrdinalIgnoreCase)).ToList()
                 : files;
-            foreach (var file in candidates.Where(Standalone).OrderBy(f => f, StringComparer.OrdinalIgnoreCase))
+            var standalone = candidates.Where(Standalone).OrderBy(f => f, StringComparer.OrdinalIgnoreCase).ToList();
+            if (kind == "Drums" && standalone.Any(f => System.IO.Path.GetFileNameWithoutExtension(f).Contains("kit", StringComparison.OrdinalIgnoreCase)))
+            {
+                standalone = standalone.Where(f => System.IO.Path.GetFileNameWithoutExtension(f).Contains("kit", StringComparison.OrdinalIgnoreCase)).ToList();
+            }
+
+            foreach (var file in standalone)
             {
                 var title = CleanTitle(System.IO.Path.GetFileNameWithoutExtension(file), folder);
                 var unique = title;

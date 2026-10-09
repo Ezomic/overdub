@@ -198,7 +198,7 @@ public sealed class SfzInstrument
         var directory = System.IO.Path.GetDirectoryName(Path)!;
         var defines = new Dictionary<string, string>(StringComparer.Ordinal);
         var tokens = new List<string>();
-        Expand(Path, defines, tokens, 0);
+        Expand(Path, directory, defines, tokens, 0);
 
         var control = new Dictionary<string, string>();
         var global = new Dictionary<string, string>();
@@ -392,12 +392,20 @@ public sealed class SfzInstrument
             return last == fallback;
         }
 
+        if (opcodes.ContainsKey("sw_lolast"))
+        {
+            var fallback = Key(opcodes, "sw_default", Key(opcodes, "sw_lokey", Key(opcodes, "sw_lolast", -1)));
+            return fallback >= Key(opcodes, "sw_lolast", 0) && fallback <= Key(opcodes, "sw_hilast", Key(opcodes, "sw_lolast", 127));
+        }
+
         return true;
     }
 
-    private static void Expand(string file, Dictionary<string, string> defines, List<string> tokens, int depth)
+    private static readonly System.Text.RegularExpressions.Regex DirectivePattern = new(@"#define\s+(\$\w+)\s+(\S+)|#include\s+""([^""]+)""", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    private static void Expand(string file, string root, Dictionary<string, string> defines, List<string> tokens, int depth)
     {
-        if (depth > 8 || !System.IO.File.Exists(file))
+        if (depth > 12 || !System.IO.File.Exists(file))
         {
             return;
         }
@@ -418,44 +426,39 @@ public sealed class SfzInstrument
                 continue;
             }
 
-            if (line.StartsWith("#include", StringComparison.Ordinal))
+            var at = 0;
+            foreach (System.Text.RegularExpressions.Match match in DirectivePattern.Matches(line))
             {
-                var open = line.IndexOf('"');
-                var close = open < 0 ? -1 : line.IndexOf('"', open + 1);
-                if (close > open)
+                AddTokens(line[at..match.Index], defines, tokens);
+                at = match.Index + match.Length;
+                if (match.Groups[3].Success)
                 {
-                    var include = Substitute(line[(open + 1)..close], defines).Replace('/', System.IO.Path.DirectorySeparatorChar);
-                    Expand(System.IO.Path.GetFullPath(System.IO.Path.Combine(directory, include)), defines, tokens, depth + 1);
-                }
-
-                continue;
-            }
-
-            if (line.StartsWith("#define", StringComparison.Ordinal))
-            {
-                var parts = line.Split([' ', '\t'], 3, StringSplitOptions.RemoveEmptyEntries);
-                if (parts.Length == 3 && parts[1].StartsWith('$'))
-                {
-                    defines[parts[1]] = parts[2].Trim();
-                }
-
-                continue;
-            }
-
-            var words = line.Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries);
-            for (var i = 0; i < words.Length; i++)
-            {
-                var token = words[i];
-                if (token.StartsWith("sample=", StringComparison.Ordinal) || token.StartsWith("default_path=", StringComparison.Ordinal))
-                {
-                    while (i + 1 < words.Length && !words[i + 1].Contains('=') && !words[i + 1].StartsWith('<'))
+                    var include = Substitute(match.Groups[3].Value, defines).Replace('/', System.IO.Path.DirectorySeparatorChar);
+                    var target = System.IO.Path.GetFullPath(System.IO.Path.Combine(root, include));
+                    if (!System.IO.File.Exists(target))
                     {
-                        token += " " + words[++i];
+                        target = System.IO.Path.GetFullPath(System.IO.Path.Combine(directory, include));
                     }
-                }
 
-                tokens.Add(Substitute(token, defines));
+                    Expand(target, root, defines, tokens, depth + 1);
+                }
+                else
+                {
+                    defines[match.Groups[1].Value] = Substitute(match.Groups[2].Value, defines);
+                }
             }
+
+            AddTokens(line[at..], defines, tokens);
+        }
+    }
+
+    private static readonly System.Text.RegularExpressions.Regex TokenPattern = new(@"<[A-Za-z]+>|[^\s=<>]+=.*?(?=\s+[^\s=<>]+=|\s+<[A-Za-z]+>|\s*$)", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    private static void AddTokens(string text, Dictionary<string, string> defines, List<string> tokens)
+    {
+        foreach (System.Text.RegularExpressions.Match match in TokenPattern.Matches(text))
+        {
+            tokens.Add(Substitute(match.Value.TrimEnd(), defines));
         }
     }
 
