@@ -96,7 +96,9 @@ public sealed class DrumKit : INoteTarget
 
         if (waitForSamples)
         {
-            Volatile.Write(ref _sampled, SfzInstrument.Load(path));
+            var ready = SfzInstrument.Load(path);
+            ready.WaitUntilLoaded();
+            Volatile.Write(ref _sampled, ready);
             return;
         }
 
