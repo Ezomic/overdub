@@ -121,6 +121,8 @@
                                                 Width="Auto" Height="22" FontSize="11" Padding="8,0" Margin="0,0,6,0" ToolTip="Amp, EQ, compressor and reverb for this track, and a VST3 instrument such as a sampled guitar" Focusable="False" />
                                         <Button Style="{StaticResource TransportButton}" Content="Chords" Click="OnChordsClick" Visibility="{Binding IsChordMachine, Converter={StaticResource BoolToVis}}"
                                                 Width="Auto" Height="22" FontSize="11" Padding="8,0" Margin="0" ToolTip="Edit chord patterns and place them on the timeline" Focusable="False" />
+                                        <Button Style="{StaticResource TransportButton}" Content="Fretboard" Click="OnPracticeClick" Visibility="{Binding IsBass, Converter={StaticResource BoolToVis}}"
+                                                Width="Auto" Height="22" FontSize="11" Padding="8,0" Margin="0,0,6,0" ToolTip="See where the chord and the key live on the bass neck, following the playhead" Focusable="False" />
                                         <Button Style="{StaticResource TransportButton}" Content="Coach" Click="OnCoachClick" Visibility="{Binding IsBass, Converter={StaticResource BoolToVis}}"
                                                 Width="Auto" Height="22" FontSize="11" Padding="8,0" Margin="0,0,6,0" ToolTip="Bass lines over your chords, as tab, to learn and play" Focusable="False" />
                                         <Button Style="{StaticResource TransportButton}" Content="Melody" Click="OnMelodyClick" Visibility="{Binding IsLead, Converter={StaticResource BoolToVis}}"

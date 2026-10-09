@@ -1203,6 +1203,54 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         Transpose(shift);
     }
 
+    public (int Root, MelodyScale Scale)? DetectedKey() => _session.DetectedKey();
+
+    public Chord? ChordAtPlayhead(Track track)
+    {
+        var engine = _session.Engine;
+        if (engine.SampleRate == 0 || track.ChordPatterns.Count == 0)
+        {
+            return null;
+        }
+
+        var position = engine.Position;
+        var bar = engine.SamplesPerBeat * engine.BeatsPerBar;
+        foreach (var clip in track.MidiClips.Where(c => c.PatternId is not null))
+        {
+            var pattern = track.ChordPatterns.FirstOrDefault(p => p.Id == clip.PatternId);
+            if (pattern is null)
+            {
+                continue;
+            }
+
+            var effective = _session.EffectivePattern(pattern);
+            var length = effective.LengthSamples(engine.SampleRate, engine.Bpm, engine.BeatsPerBar);
+            if (position >= clip.StartSample && position < clip.StartSample + length)
+            {
+                return effective[Math.Min(effective.Bars - 1, (int)((position - clip.StartSample) / bar))];
+            }
+        }
+
+        return _session.EffectivePattern(track.ChordPatterns[0])[0];
+    }
+
+    public int? BassPitchAtPlayhead(Track track)
+    {
+        var position = _session.Engine.Position;
+        foreach (var clip in track.MidiClips)
+        {
+            foreach (var note in clip.NoteData())
+            {
+                if (position >= note.Start && position < note.End && _session.Engine.IsPlaying)
+                {
+                    return note.Pitch;
+                }
+            }
+        }
+
+        return null;
+    }
+
     public IReadOnlyList<SongSection> Sections => _session.Sections.OrderBy(x => x.Start).ToList();
 
     public IReadOnlyList<SectionBand> SectionBands => Sections.Select((x, i) => new SectionBand(SamplesToPixels(x.Start), Math.Max(2, SamplesToPixels(x.Length)), x.Name, i)).ToList();
