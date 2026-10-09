@@ -25,7 +25,7 @@ public sealed class SoundLibraryWindow : Window
         FontSize = 13;
         var intro = new TextBlock
         {
-            Text = "Free sampled instruments from the sfzinstruments collection on GitHub, mostly by Karoryfer Samples, under free licences (most are CC0). Each one is a direct download of one zip file, saved into Documents\\Overdub\\Instruments. After installing, pick it from the sound menu of a guitar, bass or lead track, where it shows with (sampled). They take a few seconds to load the first time.",
+            Text = "Free sampled instruments from the sfzinstruments collection on GitHub, mostly by Karoryfer Samples, under free licences (most are CC0). Each one is a direct download of one zip file, saved into Documents\\Overdub\\Instruments. After installing, pick it from the sound button of a guitar, bass, lead or keys track. Pianos, organs, horns and strings show up on the keys and lead tracks. They take a few seconds to load the first time.",
             Foreground = (Brush)FindResource("TextDim"),
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(18, 18, 18, 10),

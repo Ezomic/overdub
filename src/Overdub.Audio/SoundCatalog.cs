@@ -25,6 +25,12 @@ public static class SoundCatalog
         new("clavecin", "Clavecin", "Harpsichord", "A small harpsichord: bright, plucked keys for baroque or chamber-pop colours.", "https://github.com/sfzinstruments/Clavecin/archive/refs/heads/master.zip", 3, "Clavecin-master"),
         new("orgue", "Orgue d'eglise", "Organ", "A church organ with several stops. Slow pads and big chords.", "https://github.com/sfzinstruments/OrgueEglise/archive/refs/heads/master.zip", 26, "OrgueEglise-master"),
         new("marimba", "Marimba", "Mallets", "A marimba with three velocity layers. Warm, woody and percussive.", "https://github.com/sfzinstruments/Terkelsen.Marimba/archive/refs/heads/master.zip", 23, "Terkelsen.Marimba-master"),
+        new("bearsax", "Bear Sax", "Saxophone", "A baritone sax, solo and in a duo, with a growly low end. Good for riffs and horn lines.", "https://github.com/sfzinstruments/karoryfer.bear-sax/releases/download/v1.004/Karoryfer.Bear_Sax.v1.004.zip", 125, "Bear_Sax"),
+        new("weresax", "Weresax", "Saxophone", "An alto sax recorded soft and loud through two microphones. Smoother than the Bear Sax.", "https://github.com/sfzinstruments/karoryfer.weresax/releases/download/v1.003/Karoryfer.Weresax.v.1.003.zip", 188, "Weresax"),
+        new("wartuba", "War Tuba", "Brass", "A tuba, solo up to a trio, legato and poly. Big brass bass notes.", "https://github.com/sfzinstruments/karoryfer.war-tuba/releases/download/v1.002/Karoryfer_War_Tuba_v1002.zip", 104, "War_tuba"),
+        new("cello", "Bigcat cello", "Strings", "A cello, bowed with velocity or mod wheel layers, and plucked. Works for violin-like lines an octave up.", "https://github.com/sfzinstruments/karoryfer-bigcat.cello/releases/download/v1.001/Karoryfer_Bigcat_cello.v1.001.zip", 126, "Karoryfer_Bigcat_cello"),
+        new("stringcyborgs", "String Cyborgs", "Strings", "Processed string ensembles and pads built from bowed samples. More cinematic than classical.", "https://github.com/sfzinstruments/karoryfer.string-cyborgs/releases/download/v1.001/Karoryfer.String_Cyborgs.v1.001.zip", 60, "String_Cyborgs"),
+        new("squidpipes", "Squidpipes", "Wind", "Bagpipes, plus two synth-like instruments made from the same reeds.", "https://github.com/sfzinstruments/karoryfer.squidpipes/releases/download/v1.001/karoryfer.squidpipes-v1.001.zip", 42, "karoryfer.squidpipes-master"),
     ];
 
     public static bool IsInstalled(SoundPack pack, string? root = null) =>
