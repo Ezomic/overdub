@@ -379,6 +379,28 @@ public partial class MainWindow : Window
 
     private void OnSignatureClick(object sender, RoutedEventArgs e) => _viewModel.CycleSignature();
 
+    private void OnClickOptions(object sender, RoutedEventArgs e)
+    {
+        var menu = MenuFor(sender);
+        var engine = _viewModel.Clicker;
+        for (var i = 0; i < AsioEngine.ClickSoundNames.Length; i++)
+        {
+            var sound = i;
+            var item = Item(AsioEngine.ClickSoundNames[i], () => _viewModel.SetClickSound(sound));
+            item.IsChecked = engine.ClickSound == i;
+            menu.Items.Add(item);
+        }
+
+        menu.Items.Add(new Separator());
+        var accent = Item("Accent the first beat of each bar", _viewModel.ToggleClickAccent);
+        accent.IsChecked = engine.ClickAccent;
+        menu.Items.Add(accent);
+        var eighths = Item("Click on the eighth notes too", _viewModel.ToggleClickEighths);
+        eighths.IsChecked = engine.ClickEighths;
+        menu.Items.Add(eighths);
+        menu.IsOpen = true;
+    }
+
     private void OnCountInClick(object sender, RoutedEventArgs e) => _viewModel.CycleCountIn();
 
     private void OnWaitClick(object sender, RoutedEventArgs e) => _viewModel.CycleWait();

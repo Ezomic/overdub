@@ -38,7 +38,8 @@
                          BorderBrush="{StaticResource Border}" CaretBrush="{StaticResource Text}" Margin="0,0,12,0" />
                 <Button Style="{StaticResource TransportButton}" Width="Auto" Height="24" FontSize="12" Padding="10,0" Margin="0,0,8,0" Content="Tap" Click="OnTapClick" Focusable="False" ToolTip="Tap the beat to set the BPM" />
                 <Button Style="{StaticResource TransportButton}" Width="Auto" Height="24" FontSize="12" Padding="10,0" Margin="0,0,8,0" Content="{Binding SignatureLabel}" Click="OnSignatureClick" Focusable="False" ToolTip="Time signature" />
-                <ToggleButton Style="{StaticResource Chip}" IsChecked="{Binding Metronome}" Content="Click" Margin="0,0,8,0" Focusable="False" />
+                <ToggleButton Style="{StaticResource Chip}" IsChecked="{Binding Metronome}" Content="Click" Margin="0,0,2,0" Focusable="False" />
+                <Button Style="{StaticResource TransportButton}" Width="22" Height="24" FontSize="11" Padding="0" Margin="0,0,8,0" Content="▾" Click="OnClickOptions" Focusable="False" ToolTip="Metronome sound, accent on beat one, and eighth-note clicks. These also apply to the count-in." />
                 <Button Style="{StaticResource TransportButton}" Width="Auto" Height="24" FontSize="12" Padding="10,0" Margin="0,0,8,0" Content="{Binding CountInLabel}" Click="OnCountInClick" Focusable="False" ToolTip="Click bars before recording starts" />
                 <Button Style="{StaticResource TransportButton}" Width="Auto" Height="24" FontSize="12" Padding="10,0" Margin="0,0,8,0" Content="{Binding WaitLabel}" Click="OnWaitClick" Focusable="False" ToolTip="Start recording and playback when you start playing. Pick how loud the first note must be. Skips the count-in." />
             </StackPanel>
