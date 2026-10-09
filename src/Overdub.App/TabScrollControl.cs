@@ -24,7 +24,7 @@ public sealed class TabScrollControl : FrameworkElement
     public bool Playing { get; set; }
     public int LabelMode { get; set; } = 2;
 
-    public static string NoteName(int stringIndex, int fret) => Chord.Roots[(OpenPitches[stringIndex] + fret) % 12];
+    public static string NoteName(int stringIndex, int fret) => NoteSpelling.Name(OpenPitches[stringIndex] + fret);
 
     private string Label(TabNote note) => LabelMode switch
     {

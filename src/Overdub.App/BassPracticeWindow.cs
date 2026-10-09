@@ -80,8 +80,20 @@ public sealed class BassPracticeWindow : Window
             _tab.InvalidateVisual();
         };
         ShowLabels();
+        var spelling = new Button { Style = (Style)FindResource("TransportButton"), Width = 150, Height = 26, FontSize = 12, Margin = new Thickness(0, 0, 8, 0), Focusable = false, ToolTip = "How notes with sharps or flats are written. Auto follows the key of the song." };
+        void ShowSpelling() => spelling.Content = $"Spelling: {NoteSpelling.ModeNames[NoteSpelling.Mode].ToLowerInvariant()}";
+        spelling.Click += (_, _) =>
+        {
+            NoteSpelling.Mode = (NoteSpelling.Mode + 1) % NoteSpelling.ModeNames.Length;
+            ShowSpelling();
+            _last = "";
+            LoadTab();
+            Update();
+        };
+        ShowSpelling();
         tabControls.Children.Add(_mute);
         tabControls.Children.Add(labels);
+        tabControls.Children.Add(spelling);
         panel.Children.Add(tabControls);
         var check = new Button { Content = "Check my playing", Style = (Style)FindResource("TransportButton"), Width = 150, Height = 26, FontSize = 12, Margin = new Thickness(0, 12, 0, 6), HorizontalAlignment = HorizontalAlignment.Left, Focusable = false, ToolTip = "Compare the selected audio clip (your recorded bass take) with the bass machine line" };
         var result = new TextBox { IsReadOnly = true, TextWrapping = TextWrapping.Wrap, MinHeight = 70, BorderThickness = new Thickness(0), Background = (Brush)FindResource("Well"), Foreground = (Brush)FindResource("Text"), Padding = new Thickness(10), Text = "Record a take of yourself playing the line, click the clip in the main window, then check it. I compare every note with the bass machine: right note, early or late, wrong octave, missed." };
@@ -141,7 +153,7 @@ public sealed class BassPracticeWindow : Window
         _fretboard.Key = key;
         _fretboard.PlayingPitch = playing;
         _chord.Text = chord is { } c ? c.Name : "No chord yet";
-        _tones.Text = chord is { } c2 ? string.Join("  ", c2.Intervals.Select(i => Chord.Roots[(c2.Root + i) % 12])) : "Add a chord pattern to this bass track";
+        _tones.Text = chord is { } c2 ? string.Join("  ", c2.Intervals.Select(i => NoteSpelling.Name(c2.Root + i))) : "Add a chord pattern to this bass track";
         _fretboard.InvalidateVisual();
     }
 }

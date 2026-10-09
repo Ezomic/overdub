@@ -208,12 +208,12 @@ public sealed class ChordWindow : Window
             var chord = effective[bar];
             var column = new StackPanel { Margin = new Thickness(0, 0, 10, 0) };
             column.Children.Add(new TextBlock { Text = $"Bar {bar + 1}", Foreground = (Brush)FindResource("TextDim"), Margin = new Thickness(0, 0, 0, 4) });
-            column.Children.Add(Locked(following, MenuButton(Chord.Roots[chord.Root], Enumerable.Range(0, 12).Select(r => (Chord.Roots[r], (Action)(() => _main.EditChordPattern(current, p => p[index] = p[index] with { Root = r }, "Change chord")))), 70)));
+            column.Children.Add(Locked(following, MenuButton(NoteSpelling.Name(chord.Root), Enumerable.Range(0, 12).Select(r => (NoteSpelling.Name(r), (Action)(() => _main.EditChordPattern(current, p => p[index] = p[index] with { Root = r }, "Change chord")))), 70)));
             column.Children.Add(Locked(following, MenuButton(Chord.QualityNames[(int)chord.Quality], Enumerable.Range(0, Chord.QualityNames.Length).Select(q => (Chord.QualityNames[q], (Action)(() => _main.EditChordPattern(current, p => p[index] = p[index] with { Quality = (ChordQuality)q }, "Change chord")))), 70)));
             _chordRow.Children.Add(column);
         }
 
-        _quickRow.Children.Add(MenuButton($"Key of {Chord.Roots[_keyRoot]}", Enumerable.Range(0, 12).Select(r => (Chord.Roots[r], (Action)(() =>
+        _quickRow.Children.Add(MenuButton($"Key of {NoteSpelling.Name(_keyRoot)}", Enumerable.Range(0, 12).Select(r => (NoteSpelling.Name(r), (Action)(() =>
         {
             _keyRoot = r;
             Refresh();

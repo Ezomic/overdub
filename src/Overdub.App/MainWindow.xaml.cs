@@ -298,7 +298,7 @@ public partial class MainWindow : Window
         for (var root = 0; root < 12; root++)
         {
             var target = root;
-            move.Items.Add(Item(Chord.Roots[target], () => _viewModel.MoveToKey(target)));
+            move.Items.Add(Item(NoteSpelling.Name(target), () => _viewModel.MoveToKey(target)));
         }
 
         menu.Items.Add(move);

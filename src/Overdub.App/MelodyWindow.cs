@@ -108,7 +108,7 @@ public sealed class MelodyWindow : Window
     private void Refresh()
     {
         _row.Children.Clear();
-        _row.Children.Add(MenuButton($"Key of {Chord.Roots[_key]}", Enumerable.Range(0, 12).Select(r => (Chord.Roots[r], (Action)(() => _key = r))), 100));
+        _row.Children.Add(MenuButton($"Key of {NoteSpelling.Name(_key)}", Enumerable.Range(0, 12).Select(r => (NoteSpelling.Name(r), (Action)(() => _key = r))), 100));
         _row.Children.Add(Button("Detect key", () =>
         {
             DetectKey(initial: false);

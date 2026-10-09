@@ -120,7 +120,7 @@ public partial class PianoRollWindow : Window
         for (var root = 0; root < 12; root++)
         {
             var key = root;
-            var item = new MenuItem { Header = Chord.Roots[key], IsChecked = _model.Key == key };
+            var item = new MenuItem { Header = NoteSpelling.Name(key), IsChecked = _model.Key == key };
             item.Click += (_, _) => SetKey(key);
             menu.Items.Add(item);
         }
@@ -131,7 +131,7 @@ public partial class PianoRollWindow : Window
     private void SetKey(int? key)
     {
         _model.Key = key;
-        KeyButton.Content = key is null ? "Key: off" : $"Key: {Chord.Roots[key.Value]}";
+        KeyButton.Content = key is null ? "Key: off" : $"Key: {NoteSpelling.Name(key.Value)}";
         Roll.Refresh();
     }
 

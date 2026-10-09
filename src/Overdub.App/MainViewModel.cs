@@ -41,6 +41,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         Tracks = [];
         RebuildTracks();
         _session.History.Changed += OnHistoryChanged;
+        NoteSpelling.KeyProvider = () => KeyFinder.FromSession(_session);
         _session.NoteActivity += OnNoteForChord;
         SfzInstrument.Progress += OnSampleProgress;
 
@@ -1278,7 +1279,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 : clips[0];
     }
 
-    public string KeyLabel => _session.DetectedKey() is { } key ? $"Key: {Chord.Roots[key.Root]}{(key.Scale == MelodyScale.Minor ? "m" : "")} ▾" : "Key ▾";
+    public string KeyLabel => _session.DetectedKey() is { } key ? $"Key: {NoteSpelling.NameFor(key.Root, NoteSpelling.KeyUsesFlats(key.Root, key.Scale == MelodyScale.Minor))}{(key.Scale == MelodyScale.Minor ? "m" : "")} ▾" : "Key ▾";
 
     public void Transpose(int semitones)
     {
@@ -1329,7 +1330,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             report,
             start => (int)Math.Floor((start - from) / barLength),
             bar => ChordAtSample(bass, from + (long)(bar * barLength)) ?? "",
-            Chord.Roots);
+            Enumerable.Range(0, 12).Select(NoteSpelling.Name).ToArray());
     }
 
     private string? ChordAtSample(Track track, long sample)

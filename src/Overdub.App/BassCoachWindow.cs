@@ -104,7 +104,7 @@ public sealed class BassCoachWindow : Window
         var effective = _main.EffectivePattern(_current);
         var source = _current.FollowId is null ? "your own chords for this pattern (change them in the Chords window, or make this bass follow the guitar there)" : "the chords from your guitar machine";
         _chords.Foreground = (Brush)FindResource("TextDim");
-        _chords.Text = $"Using {source}:\n" + string.Join("\n", Enumerable.Range(0, effective.Bars).Select(b => $"Bar {b + 1}   {effective[b].Name}:  {string.Join("  ", effective[b].Intervals.Select(i => Chord.Roots[(effective[b].Root + i) % 12]))}"));
+        _chords.Text = $"Using {source}:\n" + string.Join("\n", Enumerable.Range(0, effective.Bars).Select(b => $"Bar {b + 1}   {effective[b].Name}:  {string.Join("  ", effective[b].Intervals.Select(i => NoteSpelling.Name(effective[b].Root + i)))}"));
 
         foreach (var style in ChordPattern.BassStyles)
         {
