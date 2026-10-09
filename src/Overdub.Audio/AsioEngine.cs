@@ -36,6 +36,7 @@ public sealed class AsioEngine : IDisposable
     private volatile bool _playing;
     private LatencyProbe? _probe;
     private volatile bool _countingIn;
+    private int _loopPasses;
     private volatile bool _waitingForInput;
     private long _countInPos;
     private long _countInEnd;
@@ -133,6 +134,7 @@ public sealed class AsioEngine : IDisposable
 
     public bool IsPlaying => _playing;
     public bool IsCountingIn => _countingIn;
+    public int LoopPasses => Volatile.Read(ref _loopPasses);
     public bool IsWaitingForInput => _waitingForInput;
     public float TriggerThreshold { get; set; } = 0.01f;
 
@@ -686,6 +688,7 @@ public sealed class AsioEngine : IDisposable
                 }
 
                 position = loopStart;
+                Interlocked.Increment(ref _loopPasses);
                 Synth.AllNotesOff();
             }
 

@@ -379,14 +379,98 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public string SpeedLabel => _preparingSpeed ? "Speed..." : $"Speed {_speedPercent}%";
 
-    public async Task CycleSpeedAsync()
+    public Task CycleSpeedAsync() => SetSpeedPercentAsync(SpeedSteps[(Array.IndexOf(SpeedSteps, _speedPercent) + 1) % SpeedSteps.Length]);
+
+    private static readonly (int Start, int Passes)[] RampPresets = [(60, 2), (70, 2), (80, 2), (50, 3)];
+    private (int Start, int Passes, int BasePasses)? _ramp;
+    private int _rampPreset = -1;
+
+    public string RampLabel => _rampPreset < 0 ? "Ramp: off" : $"Ramp {RampPresets[_rampPreset].Start} to 100%";
+
+    public async Task CycleRampAsync()
     {
         if (IsRecording || _preparingSpeed || _session.Engine.SampleRate == 0)
         {
             return;
         }
 
-        var next = SpeedSteps[(Array.IndexOf(SpeedSteps, _speedPercent) + 1) % SpeedSteps.Length];
+        _rampPreset++;
+        if (_rampPreset >= RampPresets.Length)
+        {
+            _rampPreset = -1;
+            _ramp = null;
+            OnPropertyChanged(nameof(RampLabel));
+            Notice = "Tempo ramp off";
+            return;
+        }
+
+        OnPropertyChanged(nameof(RampLabel));
+        if (!LoopOn)
+        {
+            LoopOn = true;
+            if (!LoopOn)
+            {
+                _rampPreset = -1;
+                OnPropertyChanged(nameof(RampLabel));
+                return;
+            }
+        }
+
+        var (start, passes) = RampPresets[_rampPreset];
+        Notice = "Preparing the practice speeds...";
+        _preparingSpeed = true;
+        OnPropertyChanged(nameof(SpeedLabel));
+        try
+        {
+            await Task.Run(() =>
+            {
+                for (var percent = start; percent < 100; percent += 5)
+                {
+                    _session.PrepareSpeed(percent / 100.0);
+                }
+            });
+        }
+        finally
+        {
+            _preparingSpeed = false;
+            OnPropertyChanged(nameof(SpeedLabel));
+        }
+
+        await SetSpeedPercentAsync(start);
+        _ramp = (start, passes, _session.Engine.LoopPasses);
+        Notice = $"Tempo ramp: starts at {start}% and speeds up 5% every {passes} passes of the loop until 100%. Press play.";
+    }
+
+    private void StepRamp()
+    {
+        if (_ramp is not { } ramp || _preparingSpeed || !_session.Engine.IsPlaying)
+        {
+            return;
+        }
+
+        var passes = _session.Engine.LoopPasses - ramp.BasePasses;
+        var target = Math.Min(100, ramp.Start + ((passes / ramp.Passes) * 5));
+        if (target != _speedPercent)
+        {
+            _ = SetSpeedPercentAsync(target);
+        }
+
+        if (target >= 100)
+        {
+            _ramp = null;
+            _rampPreset = -1;
+            OnPropertyChanged(nameof(RampLabel));
+            Notice = "Tempo ramp finished: you are at full speed";
+        }
+    }
+
+    public async Task SetSpeedPercentAsync(int next)
+    {
+        if (IsRecording || _preparingSpeed || _session.Engine.SampleRate == 0)
+        {
+            return;
+        }
+
         _preparingSpeed = true;
         OnPropertyChanged(nameof(SpeedLabel));
         Message = "";
@@ -1993,6 +2077,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         {
             return;
         }
+
+        StepRamp();
 
         var time = engine.PositionTime;
         Time = $"{(int)time.TotalMinutes:00}:{time.Seconds:00}.{time.Milliseconds:000}";
