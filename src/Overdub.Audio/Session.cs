@@ -246,6 +246,7 @@ public sealed class Session : IDisposable
         Engine.DrumPan = drums?.Pan ?? 0f;
         Engine.Drums.Mix = drums?.DrumLanes;
         Engine.Drums.Style = drums?.DrumKitStyle ?? 0;
+        Engine.Drums.SetSample(drums?.DrumKitSample);
         Engine.DrumSends = drums?.Sends;
         var machines = MachineTracks;
         for (var i = 0; i < Engine.Machines.Length; i++)
@@ -742,10 +743,15 @@ public sealed class Session : IDisposable
             mergeKey);
     }
 
-    public void SetDrumKit(Track track, int style)
+    public void SetDrumKit(Track track, int style, string? sample = null)
     {
         var before = track.DrumKitStyle;
-        Edit("Change drum kit", () => { track.DrumKitStyle = style; ApplyMixerState(); }, () => { track.DrumKitStyle = before; ApplyMixerState(); }, EditKind.Mix);
+        var beforeSample = track.DrumKitSample;
+        Edit(
+            "Change drum kit",
+            () => { track.DrumKitStyle = style; track.DrumKitSample = sample; ApplyMixerState(); },
+            () => { track.DrumKitStyle = before; track.DrumKitSample = beforeSample; ApplyMixerState(); },
+            EditKind.Mix);
     }
 
     public void EditDrumLane(Track track, int lane, float gain, float pan, bool mute)
@@ -1111,7 +1117,8 @@ public sealed class Session : IDisposable
             t.IsDrums ? t.DrumLanes.Select(l => new DrumLaneData(l.Gain, l.Pan, l.Mute)).ToList() : null,
             t.IsDrums ? t.DrumKitStyle : null,
             t.Sends.Reverb > 0 ? t.Sends.Reverb : null,
-            t.Sends.Delay > 0 ? t.Sends.Delay : null)).ToList();
+            t.Sends.Delay > 0 ? t.Sends.Delay : null,
+            t.IsDrums ? t.DrumKitSample : null)).ToList();
         ProjectFile.Write(ProjectPath, new ProjectData(1, Engine.SampleRate, Engine.Bpm, tracks, Engine.BeatsPerBar, Engine.BeatUnit, Sections.Select(x => new SectionData(x.Id, x.Name, x.Start, x.Length)).ToList(), MasterIndex));
         RecentProjects.Add(ProjectPath);
         try
@@ -1196,6 +1203,7 @@ public sealed class Session : IDisposable
             }
 
             track.DrumKitStyle = Math.Clamp(d.DrumKitStyle ?? 0, 0, DrumKit.StyleNames.Length - 1);
+            track.DrumKitSample = d.DrumKitSample;
             track.Sends.Reverb = Math.Clamp(d.ReverbSend ?? 0, 0, 1);
             track.Sends.Delay = Math.Clamp(d.DelaySend ?? 0, 0, 1);
             for (var i = 0; i < Math.Min(d.DrumLanes?.Count ?? 0, track.DrumLanes.Length); i++)
@@ -1335,7 +1343,7 @@ public sealed class Session : IDisposable
                 }
                 else if (track.IsDrums)
                 {
-                    Mixer.Export([], [], Engine.SampleRate, path, 1f, 0f, length, null, null, new DrumMix(midi, track.Gain, track.Pan, track.DrumLanes, track.DrumKitStyle, track.Sends), bpm: Engine.Bpm);
+                    Mixer.Export([], [], Engine.SampleRate, path, 1f, 0f, length, null, null, new DrumMix(midi, track.Gain, track.Pan, track.DrumLanes, track.DrumKitStyle, track.Sends, track.DrumKitSample), bpm: Engine.Bpm);
                 }
                 else
                 {
@@ -1569,7 +1577,7 @@ public sealed class Session : IDisposable
             var machineCopies = Tracks.Where(t => t.Machine is not null).Select(t => (Track: t, Copy: t.Instrument.Active ? t.Instrument.CreateCopy(Engine.SampleRate) : null)).ToList();
             var machineMixes = machineCopies.Select(c => new MachineMix(c.Track.Machine!.Value, c.Track.MidiClips.Select(m => m.Copy(0)).ToList(), c.Track.Gain, c.Track.Pan, c.Track.Preset, c.Copy?.Instance, c.Track.Effects.CloneForProcessing(Engine.SampleRate), c.Track.Sends)).ToList();
             var drumTrack = DrumTrack;
-            var drumMix = drumTrack is null ? null : new DrumMix(drumTrack.MidiClips.Select(m => m.Copy(0)).ToList(), drumTrack.Gain, drumTrack.Pan, drumTrack.DrumLanes, drumTrack.DrumKitStyle, drumTrack.Sends);
+            var drumMix = drumTrack is null ? null : new DrumMix(drumTrack.MidiClips.Select(m => m.Copy(0)).ToList(), drumTrack.Gain, drumTrack.Pan, drumTrack.DrumLanes, drumTrack.DrumKitStyle, drumTrack.Sends, drumTrack.DrumKitSample);
             var instrument = keys is { Instrument.Active: true } ? keys.Instrument.CreateCopy(Engine.SampleRate) : null;
             var strips = Tracks.Where(t => !t.IsMidi).Select(t => new ChannelStrip(t.EffectiveClips(), t.Effects, t.Effects.CloneForProcessing(Engine.SampleRate)) { Sends = t.Sends }).ToList();
             try

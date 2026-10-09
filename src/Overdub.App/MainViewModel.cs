@@ -2119,11 +2119,11 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
     }
 
-    public void SetDrumKit(int style)
+    public void SetDrumKit(int style, string? sample = null)
     {
-        if (DrumTrack is { } track && track.DrumKitStyle != style)
+        if (DrumTrack is { } track && (track.DrumKitStyle != style || track.DrumKitSample != sample))
         {
-            _session.SetDrumKit(track, style);
+            _session.SetDrumKit(track, style, sample);
         }
     }
 

@@ -24,6 +24,7 @@ public sealed class Track(string name, int? input)
     public List<DrumPattern> Patterns { get; } = [];
     public Sends Sends { get; } = new();
     public int DrumKitStyle { get; set; }
+    public string? DrumKitSample { get; set; }
     public DrumLaneMix[] DrumLanes { get; } = Enumerable.Range(0, DrumKit.Lanes.Count).Select(_ => new DrumLaneMix()).ToArray();
     public string Preset { get; set; } = "Lead";
     public EffectChain Effects { get; } = new();

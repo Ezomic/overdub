@@ -222,7 +222,7 @@ public sealed class TrackViewModel(Track model, Brush color, Action onMixChanged
     public bool IsMidi => Model.IsMidi;
     public bool IsDrums => Model.IsDrums;
 
-    public string KitTitle => $"Kit: {DrumKit.StyleNames[Math.Clamp(Model.DrumKitStyle, 0, DrumKit.StyleNames.Length - 1)]}";
+    public string KitTitle => Model.DrumKitSample is { } sample ? $"Kit: {SoundPrograms.DisplayTitle(sample)}" : $"Kit: {DrumKit.StyleNames[Math.Clamp(Model.DrumKitStyle, 0, DrumKit.StyleNames.Length - 1)]}";
 
     public void NotifyKit() => OnPropertyChanged(nameof(KitTitle));
     public bool IsKeys => Model.IsKeys;

@@ -194,6 +194,7 @@ public static class Mixer
         drumKit.RightBuffer = drumRight;
         drumKit.Mix = drums?.Lanes;
         drumKit.Style = drums?.Kit ?? 0;
+        drumKit.SetSample(drums?.Sample, waitForSamples: true);
         var stereo = new float[block * 2];
         var bus = new SendBus();
         bus.Configure(sampleRate);
@@ -249,4 +250,4 @@ public static class Mixer
     }
 }
 
-public sealed record DrumMix(IReadOnlyList<MidiClip> Clips, float Gain, float Pan, DrumLaneMix[]? Lanes = null, int Kit = 0, Sends? Sends = null);
+public sealed record DrumMix(IReadOnlyList<MidiClip> Clips, float Gain, float Pan, DrumLaneMix[]? Lanes = null, int Kit = 0, Sends? Sends = null, string? Sample = null);
