@@ -768,7 +768,7 @@ public sealed class Session : IDisposable
             PluginDataFor(t.Effects.Plugin),
             PluginDataFor(t.Instrument),
             t.IsDrums ? true : null,
-            t.IsDrums ? t.Patterns.Select(p => new PatternData(p.Id, p.Name, p.Bars, p.Encode().ToList(), p.Feel, p.Swing)).ToList() : null,
+            t.IsDrums ? t.Patterns.Select(p => new PatternData(p.Id, p.Name, p.Bars, p.Encode().ToList(), p.Feel, p.Swing, p.Details().ToList())).ToList() : null,
             t.Machine?.ToString(),
             t.Machine is null ? null : t.ChordPatterns.Select(p => new ChordPatternData(p.Id, p.Name, p.Bars, (int)p.Style, p.Encode(), p.FollowId, p.Feel)).ToList())).ToList();
         ProjectFile.Write(ProjectPath, new ProjectData(1, Engine.SampleRate, Engine.Bpm, tracks, Engine.BeatsPerBar, Engine.BeatUnit));
@@ -854,6 +854,7 @@ public sealed class Session : IDisposable
             {
                 track.Patterns.Add(DrumPattern.Decode(p.Id, p.Name, p.Bars, p.Lanes));
                 track.Patterns[^1].Feel = p.Feel;
+                track.Patterns[^1].ApplyDetails(p.Details);
                 track.Patterns[^1].Swing = Math.Clamp(p.Swing, 0, DrumPattern.SwingNames.Length - 1);
             }
 

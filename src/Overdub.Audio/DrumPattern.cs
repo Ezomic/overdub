@@ -6,6 +6,8 @@ public sealed class DrumPattern
     public const int MaxBars = 2;
 
     private byte[][] _steps;
+    private byte[][] _velocity;
+    private byte[][] _chance;
 
     public DrumPattern(string name, int bars = 1, string? id = null)
     {
@@ -13,6 +15,8 @@ public sealed class DrumPattern
         Name = name;
         Bars = Math.Clamp(bars, 1, MaxBars);
         _steps = NewSteps(Bars);
+        _velocity = NewSteps(Bars);
+        _chance = NewSteps(Bars);
     }
 
     public string Id { get; }
@@ -27,26 +31,105 @@ public sealed class DrumPattern
 
     public byte Get(int lane, int step) => _steps[lane][step];
 
-    public void Set(int lane, int step, byte level) => _steps[lane][step] = Math.Clamp(level, (byte)0, (byte)2);
-
-    public void SetBars(int bars)
+    public void Set(int lane, int step, byte level)
     {
-        bars = Math.Clamp(bars, 1, MaxBars);
-        var resized = NewSteps(bars);
-        for (var lane = 0; lane < resized.Length; lane++)
+        level = Math.Clamp(level, (byte)0, (byte)2);
+        if (level != _steps[lane][step])
         {
-            Array.Copy(_steps[lane], resized[lane], Math.Min(_steps[lane].Length, resized[lane].Length));
-            if (bars > Bars)
+            _velocity[lane][step] = 0;
+        }
+
+        if (level == 0)
+        {
+            _chance[lane][step] = 0;
+        }
+
+        _steps[lane][step] = level;
+    }
+
+    public int Velocity(int lane, int step) => _velocity[lane][step] != 0 ? _velocity[lane][step] : _steps[lane][step] == 2 ? 127 : 90;
+
+    public int Chance(int lane, int step) => _chance[lane][step] == 0 ? 100 : _chance[lane][step];
+
+    public void SetVelocity(int lane, int step, int velocity)
+    {
+        if (_steps[lane][step] != 0)
+        {
+            _velocity[lane][step] = (byte)Math.Clamp(velocity, 1, 127);
+        }
+    }
+
+    public void SetChance(int lane, int step, int chance)
+    {
+        if (_steps[lane][step] != 0)
+        {
+            _chance[lane][step] = chance >= 100 ? (byte)0 : (byte)Math.Clamp(chance, 1, 99);
+        }
+    }
+
+    public IReadOnlyList<string> Details()
+    {
+        var list = new List<string>();
+        for (var lane = 0; lane < _steps.Length; lane++)
+        {
+            for (var step = 0; step < Steps; step++)
             {
-                for (var step = Bars * StepsPerBar; step < bars * StepsPerBar; step++)
+                if (_velocity[lane][step] != 0 || _chance[lane][step] != 0)
                 {
-                    resized[lane][step] = _steps[lane][step % (Bars * StepsPerBar)];
+                    list.Add($"{lane},{step},{_velocity[lane][step]},{_chance[lane][step]}");
                 }
             }
         }
 
+        return list;
+    }
+
+    public void ApplyDetails(IEnumerable<string>? details)
+    {
+        foreach (var entry in details ?? [])
+        {
+            var parts = entry.Split(',');
+            if (parts.Length == 4 && int.TryParse(parts[0], out var lane) && int.TryParse(parts[1], out var step) && lane >= 0 && lane < _steps.Length && step >= 0 && step < Steps)
+            {
+                _velocity[lane][step] = byte.Parse(parts[2]);
+                _chance[lane][step] = byte.Parse(parts[3]);
+            }
+        }
+    }
+
+    private void ClearDetails()
+    {
+        foreach (var row in _velocity.Concat(_chance))
+        {
+            Array.Clear(row);
+        }
+    }
+
+    public void SetBars(int bars)
+    {
+        bars = Math.Clamp(bars, 1, MaxBars);
+        _steps = Resized(_steps, bars);
+        _velocity = Resized(_velocity, bars);
+        _chance = Resized(_chance, bars);
         Bars = bars;
-        _steps = resized;
+    }
+
+    private byte[][] Resized(byte[][] source, int bars)
+    {
+        var resized = NewSteps(bars);
+        for (var lane = 0; lane < resized.Length; lane++)
+        {
+            Array.Copy(source[lane], resized[lane], Math.Min(source[lane].Length, resized[lane].Length));
+            if (bars > Bars)
+            {
+                for (var step = Bars * StepsPerBar; step < bars * StepsPerBar; step++)
+                {
+                    resized[lane][step] = source[lane][step % (Bars * StepsPerBar)];
+                }
+            }
+        }
+
+        return resized;
     }
 
     public void CopyFrom(DrumPattern other)
@@ -56,6 +139,8 @@ public sealed class DrumPattern
         Feel = other.Feel;
         Swing = other.Swing;
         _steps = other._steps.Select(row => (byte[])row.Clone()).ToArray();
+        _velocity = other._velocity.Select(row => (byte[])row.Clone()).ToArray();
+        _chance = other._chance.Select(row => (byte[])row.Clone()).ToArray();
     }
 
     public DrumPattern Clone()
@@ -73,6 +158,8 @@ public sealed class DrumPattern
         {
             Array.Clear(row);
         }
+
+        ClearDetails();
     }
 
     public string[] Encode() => _steps.Select(row => string.Concat(row.Select(level => (char)('0' + level)))).ToArray();
@@ -101,18 +188,19 @@ public sealed class DrumPattern
             new(0, 0, 0, MidiKind.Sustain, 0),
             new(LengthSamples(sampleRate, bpm), 0, 0, MidiKind.Sustain, 0),
         };
+        var random = seed != 0 ? new Random(seed ^ 0x5bd1) : null;
         for (var lane = 0; lane < DrumKit.Lanes.Count; lane++)
         {
             for (var s = 0; s < Steps; s++)
             {
                 var level = _steps[lane][s];
-                if (level == 0)
+                if (level == 0 || (random is not null && Chance(lane, s) < 100 && random.Next(100) >= Chance(lane, s)))
                 {
                     continue;
                 }
 
                 var at = (long)Math.Round((s * step) + SwingDelay(s) * step);
-                events.Add(new MidiEvent(at, DrumKit.Lanes[lane].Note, level == 2 ? (byte)127 : (byte)90));
+                events.Add(new MidiEvent(at, DrumKit.Lanes[lane].Note, (byte)Velocity(lane, s)));
                 events.Add(new MidiEvent(at + (long)(step / 2), DrumKit.Lanes[lane].Note, 0));
             }
         }
@@ -140,6 +228,7 @@ public sealed class DrumPattern
     public void ApplyPreset(string name)
     {
         var preset = Presets.First(p => p.Name == name);
+        ClearDetails();
         for (var lane = 0; lane < DrumKit.Lanes.Count; lane++)
         {
             for (var step = 0; step < Steps; step++)

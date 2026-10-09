@@ -32,7 +32,7 @@ public sealed class DrumWindow : Window
         FontFamily = new FontFamily("Segoe UI");
         FontSize = 13;
         _hint.Foreground = (Brush)FindResource("TextDim");
-        _hint.Text = "Click a step to cycle off, hit, accent. Right-click clears a step. Place puts the pattern at the playhead as a block you can move, copy and delete on the timeline.";
+        _hint.Text = "Click a step to cycle off, hit, accent. Right-click a step to clear it or set its velocity and how often it plays (the bar height shows velocity, a faded step plays only some of the time). Place puts the pattern at the playhead as a block you can move, copy and delete on the timeline.";
         _hint.TextWrapping = TextWrapping.Wrap;
         _hint.MaxWidth = 640;
         var panel = new StackPanel { Margin = new Thickness(18) };
@@ -157,6 +157,7 @@ public sealed class DrumWindow : Window
     private Border StepCell(DrumPattern pattern, int lane, int step)
     {
         var level = pattern.Get(lane, step);
+        var color = level == 2 ? Accent : (Brush)FindResource("Good");
         var cell = new Border
         {
             Width = StepWidth,
@@ -165,9 +166,23 @@ public sealed class DrumWindow : Window
             Margin = new Thickness(step % 4 == 0 && step > 0 ? 8 : 2, 0, 2, 0),
             BorderThickness = new Thickness(1),
             BorderBrush = (Brush)FindResource("Border"),
-            Background = level == 2 ? Accent : level == 1 ? (Brush)FindResource("Good") : (Brush)FindResource(step / 4 % 2 == 0 ? "Panel" : "Lane"),
+            Background = (Brush)FindResource(step / 4 % 2 == 0 ? "Panel" : "Lane"),
             Cursor = Cursors.Hand,
         };
+        if (level > 0)
+        {
+            var chance = pattern.Chance(lane, step);
+            cell.Child = new Border
+            {
+                Background = color,
+                CornerRadius = new CornerRadius(2),
+                VerticalAlignment = VerticalAlignment.Bottom,
+                Height = Math.Max(4, 26 * pattern.Velocity(lane, step) / 127.0),
+                Opacity = 0.4 + (0.6 * chance / 100),
+            };
+            cell.ToolTip = $"Velocity {pattern.Velocity(lane, step)}, plays {chance}% of the time. Right-click to change.";
+        }
+
         cell.MouseLeftButtonDown += (_, _) =>
         {
             var next = (byte)((level + 1) % 3);
@@ -177,7 +192,40 @@ public sealed class DrumWindow : Window
                 _main.AuditionDrum(lane, next == 2 ? 127 : 90);
             }
         };
-        cell.MouseRightButtonDown += (_, _) => _main.SetDrumStep(pattern, lane, step, 0);
+        cell.MouseRightButtonDown += (_, _) => StepMenu(cell, pattern, lane, step, level);
         return cell;
+    }
+
+    private void StepMenu(FrameworkElement target, DrumPattern pattern, int lane, int step, byte level)
+    {
+        var menu = new ContextMenu { PlacementTarget = target };
+        var clear = new MenuItem { Header = "Clear step" };
+        clear.Click += (_, _) => _main.SetDrumStep(pattern, lane, step, 0);
+        menu.Items.Add(clear);
+        if (level > 0)
+        {
+            var velocity = new MenuItem { Header = "Velocity" };
+            foreach (var v in new[] { 30, 50, 70, 90, 110, 127 })
+            {
+                var value = v;
+                var item = new MenuItem { Header = value.ToString(), IsChecked = pattern.Velocity(lane, step) == value };
+                item.Click += (_, _) => _main.SetDrumStepDetail(pattern, lane, step, value, null);
+                velocity.Items.Add(item);
+            }
+
+            var chance = new MenuItem { Header = "Chance to play" };
+            foreach (var c in new[] { 100, 75, 50, 25 })
+            {
+                var value = c;
+                var item = new MenuItem { Header = $"{value}%", IsChecked = pattern.Chance(lane, step) == value };
+                item.Click += (_, _) => _main.SetDrumStepDetail(pattern, lane, step, null, value);
+                chance.Items.Add(item);
+            }
+
+            menu.Items.Add(velocity);
+            menu.Items.Add(chance);
+        }
+
+        menu.IsOpen = true;
     }
 }

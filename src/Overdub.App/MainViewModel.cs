@@ -1414,6 +1414,25 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    public void SetDrumStepDetail(DrumPattern pattern, int lane, int step, int? velocity, int? chance)
+    {
+        if (DrumTrack is { } track)
+        {
+            _session.EditPattern(track, pattern, p =>
+            {
+                if (velocity is { } v)
+                {
+                    p.SetVelocity(lane, step, v);
+                }
+
+                if (chance is { } c)
+                {
+                    p.SetChance(lane, step, c);
+                }
+            }, "Edit drum step");
+        }
+    }
+
     public void SetDrumBars(DrumPattern pattern, int bars)
     {
         if (DrumTrack is { } track)
