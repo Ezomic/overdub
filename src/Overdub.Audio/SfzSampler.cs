@@ -20,6 +20,9 @@ public sealed class SfzRegion
     public double ReleaseTime { get; set; } = 0.15;
     public double VolumeDb { get; set; }
     public double RtDecay { get; set; }
+    public double Tune { get; set; }
+    public int SeqLength { get; set; } = 1;
+    public int SeqPosition { get; set; } = 1;
 }
 
 public sealed class SfzInstrument
@@ -144,6 +147,9 @@ public sealed class SfzInstrument
                 ReleaseTime = Dbl(opcodes, "ampeg_release", 0.15),
                 VolumeDb = Dbl(opcodes, "volume", 0),
                 RtDecay = Dbl(opcodes, "rt_decay", 0),
+                Tune = Dbl(opcodes, "tune", 0),
+                SeqLength = Int(opcodes, "seq_length", 1),
+                SeqPosition = Int(opcodes, "seq_position", 1),
             };
             Regions.Add(r);
             if (!r.Release)
@@ -210,6 +216,7 @@ public sealed class SfzPlayer : INoteTarget
     private readonly double[] _heldSince = new double[128];
     private readonly Random _random = new(12345);
     private int _sampleRate = 44100;
+    private int _sequence;
     private double _clock;
     private SfzInstrument? _instrument;
 
@@ -301,6 +308,12 @@ public sealed class SfzPlayer : INoteTarget
         var roll = _random.NextDouble();
         var lookup = release ? note : Math.Clamp(note, instrument.MinKey, Math.Max(instrument.MinKey, instrument.MaxKey));
         var matches = instrument.Regions.Where(region => region.Release == release && lookup >= region.LoKey && lookup <= region.HiKey && velocity >= region.LoVel && velocity <= region.HiVel && roll >= region.LoRand && roll < region.HiRand && region.Samples.Length > 0).ToList();
+        if (matches.Any(m => m.SeqLength > 1))
+        {
+            matches = matches.Where(m => m.SeqLength <= 1 || m.SeqPosition == (_sequence % m.SeqLength) + 1).ToList();
+            _sequence++;
+        }
+
         var layerGain = 1f / (float)Math.Sqrt(Math.Max(1, matches.Count));
         foreach (var region in matches)
         {
@@ -327,7 +340,7 @@ public sealed class SfzPlayer : INoteTarget
                 gain *= (float)Math.Pow(10, -region.RtDecay * held / 20);
             }
 
-            var ratio = release ? 1.0 : Math.Pow(2, (note - region.KeyCenter) / 12.0);
+            var ratio = release ? 1.0 : Math.Pow(2, ((note - region.KeyCenter) / 12.0) + (region.Tune / 1200.0));
             _voices[slot] = new Voice
             {
                 Active = true,

@@ -165,6 +165,14 @@ public partial class MainWindow : Window
             menu.Items.Add(item);
         }
 
+        if (track.Model.Machine is not null)
+        {
+            menu.Items.Add(new Separator());
+            var more = new MenuItem { Header = "Get more sounds..." };
+            more.Click += (_, _) => new SoundLibraryWindow(_viewModel, this).Show();
+            menu.Items.Add(more);
+        }
+
         menu.IsOpen = true;
     }
 
@@ -263,6 +271,7 @@ public partial class MainWindow : Window
     private void OnToolsClick(object sender, RoutedEventArgs e)
     {
         var menu = MenuFor(sender);
+        menu.Items.Add(Item("Sound library...", () => new SoundLibraryWindow(_viewModel, this).Show()));
         menu.Items.Add(Item("Tuner", () => OnTunerClick(ToolsButton, new RoutedEventArgs())));
         menu.Items.Add(Item("On-screen keyboard", () => OnKeyboardClick(ToolsButton, new RoutedEventArgs())));
         menu.Items.Add(Item("Piano roll", OpenPianoRoll));
