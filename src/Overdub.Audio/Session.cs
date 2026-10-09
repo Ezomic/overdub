@@ -173,6 +173,52 @@ public sealed class Session : IDisposable
         Tracks.SelectMany(t => t.Clips).Select(c => c.EndSample).DefaultIfEmpty(0).Max(),
         Tracks.SelectMany(t => t.MidiClips).Select(c => c.EndSample).DefaultIfEmpty(0).Max());
 
+    private int _previewVersion;
+
+    public Task PreviewMachineSound(Track track, string preset)
+    {
+        var machines = MachineTracks;
+        var own = machines.IndexOf(track);
+        var spare = machines.Count < Engine.Machines.Length ? machines.Count : own;
+        if (spare < 0 || Engine.SampleRate == 0)
+        {
+            return Task.CompletedTask;
+        }
+
+        var lane = Engine.Machines[spare];
+        var version = Interlocked.Increment(ref _previewVersion);
+        int[] phrase = track.Machine switch
+        {
+            MachineRole.Bass => [28, 31, 35, 40],
+            MachineRole.Lead => [64, 67, 71, 76],
+            _ => [52, 55, 59, 64],
+        };
+        return Task.Run(() =>
+        {
+            lane.Gain = track.Gain;
+            lane.Pan = track.Pan;
+            lane.SetPreset(preset, waitForSamples: true);
+            foreach (var note in phrase)
+            {
+                if (version != _previewVersion)
+                {
+                    break;
+                }
+
+                lane.Voice.NoteOn((byte)note, 100);
+                Thread.Sleep(380);
+                lane.Voice.NoteOff((byte)note);
+            }
+
+            Thread.Sleep(600);
+            lane.AllNotesOff();
+            if (spare != own && version == _previewVersion)
+            {
+                lane.SetPreset(null);
+            }
+        });
+    }
+
     public void ApplyMixerState()
     {
         var drums = Tracks.FirstOrDefault(t => t.IsDrums);

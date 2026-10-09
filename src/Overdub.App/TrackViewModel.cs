@@ -233,6 +233,8 @@ public sealed class TrackViewModel(Track model, Brush color, Action onMixChanged
 
     public string Preset => Model.Preset;
 
+    public string PresetTitle => Model.Machine is null ? Model.Preset : SoundPrograms.DisplayTitle(Model.Preset);
+
     public bool CanHaveEffects => !Model.IsMidi;
     public bool HasEffects => Model.Effects.AnyEnabled;
     public EffectChain Effects => Model.Effects;
@@ -406,6 +408,7 @@ public sealed class TrackViewModel(Track model, Brush color, Action onMixChanged
         Model.Preset = preset;
         onMixChanged();
         OnPropertyChanged(nameof(Preset));
+        OnPropertyChanged(nameof(PresetTitle));
     }
 
     public string MidiLabel

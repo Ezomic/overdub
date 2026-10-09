@@ -41,25 +41,7 @@ public sealed class SfzInstrument
 
     public static string Folder => System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Overdub", "Instruments");
 
-    public static IReadOnlyList<(string Name, string Path)> Discover()
-    {
-        if (!System.IO.Directory.Exists(Folder))
-        {
-            return [];
-        }
-
-        return System.IO.Directory.EnumerateFiles(Folder, "*.sfz", SearchOption.AllDirectories)
-            .Select(file =>
-            {
-                var folder = new System.IO.DirectoryInfo(System.IO.Path.GetDirectoryName(file)!).Name;
-                var name = System.IO.Path.GetFileNameWithoutExtension(file).Replace('_', ' ');
-                return ($"{folder}: {name} (sampled)", file);
-            })
-            .OrderBy(x => x.Item1)
-            .ToList();
-    }
-
-    public static string? FindPath(string? presetName) => presetName is null ? null : Discover().FirstOrDefault(d => d.Name == presetName).Path;
+    public static string? FindPath(string? presetName) => SoundPrograms.FindPath(presetName);
 
     public static SfzInstrument Load(string path) => Cache.GetOrAdd(System.IO.Path.GetFullPath(path), full =>
     {
