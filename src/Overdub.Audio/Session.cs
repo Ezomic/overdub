@@ -175,7 +175,7 @@ public sealed class Session : IDisposable
 
     private int _previewVersion;
 
-    public Task PreviewMachineSound(Track track, string preset, float volume = 1f)
+    public Task PreviewMachineSound(Track track, string preset, float volume = 1f, EffectChain? effects = null)
     {
         var machines = MachineTracks;
         var own = machines.IndexOf(track);
@@ -193,11 +193,22 @@ public sealed class Session : IDisposable
             MachineRole.Lead => [64, 67, 71, 76],
             _ => [52, 55, 59, 64],
         };
+        var previousSource = lane.Source;
+        var previousProcessor = lane.Processor;
+        var rate = Engine.SampleRate;
         return Task.Run(() =>
         {
             lane.Gain = track.Gain * volume;
             lane.Pan = track.Pan;
             lane.SetPreset(preset, waitForSamples: true);
+            if (effects is not null)
+            {
+                var processor = new EffectChain();
+                processor.Configure(rate);
+                lane.Processor = processor;
+                lane.Source = effects;
+            }
+
             foreach (var note in phrase)
             {
                 if (version != _previewVersion)
@@ -212,9 +223,18 @@ public sealed class Session : IDisposable
 
             Thread.Sleep(600);
             lane.AllNotesOff();
-            if (spare != own && version == _previewVersion)
+            if (version == _previewVersion)
             {
-                lane.SetPreset(null);
+                if (effects is not null)
+                {
+                    lane.Source = previousSource;
+                    lane.Processor = previousProcessor;
+                }
+
+                if (spare != own)
+                {
+                    lane.SetPreset(null);
+                }
             }
         });
     }

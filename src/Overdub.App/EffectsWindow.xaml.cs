@@ -106,9 +106,52 @@ public partial class EffectsWindow : Window
         }
     }
 
+    private readonly CheckBox _autoPreview = new() { Content = "Auto preview", VerticalAlignment = VerticalAlignment.Center, Focusable = false, Margin = new Thickness(12, 0, 0, 0) };
+    private Button? _previewButton;
+
+    private bool CanPreview => _track.Model.Machine is not null;
+
+    private MenuItem PresetItem(string header, Action apply, Action<EffectChain> change)
+    {
+        var item = new MenuItem { Header = header };
+        item.Click += (_, _) => apply();
+        if (CanPreview)
+        {
+            item.MouseEnter += async (_, _) =>
+            {
+                if (_autoPreview.IsChecked == true)
+                {
+                    await RunPreview(change);
+                }
+            };
+        }
+
+        return item;
+    }
+
+    private async Task RunPreview(Action<EffectChain>? change)
+    {
+        if (_previewButton is not null)
+        {
+            _previewButton.Content = "Playing...";
+        }
+
+        try
+        {
+            await _main.PreviewEffects(_track, change);
+        }
+        finally
+        {
+            if (_previewButton is not null)
+            {
+                _previewButton.Content = "Preview";
+            }
+        }
+    }
+
     private void BuildChainPresets()
     {
-        var row = new DockPanel { Margin = new Thickness(0, 0, 0, 20) };
+        var row = new DockPanel { Margin = new Thickness(0, 0, 0, 8) };
         var button = new Button { Content = "Presets...", Style = (Style)FindResource("TransportButton"), Width = 96, Height = 26, FontSize = 12, Padding = new Thickness(12, 0, 12, 0), Focusable = false, Margin = new Thickness(0, 0, 12, 0) };
         button.Click += (_, _) =>
         {
@@ -119,9 +162,7 @@ public partial class EffectsWindow : Window
                 foreach (var preset in EffectPresets.All.Where(p => p.Group == group))
                 {
                     var chosen = preset;
-                    var item = new MenuItem { Header = chosen.Name };
-                    item.Click += (_, _) => _track.ApplyChainPreset(chosen);
-                    groupItem.Items.Add(item);
+                    groupItem.Items.Add(PresetItem(chosen.Name, () => _track.ApplyChainPreset(chosen), chain => chosen.ApplyTo(chain)));
                 }
 
                 menu.Items.Add(groupItem);
@@ -133,6 +174,32 @@ public partial class EffectsWindow : Window
         row.Children.Add(button);
         row.Children.Add(new TextBlock { Text = "Sets the amp, equalizer, compressor and reverb together. Undo brings the old settings back.", Foreground = (Brush)FindResource("TextDim"), TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center });
         Panels.Children.Add(row);
+        if (!CanPreview)
+        {
+            Panels.Children.Add(new Border { Height = 12 });
+            return;
+        }
+
+        var previewRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 20) };
+        _previewButton = new Button { Content = "Preview", Style = (Style)FindResource("TransportButton"), Width = 96, Height = 26, FontSize = 12, Padding = new Thickness(12, 0, 12, 0), Focusable = false, Margin = new Thickness(0, 0, 12, 0), ToolTip = "Play a short phrase on this track through the current settings" };
+        _previewButton.Click += async (_, _) => await RunPreview(null);
+        previewRow.Children.Add(_previewButton);
+        previewRow.Children.Add(new TextBlock { Text = "Volume", Foreground = (Brush)FindResource("TextDim"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) });
+        var volume = new Slider { Minimum = 0, Maximum = 1, Value = PreviewSettings.Volume, Width = 100, Focusable = false, VerticalAlignment = VerticalAlignment.Center };
+        var readout = new TextBlock { Text = $"{PreviewSettings.Volume:P0}", FontFamily = new FontFamily("Consolas"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0), MinWidth = 36 };
+        volume.ValueChanged += (_, e) =>
+        {
+            PreviewSettings.Volume = (float)e.NewValue;
+            readout.Text = $"{e.NewValue:P0}";
+        };
+        previewRow.Children.Add(volume);
+        previewRow.Children.Add(readout);
+        _autoPreview.IsChecked = PreviewSettings.Auto;
+        _autoPreview.ToolTip = "Hover a preset in the menus to hear it before choosing";
+        _autoPreview.Checked += (_, _) => PreviewSettings.Auto = true;
+        _autoPreview.Unchecked += (_, _) => PreviewSettings.Auto = false;
+        previewRow.Children.Add(_autoPreview);
+        Panels.Children.Add(previewRow);
     }
 
     private void Build()
@@ -168,9 +235,16 @@ public partial class EffectsWindow : Window
                     foreach (var (presetName, values) in TrackViewModel.AmpPresets)
                     {
                         var chosen = (presetName, values);
-                        var item = new MenuItem { Header = presetName };
-                        item.Click += (_, _) => _track.ApplyEffectPreset(index, chosen.presetName, chosen.values);
-                        menu.Items.Add(item);
+                        menu.Items.Add(PresetItem(presetName, () => _track.ApplyEffectPreset(index, chosen.presetName, chosen.values), chain =>
+                        {
+                            var amp = chain.Effects[index];
+                            for (var i = 0; i < Math.Min(chosen.values.Length, amp.Values.Length); i++)
+                            {
+                                amp.Set(i, chosen.values[i]);
+                            }
+
+                            amp.Enabled = true;
+                        }));
                     }
 
                     menu.IsOpen = true;
