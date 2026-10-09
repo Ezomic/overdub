@@ -1799,7 +1799,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public void PlayNote(byte note, byte velocity) => _session.HandleNote(note, velocity);
 
-    public SongKey? DetectSongKey() => KeyFinder.FromSession(_session);
+    public SongKey? DetectSongKey() => KeyFinder.FromSession(_session, includeAudio: true);
 
     public Task PreviewSound(TrackViewModel track, string preset) => _session.PreviewMachineSound(track.Model, preset, PreviewSettings.Volume);
 
