@@ -141,7 +141,23 @@ public static partial class SoundPrograms
             var kind = pack?.Kind ?? "Other";
             var description = pack?.Description ?? "Your own pack in Documents\\Overdub\\Instruments, made from a recording or copied in by hand.";
             var titles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var file in files.Where(f => !included.Contains(System.IO.Path.GetFullPath(f)) && texts.TryGetValue(f, out var text) && IsStandalone(f, text)).OrderBy(f => f, StringComparer.OrdinalIgnoreCase))
+            bool Standalone(string f)
+            {
+                try
+                {
+                    return !included.Contains(System.IO.Path.GetFullPath(f)) && texts.TryGetValue(f, out var text) && IsStandalone(f, text);
+                }
+                catch (Exception ex) when (ex is IOException or ArgumentException or RegexMatchTimeoutException)
+                {
+                    return false;
+                }
+            }
+
+            var programsDir = System.IO.Path.Combine(packDir, "Programs");
+            var candidates = Directory.Exists(programsDir)
+                ? files.Where(f => string.Equals(System.IO.Path.GetDirectoryName(f), programsDir, StringComparison.OrdinalIgnoreCase)).ToList()
+                : files;
+            foreach (var file in candidates.Where(Standalone).OrderBy(f => f, StringComparer.OrdinalIgnoreCase))
             {
                 var title = CleanTitle(System.IO.Path.GetFileNameWithoutExtension(file), folder);
                 var unique = title;
@@ -159,16 +175,39 @@ public static partial class SoundPrograms
 
     private static bool IsStandalone(string file, string text)
     {
-        var defines = DefinePattern().Matches(text).ToDictionary(m => m.Groups[1].Value, m => m.Groups[2].Value.Trim());
+        var defines = new Dictionary<string, string>(StringComparer.Ordinal);
         string Resolve(string value) => defines.OrderByDescending(d => d.Key.Length).Aggregate(value, (v, d) => v.Replace(d.Key, d.Value, StringComparison.Ordinal));
-        var sample = SamplePattern().Match(text);
-        if (!sample.Success)
+        var defaultPath = "";
+        foreach (var rawLine in text.Split('\n'))
         {
-            return text.Contains("#include", StringComparison.Ordinal);
+            var line = rawLine;
+            var comment = line.IndexOf("//", StringComparison.Ordinal);
+            if (comment >= 0)
+            {
+                line = line[..comment];
+            }
+
+            var define = DefinePattern().Match(line);
+            if (define.Success)
+            {
+                defines[define.Groups[1].Value] = define.Groups[2].Value.Trim();
+                continue;
+            }
+
+            var path = DefaultPathPattern().Match(line);
+            if (path.Success)
+            {
+                defaultPath = Resolve(path.Groups[1].Value);
+            }
+
+            var sample = SamplePattern().Match(line);
+            if (sample.Success)
+            {
+                return SfzInstrument.ResolveSample(System.IO.Path.GetDirectoryName(file)!, defaultPath, Resolve(sample.Groups[1].Value)) is not null;
+            }
         }
 
-        var defaultPath = DefaultPathPattern().Match(text) is { Success: true } dp ? Resolve(dp.Groups[1].Value) : "";
-        return SfzInstrument.ResolveSample(System.IO.Path.GetDirectoryName(file)!, defaultPath, Resolve(sample.Groups[1].Value)) is not null;
+        return text.Contains("#include", StringComparison.Ordinal);
     }
 
     private static string CleanTitle(string stem, string folder)
@@ -209,7 +248,7 @@ public static partial class SoundPrograms
     [GeneratedRegex("#define\\s+(\\$\\w+)\\s+(\\S+)")]
     private static partial Regex DefinePattern();
 
-    [GeneratedRegex("(?m)(?:^|[\\s>])sample=(\\S+)")]
+    [GeneratedRegex("(?m)(?:^|[\\s>])sample=(.+?)(?=\\s+\\w+=|\\s*$)")]
     private static partial Regex SamplePattern();
 
     [GeneratedRegex("(?m)(?:^|[\\s>])default_path=(\\S+)")]
