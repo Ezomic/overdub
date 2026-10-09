@@ -26,6 +26,10 @@ public sealed class EditHistory
     public string? UndoName => _undo.Last?.Value.Name;
     public string? RedoName => _redo.TryPeek(out var command) ? command.Name : null;
 
+    public IReadOnlyList<string> UndoNames => _undo.Select(c => c.Name).ToList();
+
+    public IReadOnlyList<string> RedoNames => _redo.Select(c => c.Name).ToList();
+
     public void Execute(string name, Action doIt, Action undo, EditKind kind = EditKind.Clips, string? mergeKey = null)
     {
         doIt();
