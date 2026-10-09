@@ -552,6 +552,28 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         engine.Seek(Math.Max(0, (long)(engine.Position + (direction * step))));
     }
 
+    public IReadOnlyList<BackupEntry> Backups => _session.Backups;
+
+    public void RestoreBackup(BackupEntry backup)
+    {
+        if (IsRecording)
+        {
+            Message = "Stop recording before restoring a backup.";
+            return;
+        }
+
+        try
+        {
+            _session.RestoreBackup(backup);
+            Open(_session.ProjectPath);
+            Notice = $"Restored the backup from {backup.Time:HH:mm}. Your previous version was backed up first.";
+        }
+        catch (Exception ex)
+        {
+            Message = ex.Message;
+        }
+    }
+
     public AsioEngine Clicker => _session.Engine;
 
     public void SetClickSound(int sound) => _session.Engine.ClickSound = sound;

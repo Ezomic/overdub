@@ -948,7 +948,18 @@ public sealed class Session : IDisposable
             t.IsDrums ? t.DrumLanes.Select(l => new DrumLaneData(l.Gain, l.Pan, l.Mute)).ToList() : null)).ToList();
         ProjectFile.Write(ProjectPath, new ProjectData(1, Engine.SampleRate, Engine.Bpm, tracks, Engine.BeatsPerBar, Engine.BeatUnit, Sections.Select(x => new SectionData(x.Id, x.Name, x.Start, x.Length)).ToList()));
         RecentProjects.Add(ProjectPath);
+        try
+        {
+            ProjectBackups.Snapshot(ProjectPath);
+        }
+        catch (IOException)
+        {
+        }
     }
+
+    public IReadOnlyList<BackupEntry> Backups => ProjectBackups.List(ProjectPath);
+
+    public void RestoreBackup(BackupEntry backup) => ProjectBackups.Restore(ProjectPath, backup);
 
     private static PluginData? PluginDataFor(PluginSlot slot)
     {

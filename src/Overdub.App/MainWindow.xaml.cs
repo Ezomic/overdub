@@ -232,6 +232,22 @@ public partial class MainWindow : Window
         menu.Items.Add(Item("Open...", () => OnOpenClick(FileButton, new RoutedEventArgs())));
         menu.Items.Add(Item("Save", () => _viewModel.Save()));
         menu.Items.Add(new Separator());
+        var restore = new MenuItem { Header = "Restore a backup" };
+        var backups = _viewModel.Backups;
+        if (backups.Count == 0)
+        {
+            restore.Items.Add(new MenuItem { Header = "No backups yet. One is saved every couple of minutes while you work.", IsEnabled = false });
+        }
+
+        foreach (var backup in backups.Take(15))
+        {
+            var chosen = backup;
+            var label = $"{(chosen.Time.Date == DateTime.Today ? "Today" : chosen.Time.ToString("d MMM"))} {chosen.Time:HH:mm}  ({chosen.Size / 1024} KB)";
+            restore.Items.Add(Item(label, () => _viewModel.RestoreBackup(chosen)));
+        }
+
+        menu.Items.Add(restore);
+        menu.Items.Add(new Separator());
         menu.Items.Add(Item("Import audio...", () => OnImportClick(FileButton, new RoutedEventArgs())));
         menu.Items.Add(Item("Export mixdown...", () => OnExportClick(FileButton, new RoutedEventArgs())));
         menu.Items.Add(Item("Export stems...", () => OnStemsClick(FileButton, new RoutedEventArgs())));
