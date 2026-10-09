@@ -149,6 +149,13 @@ public partial class MainWindow
         }
 
         var control = Keyboard.Modifiers.HasFlag(ModifierKeys.Control);
+        if (control && e.Key is >= Key.D1 and <= Key.D4)
+        {
+            SelectSection(e.Key - Key.D1);
+            e.Handled = true;
+            return;
+        }
+
         switch (e.Key)
         {
             case Key.Space:

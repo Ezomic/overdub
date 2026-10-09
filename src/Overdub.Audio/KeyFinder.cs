@@ -38,6 +38,25 @@ public static class KeyFinder
         return AudioAnalyzer.DetectKey(samples, rate) is { } fromAudio ? new SongKey(fromAudio.Tonic, fromAudio.Minor, fromAudio.Confidence, "the audio recording") : null;
     }
 
+    public static IReadOnlyList<Chord> OpeningProgression(Session session)
+    {
+        var tracks = session.Tracks.Where(t => t.Machine == MachineRole.Guitar && t.ChordPatterns.Count > 0).ToList();
+        if (tracks.Count == 0)
+        {
+            tracks = session.Tracks.Where(t => t.Machine == MachineRole.Bass && t.ChordPatterns.Count > 0).ToList();
+        }
+
+        if (tracks.Count == 0)
+        {
+            return [];
+        }
+
+        var earliest = tracks.SelectMany(t => t.MidiClips).Where(c => c.PatternId is not null).OrderBy(c => c.StartSample).FirstOrDefault()?.PatternId;
+        var pattern = tracks.SelectMany(t => t.ChordPatterns).FirstOrDefault(p => p.Id == earliest) ?? tracks[0].ChordPatterns[0];
+        var effective = session.EffectivePattern(pattern);
+        return Enumerable.Range(0, effective.Bars).Select(i => effective[i]).ToList();
+    }
+
     private static SongKey? FromChords(Session session)
     {
         var chordTracks = session.Tracks.Where(t => t.Machine is MachineRole.Guitar or MachineRole.Bass).ToList();

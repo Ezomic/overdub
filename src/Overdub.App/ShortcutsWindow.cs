@@ -21,6 +21,7 @@ public sealed class ShortcutsWindow : Window
         ("Ctrl+Z", "Undo"),
         ("Ctrl+Y or Ctrl+Shift+Z", "Redo"),
         ("Ctrl+S", "Save the project"),
+        ("Ctrl+1 to Ctrl+4", "Switch section: Record and mix, Build a song, Learn, Sounds"),
         ("F1", "Show this list"),
     ];
 
