@@ -1370,6 +1370,48 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _session.PlaceMelody(track, events, start);
     }
 
+    public async Task ChordsFromRecordingAsync(ChordPattern pattern)
+    {
+        var engine = _session.Engine;
+        var position = engine.Position;
+        var clip = _selection as Clip
+            ?? Tracks.SelectMany(t => t.Model.Clips).FirstOrDefault(c => position >= c.StartSample && position < c.EndSample)
+            ?? Tracks.SelectMany(t => t.Model.Clips).FirstOrDefault();
+        if (clip is null || engine.SampleRate == 0)
+        {
+            Message = "Record or import some audio first, or click the clip you want to read the chords from.";
+            return;
+        }
+
+        var playback = clip.Playback;
+        var samples = playback.Samples;
+        var offset = (int)playback.Offset;
+        var rate = engine.SampleRate;
+        var bar = engine.SamplesPerBeat * engine.BeatsPerBar;
+        var bars = pattern.Bars;
+        Notice = "Listening for chords...";
+        var found = await Task.Run(() => ChordRecognizer.PerBar(samples, offset, rate, bar, bars));
+        if (found.All(c => c is null))
+        {
+            Notice = "";
+            Message = "Could not hear clear chords in that clip. Try a clip that starts on bar 1 and has the chords played clearly.";
+            return;
+        }
+
+        EditChordPattern(pattern, p =>
+        {
+            for (var i = 0; i < bars; i++)
+            {
+                if (found[i] is { } chord)
+                {
+                    p[i] = chord;
+                }
+            }
+        }, "Chords from recording");
+        Message = "";
+        Notice = "Chords: " + string.Join("  ", found.Select(c => c?.Name ?? "?"));
+    }
+
     public ChordPattern EffectivePattern(ChordPattern pattern) => _session.EffectivePattern(pattern);
 
     public IReadOnlyList<(string Label, ChordPattern Pattern)> GuitarPatterns() =>

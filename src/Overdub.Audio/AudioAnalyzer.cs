@@ -78,14 +78,26 @@ public static class AudioAnalyzer
 
     public static KeyResult? DetectKey(float[] samples, int sampleRate)
     {
-        const int size = 8192;
-        const int hop = 4096;
-        if (samples.Length < size * 2)
+        if (samples.Length < ChromaWindow * 2)
         {
             return null;
         }
 
+        return BestKey(Chroma(samples, 0, samples.Length, sampleRate));
+    }
+
+    private const int ChromaWindow = 8192;
+
+    public static double[] Chroma(float[] samples, int offset, int length, int sampleRate)
+    {
+        const int size = ChromaWindow;
+        const int hop = 4096;
         var chroma = new double[12];
+        if (length < size)
+        {
+            return chroma;
+        }
+
         var window = Hann(size);
         var buffer = new Complex[size];
         var bins = new List<(int Bin, int PitchClass, double Weight)>();
@@ -105,7 +117,7 @@ public static class AudioAnalyzer
             }
         }
 
-        for (var start = 0; start + size <= samples.Length; start += hop)
+        for (var start = offset; start + size <= offset + length && start + size <= samples.Length; start += hop)
         {
             for (var i = 0; i < size; i++)
             {
@@ -119,7 +131,7 @@ public static class AudioAnalyzer
             }
         }
 
-        return BestKey(chroma);
+        return chroma;
     }
 
     public static KeyResult? DetectKey(IEnumerable<MidiNote> notes)
