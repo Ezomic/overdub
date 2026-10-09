@@ -41,7 +41,7 @@ public sealed class SoundPickerWindow : Window
     private readonly MainViewModel _main;
     private readonly TrackViewModel _track;
     private readonly List<Entry> _entries;
-    private readonly TextBox _search = new() { Padding = new Thickness(6, 4, 6, 4), VerticalContentAlignment = VerticalAlignment.Center };
+    private readonly TextBox _search = new() { Padding = new Thickness(6, 4, 6, 4), VerticalContentAlignment = VerticalAlignment.Center, Background = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x27)), Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xEA)), BorderBrush = new SolidColorBrush(Color.FromRgb(0x3A, 0x3A, 0x3F)), CaretBrush = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xEA)) };
     private readonly ListBox _packs = new();
     private readonly ListBox _sounds = new();
     private readonly TextBlock _description = new() { TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
