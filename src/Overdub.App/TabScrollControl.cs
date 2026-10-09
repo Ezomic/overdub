@@ -12,6 +12,8 @@ public sealed record TabBar(long Start, string Chord);
 public sealed class TabScrollControl : FrameworkElement
 {
     private static readonly string[] StringNames = ["G", "D", "A", "E"];
+    private static readonly int[] OpenPitches = [43, 38, 33, 28];
+    public static readonly string[] LabelModeNames = ["Fret numbers", "Note names", "Both"];
     private const double PixelsPerSecond = 110;
     private const double NowX = 170;
 
@@ -20,6 +22,16 @@ public sealed class TabScrollControl : FrameworkElement
     public long Position { get; set; }
     public int SampleRate { get; set; } = 44100;
     public bool Playing { get; set; }
+    public int LabelMode { get; set; } = 2;
+
+    public static string NoteName(int stringIndex, int fret) => Chord.Roots[(OpenPitches[stringIndex] + fret) % 12];
+
+    private string Label(TabNote note) => LabelMode switch
+    {
+        0 => note.Fret.ToString(CultureInfo.InvariantCulture),
+        1 => NoteName(note.String, note.Fret),
+        _ => $"{note.Fret.ToString(CultureInfo.InvariantCulture)} {NoteName(note.String, note.Fret)}",
+    };
 
     protected override void OnRender(DrawingContext context)
     {
@@ -69,9 +81,9 @@ public sealed class TabScrollControl : FrameworkElement
             var past = end < NowX;
             var current = x <= NowX && end >= NowX && Playing;
             var fill = current ? accent : past ? new SolidColorBrush(Color.FromRgb(0x44, 0x44, 0x4C)) : new SolidColorBrush(Color.FromRgb(0x58, 0xB3, 0x6A));
-            var width = Math.Max(20, end - x - 2);
+            var number = new FormattedText(Label(note), CultureInfo.InvariantCulture, FlowDirection.LeftToRight, new Typeface(new FontFamily("Segoe UI"), FontStyles.Normal, FontWeights.Bold, FontStretches.Normal), 12, new SolidColorBrush(Color.FromRgb(0x14, 0x14, 0x18)), dpi);
+            var width = Math.Max(number.Width + 14, end - x - 2);
             context.DrawRoundedRectangle(fill, null, new Rect(x, y - 10, width, 20), 4, 4);
-            var number = new FormattedText(note.Fret.ToString(CultureInfo.InvariantCulture), CultureInfo.InvariantCulture, FlowDirection.LeftToRight, new Typeface(new FontFamily("Segoe UI"), FontStyles.Normal, FontWeights.Bold, FontStretches.Normal), 12, new SolidColorBrush(Color.FromRgb(0x14, 0x14, 0x18)), dpi);
             context.DrawText(number, new Point(x + 7, y - (number.Height / 2)));
         }
 
