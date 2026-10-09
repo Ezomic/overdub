@@ -1443,6 +1443,98 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    public void ExportSongMidi(string? path = null)
+    {
+        var tracks = Tracks.Where(t => t.Model.IsMidi).Select(t => (t.Name, (IReadOnlyList<MidiNoteData>)t.Model.MidiClips.SelectMany(c => c.NoteData()).ToList(), t.Model.IsDrums)).ToList();
+        if (tracks.All(t => t.Item2.Count == 0))
+        {
+            Message = "There are no MIDI notes yet. Place a drum, chord or melody block first.";
+            return;
+        }
+
+        path ??= AskSavePath("Song", "MIDI file (*.mid)|*.mid", ".mid");
+        if (path is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var engine = _session.Engine;
+            MidiExporter.WriteSong(path, tracks, engine.Bpm, engine.BeatsPerBar, engine.BeatUnit, engine.SampleRate);
+            Message = "";
+            Notice = $"Exported {Path.GetFileName(path)}";
+        }
+        catch (Exception ex)
+        {
+            Message = ex.Message;
+        }
+    }
+
+    public void ExportBassTab(string? path = null)
+    {
+        var engine = _session.Engine;
+        var bass = Tracks.Select(t => t.Model).Where(t => t.Machine == MachineRole.Bass && t.MidiClips.Count > 0).ToList();
+        if (bass.Count == 0)
+        {
+            Message = "Add a bass machine track with a block on the timeline first.";
+            return;
+        }
+
+        if (engine.BeatsPerBar != 4 || engine.BeatUnit != 4)
+        {
+            Message = "Bass tab export works in 4/4 for now.";
+            return;
+        }
+
+        path ??= AskSavePath("Bass tab", "Web page (*.html)|*.html|Text file (*.txt)|*.txt", ".html");
+        if (path is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var barLength = engine.SamplesPerBeat * 4;
+            var sixteenth = barLength / 16;
+            var text = new System.Text.StringBuilder();
+            foreach (var track in bass)
+            {
+                var notes = track.MidiClips.SelectMany(c => c.NoteData()).ToList();
+                var bars = (int)Math.Ceiling(notes.Max(n => n.End) / barLength);
+                text.AppendLine($"{track.Name}");
+                text.AppendLine($"Tempo {engine.Bpm:0} BPM, 4/4. Strings G D A E. Numbers are frets, x is a muted ghost note.");
+                text.AppendLine();
+                text.AppendLine(BassTab.RenderNotes(notes, 0, sixteenth, bars, b => ChordAtSample(track, (long)(b * barLength)) ?? string.Empty));
+                text.AppendLine();
+            }
+
+            var body = text.ToString();
+            if (path.EndsWith(".html", StringComparison.OrdinalIgnoreCase))
+            {
+                var page = "<!doctype html><html><head><meta charset=\"utf-8\"><title>Bass tab</title><style>body{font-family:Segoe UI,sans-serif;margin:32px}pre{font-family:Consolas,monospace;font-size:13px;line-height:1.25}@media print{body{margin:12mm}}</style></head><body><pre>" + System.Net.WebUtility.HtmlEncode(body) + "</pre></body></html>";
+                File.WriteAllText(path, page);
+            }
+            else
+            {
+                File.WriteAllText(path, body);
+            }
+
+            Message = "";
+            Notice = $"Exported {Path.GetFileName(path)}";
+        }
+        catch (Exception ex)
+        {
+            Message = ex.Message;
+        }
+    }
+
+    private string? AskSavePath(string name, string filter, string extension)
+    {
+        var dialog = new Microsoft.Win32.SaveFileDialog { Filter = filter, FileName = name + extension, InitialDirectory = _session.Directory };
+        return dialog.ShowDialog() == true ? dialog.FileName : null;
+    }
+
     public void ExportSelectedMidi(string? path = null)
     {
         if (_selection is not MidiClip clip || Tracks.FirstOrDefault(t => t.Model.MidiClips.Contains(clip)) is not { } track)

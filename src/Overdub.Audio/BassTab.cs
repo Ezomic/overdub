@@ -39,13 +39,22 @@ public static class BassTab
         const double bpm = 120;
         var sixteenth = rate * 60.0 / bpm / 4;
         var notes = new MidiClip(pattern.ToEvents(rate, bpm, 4)).NoteData();
-        var bars = pattern.Bars;
+        return RenderNotes(notes, 0, sixteenth, pattern.Bars, b => pattern[b].Name, barsPerLine);
+    }
+
+    public static string RenderNotes(IReadOnlyList<MidiNoteData> notes, long origin, double sixteenthSamples, int bars, Func<int, string> chordAt, int barsPerLine = 2)
+    {
+        bars = Math.Max(1, bars);
         var grid = Enumerable.Range(0, Open.Length).Select(_ => Enumerable.Range(0, bars).Select(_ => Enumerable.Repeat('-', StepsPerBar * Slot).ToArray()).ToArray()).ToArray();
-        var ghosts = new HashSet<(int Bar, int Step)>();
         foreach (var note in notes)
         {
-            var step = (int)Math.Round(note.Start / sixteenth);
-            var bar = Math.Min(bars - 1, step / StepsPerBar);
+            var step = (int)Math.Round((note.Start - origin) / sixteenthSamples);
+            if (step < 0 || step >= bars * StepsPerBar)
+            {
+                continue;
+            }
+
+            var bar = step / StepsPerBar;
             var slot = step % StepsPerBar;
             var (s, fret) = Position(note.Pitch);
             var text = note.Velocity < 50 ? "x" : fret.ToString();
@@ -62,7 +71,7 @@ public static class BassTab
             builder.Append("  ");
             for (var b = first; b < last; b++)
             {
-                builder.Append(pattern[b].Name.PadRight((StepsPerBar * Slot) + 1));
+                builder.Append(chordAt(b).PadRight((StepsPerBar * Slot) + 1));
             }
 
             builder.AppendLine();
