@@ -224,6 +224,7 @@ public sealed class TrackViewModel(Track model, Brush color, Action onMixChanged
     public bool IsKeys => Model.IsKeys;
     public bool IsMachine => Model.Machine is not null;
     public bool IsLead => Model.Machine == MachineRole.Lead;
+    public bool IsBass => Model.Machine == MachineRole.Bass;
     public bool IsChordMachine => Model.Machine is MachineRole.Guitar or MachineRole.Bass;
     public bool IsAudio => !Model.IsMidi;
     public string InputText => Model.IsBacking ? "Imported audio" : Model.Input is { } input ? $"Input {input + 1}, instrument" : "MIDI, built-in synth";

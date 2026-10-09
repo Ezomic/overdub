@@ -30,6 +30,12 @@ public enum ChordStyle
     RootAndFifth,
     Walking,
     Octaves,
+    Rock8ths,
+    Syncopated,
+    Funk,
+    Motown,
+    Reggae,
+    WalkingApproach,
 }
 
 public readonly record struct Chord(int Root, ChordQuality Quality)
@@ -38,7 +44,7 @@ public readonly record struct Chord(int Root, ChordQuality Quality)
 
     public static readonly string[] QualityNames = ["maj", "min", "7", "maj7", "m7", "sus4", "dim", "5"];
 
-    public string Name => Roots[Root] + (Quality == ChordQuality.Major ? "" : QualityNames[(int)Quality]);
+    public string Name => Roots[Root] + (Quality switch { ChordQuality.Major => "", ChordQuality.Minor => "m", _ => QualityNames[(int)Quality] });
 
     public int[] Intervals => Quality switch
     {
@@ -79,6 +85,7 @@ public sealed class ChordPattern
     public MachineRole Role { get; }
     public int Bars { get; set; }
     public ChordStyle Style { get; set; }
+    public string? FollowId { get; set; }
 
     public Chord this[int bar]
     {
@@ -88,10 +95,34 @@ public sealed class ChordPattern
 
     public static IReadOnlyList<ChordStyle> Styles(MachineRole role) => role == MachineRole.Guitar
         ? [ChordStyle.Strum, ChordStyle.FolkStrum, ChordStyle.Arpeggio, ChordStyle.Pad]
-        : [ChordStyle.WholeNotes, ChordStyle.RootPulse, ChordStyle.RootAndFifth, ChordStyle.Walking, ChordStyle.Octaves];
+        : BassStyles;
+
+    public static readonly IReadOnlyList<ChordStyle> BassStyles =
+    [
+        ChordStyle.WholeNotes, ChordStyle.RootPulse, ChordStyle.RootAndFifth, ChordStyle.Octaves, ChordStyle.Rock8ths,
+        ChordStyle.Syncopated, ChordStyle.Motown, ChordStyle.Funk, ChordStyle.Reggae, ChordStyle.Walking, ChordStyle.WalkingApproach,
+    ];
+
+    public static string StyleDescription(ChordStyle style) => style switch
+    {
+        ChordStyle.WholeNotes => "One long root note per bar. Locks with the kick and leaves room for the other instruments.",
+        ChordStyle.RootPulse => "The root note on every eighth. Drives the song and is a good first thing to get steady.",
+        ChordStyle.RootAndFifth => "Root on beats 1 and 3, the fifth on beats 2 and 4. The fifth outlines the chord without changing its sound.",
+        ChordStyle.Octaves => "The root jumping up an octave every other eighth, the classic disco and pop pump.",
+        ChordStyle.Rock8ths => "Steady eighth-note roots with the fifth on the last eighth to push into the next beat.",
+        ChordStyle.Syncopated => "A 3 + 3 + 2 grouping of the beat. The accents land between the beats, which gives it forward lean.",
+        ChordStyle.Motown => "Eighth notes with octave jumps and the fifth. Busy but always moving through chord tones.",
+        ChordStyle.Funk => "Sixteenth-note feel with muted ghost notes (the x marks) between the main notes. Keep the ghost notes quiet and short.",
+        ChordStyle.Reggae => "Beat 1 left empty with long notes after it. The space is the style, so do not fill it.",
+        ChordStyle.Walking => "One note per beat: root, third, fifth, sixth. Walks up the chord and works at slow and medium tempos.",
+        ChordStyle.WalkingApproach => "Like walking, but the last beat steps up a half step into the next chord's root. This is how bass lines lead into a chord change.",
+        _ => "",
+    };
 
     public static string StyleName(ChordStyle style) => style switch
     {
+        ChordStyle.Rock8ths => "Rock eighths",
+        ChordStyle.WalkingApproach => "Walking with approach note",
         ChordStyle.FolkStrum => "Folk strum",
         ChordStyle.WholeNotes => "Whole notes",
         ChordStyle.RootPulse => "Root pulse",
@@ -104,7 +135,16 @@ public sealed class ChordPattern
         Name = other.Name;
         Bars = other.Bars;
         Style = other.Style;
+        FollowId = other.FollowId;
         Array.Copy(other._chords, _chords, MaxBars);
+    }
+
+    public ChordPattern WithChordsFrom(ChordPattern source)
+    {
+        var copy = Clone();
+        copy.Bars = source.Bars;
+        Array.Copy(source._chords, copy._chords, MaxBars);
+        return copy;
     }
 
     public ChordPattern Clone()
@@ -201,38 +241,8 @@ public sealed class ChordPattern
                     }
 
                     break;
-                case ChordStyle.WholeNotes:
-                    Add(events, start, bar * 0.97, BassRoot(chord), 100);
-                    break;
-                case ChordStyle.RootPulse:
-                    for (var i = 0; i < beatsPerBar * 2; i++)
-                    {
-                        Add(events, start + (i * beat / 2), beat * 0.42, BassRoot(chord), i % 2 == 0 ? 100 : 80);
-                    }
-
-                    break;
-                case ChordStyle.RootAndFifth:
-                    for (var i = 0; i < beatsPerBar; i++)
-                    {
-                        Add(events, start + (i * beat), beat * 0.85, BassRoot(chord) + (i % 2 == 1 ? 7 : 0), i == 0 ? 105 : 90);
-                    }
-
-                    break;
-                case ChordStyle.Walking:
-                    var third = chord.Quality is ChordQuality.Minor or ChordQuality.MinorSeventh or ChordQuality.Diminished ? 3 : 4;
-                    int[] walk = [0, third, 7, 9];
-                    for (var i = 0; i < beatsPerBar; i++)
-                    {
-                        Add(events, start + (i * beat), beat * 0.9, BassRoot(chord) + walk[i % walk.Length], i == 0 ? 105 : 88);
-                    }
-
-                    break;
                 default:
-                    for (var i = 0; i < beatsPerBar * 2; i++)
-                    {
-                        Add(events, start + (i * beat / 2), beat * 0.42, BassRoot(chord) + (i % 2 == 1 ? 12 : 0), i % 2 == 0 ? 100 : 82);
-                    }
-
+                    BassBar(events, Style, chord, _chords[(b + 1) % Bars], start, beat, beatsPerBar);
                     break;
             }
         }
@@ -240,6 +250,54 @@ public sealed class ChordPattern
         var total = LengthSamples(sampleRate, bpm, beatsPerBar);
         return events.Select(e => e.At > total ? e with { At = total } : e).ToArray();
     }
+
+    private static readonly Dictionary<ChordStyle, (int Step, char Token, int Length)[]> BassGrid = new()
+    {
+        [ChordStyle.WholeNotes] = [(0, 'R', 16)],
+        [ChordStyle.RootPulse] = [(0, 'R', 2), (2, 'R', 2), (4, 'R', 2), (6, 'R', 2), (8, 'R', 2), (10, 'R', 2), (12, 'R', 2), (14, 'R', 2)],
+        [ChordStyle.RootAndFifth] = [(0, 'R', 4), (4, '5', 4), (8, 'R', 4), (12, '5', 4)],
+        [ChordStyle.Octaves] = [(0, 'R', 2), (2, 'O', 2), (4, 'R', 2), (6, 'O', 2), (8, 'R', 2), (10, 'O', 2), (12, 'R', 2), (14, 'O', 2)],
+        [ChordStyle.Rock8ths] = [(0, 'R', 2), (2, 'R', 2), (4, 'R', 2), (6, 'R', 2), (8, 'R', 2), (10, 'R', 2), (12, 'R', 2), (14, '5', 2)],
+        [ChordStyle.Syncopated] = [(0, 'R', 3), (3, 'R', 3), (6, 'R', 2), (8, 'R', 3), (11, 'R', 3), (14, '5', 2)],
+        [ChordStyle.Motown] = [(0, 'R', 2), (2, 'R', 2), (4, 'O', 2), (6, '5', 2), (8, 'R', 2), (10, 'R', 2), (12, 'O', 2), (14, '5', 2)],
+        [ChordStyle.Funk] = [(0, 'R', 3), (3, 'G', 1), (6, 'O', 2), (8, 'R', 3), (11, 'G', 1), (12, '5', 2), (14, 'G', 1)],
+        [ChordStyle.Reggae] = [(4, 'R', 3), (10, 'R', 3), (14, '5', 2)],
+        [ChordStyle.Walking] = [(0, 'R', 4), (4, '3', 4), (8, '5', 4), (12, '6', 4)],
+        [ChordStyle.WalkingApproach] = [(0, 'R', 4), (4, '3', 4), (8, '5', 4), (12, 'A', 4)],
+    };
+
+    private static void BassBar(List<MidiEvent> events, ChordStyle style, Chord chord, Chord next, double start, double beat, int beatsPerBar)
+    {
+        var sixteenth = beat / 4;
+        var steps = beatsPerBar * 4;
+        var root = BassRoot(chord);
+        var third = chord.Quality is ChordQuality.Minor or ChordQuality.MinorSeventh or ChordQuality.Diminished ? 3 : 4;
+        foreach (var (step, token, length) in BassGrid[style])
+        {
+            if (step >= steps)
+            {
+                continue;
+            }
+
+            var ghost = token == 'G';
+            var pitch = token switch
+            {
+                '5' => root + 7,
+                'O' => root + 12,
+                '3' => root + third,
+                '6' => root + 9,
+                'A' => ApproachNote(BassRoot(next)),
+                _ => root,
+            };
+            var velocity = ghost ? 40 : step % 4 == 0 ? 105 : step % 2 == 0 ? 90 : 78;
+            var span = Math.Min(length, steps - step) * sixteenth * (ghost ? 0.45 : 0.9);
+            Add(events, start + (step * sixteenth), span, pitch, velocity);
+        }
+    }
+
+    private static int ApproachNote(int nextRoot) => nextRoot - 1 >= 28 ? nextRoot - 1 : nextRoot + 1;
+
+    public static int BassRootNote(Chord chord) => BassRoot(chord);
 
     private static double Beat(int sampleRate, double bpm) => sampleRate * 60.0 / bpm;
 

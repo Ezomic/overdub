@@ -371,10 +371,21 @@ public sealed class Session : IDisposable
         return track;
     }
 
-    public void PlaceMelody(Track track, MidiEvent[] events, long start)
+    public ChordPattern EffectivePattern(ChordPattern pattern)
+    {
+        if (pattern.FollowId is null)
+        {
+            return pattern;
+        }
+
+        var source = Tracks.Where(t => t.Machine == MachineRole.Guitar).SelectMany(t => t.ChordPatterns).FirstOrDefault(p => p.Id == pattern.FollowId);
+        return source is null ? pattern : pattern.WithChordsFrom(EffectivePattern(source));
+    }
+
+    public void PlaceMelody(Track track, MidiEvent[] events, long start, string name = "Generate melody")
     {
         var clip = new MidiClip(events, start);
-        Edit("Generate melody", () => track.AddMidiClip(clip), () => track.MidiClips.Remove(clip));
+        Edit(name, () => track.AddMidiClip(clip), () => track.MidiClips.Remove(clip));
     }
 
     private INoteTarget LiveTarget()
@@ -434,6 +445,7 @@ public sealed class Session : IDisposable
 
     public void PlaceChordPattern(Track track, ChordPattern pattern, long start, int repeats = 1)
     {
+        pattern = EffectivePattern(pattern);
         var length = pattern.LengthSamples(Engine.SampleRate, Engine.Bpm, Engine.BeatsPerBar);
         var clips = Enumerable.Range(0, repeats).Select(i => pattern.ToClip(Engine.SampleRate, Engine.Bpm, Engine.BeatsPerBar, start + (i * length))).ToList();
         Edit("Place chord pattern", () => clips.ForEach(track.AddMidiClip), () => clips.ForEach(c => track.MidiClips.Remove(c)));
@@ -485,7 +497,7 @@ public sealed class Session : IDisposable
                     continue;
                 }
 
-                var fresh = pattern.ToClip(Engine.SampleRate, Engine.Bpm, Engine.BeatsPerBar, clip.Shift);
+                var fresh = EffectivePattern(pattern).ToClip(Engine.SampleRate, Engine.Bpm, Engine.BeatsPerBar, clip.Shift);
                 fresh.Mute = clip.Mute;
                 fresh.Solo = clip.Solo;
                 track.MidiClips[i] = fresh;
@@ -752,7 +764,7 @@ public sealed class Session : IDisposable
             t.IsDrums ? true : null,
             t.IsDrums ? t.Patterns.Select(p => new PatternData(p.Id, p.Name, p.Bars, p.Encode().ToList())).ToList() : null,
             t.Machine?.ToString(),
-            t.Machine is null ? null : t.ChordPatterns.Select(p => new ChordPatternData(p.Id, p.Name, p.Bars, (int)p.Style, p.Encode())).ToList())).ToList();
+            t.Machine is null ? null : t.ChordPatterns.Select(p => new ChordPatternData(p.Id, p.Name, p.Bars, (int)p.Style, p.Encode(), p.FollowId)).ToList())).ToList();
         ProjectFile.Write(ProjectPath, new ProjectData(1, Engine.SampleRate, Engine.Bpm, tracks, Engine.BeatsPerBar, Engine.BeatUnit));
         RecentProjects.Add(ProjectPath);
     }
@@ -828,6 +840,7 @@ public sealed class Session : IDisposable
             foreach (var p in d.ChordPatterns ?? [])
             {
                 track.ChordPatterns.Add(ChordPattern.Decode(p.Id, p.Name, track.Machine ?? MachineRole.Guitar, p.Bars, (ChordStyle)p.Style, p.Chords));
+                track.ChordPatterns[^1].FollowId = p.Follow;
             }
 
             foreach (var p in d.Patterns ?? [])

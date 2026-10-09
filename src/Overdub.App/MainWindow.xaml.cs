@@ -168,6 +168,14 @@ public partial class MainWindow : Window
         menu.IsOpen = true;
     }
 
+    private void OnCoachClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: TrackViewModel { Model.Machine: MachineRole.Bass } track })
+        {
+            new BassCoachWindow(_viewModel, this, track.Model).Show();
+        }
+    }
+
     private void OnMelodyClick(object sender, RoutedEventArgs e)
     {
         if (sender is FrameworkElement { DataContext: TrackViewModel { Model.Machine: MachineRole.Lead } track })

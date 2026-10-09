@@ -1336,6 +1336,27 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _session.PlaceMelody(track, events, start);
     }
 
+    public ChordPattern EffectivePattern(ChordPattern pattern) => _session.EffectivePattern(pattern);
+
+    public IReadOnlyList<(string Label, ChordPattern Pattern)> GuitarPatterns() =>
+        _session.Tracks.Where(t => t.Machine == MachineRole.Guitar).SelectMany(t => t.ChordPatterns.Select(p => ($"{t.Name} {p.Name}", p))).ToList();
+
+    public void PlaceBassIdea(Track track, ChordPattern pattern, ChordStyle style)
+    {
+        var engine = _session.Engine;
+        if (engine.SampleRate == 0)
+        {
+            Message = "Connect your Komplete Audio first.";
+            return;
+        }
+
+        var bar = engine.SamplesPerBeat * engine.BeatsPerBar;
+        var start = (long)(Math.Round(engine.Position / bar) * bar);
+        var idea = pattern.Clone();
+        idea.Style = style;
+        _session.PlaceMelody(track, idea.ToEvents(engine.SampleRate, engine.Bpm, engine.BeatsPerBar), start, "Place bass line");
+    }
+
     public ChordPattern AddChordPattern(Track track) => _session.AddChordPattern(track);
 
     public void EditChordPattern(ChordPattern pattern, Action<ChordPattern> change, string name) => _session.EditChordPattern(pattern, change, name);

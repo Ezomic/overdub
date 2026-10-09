@@ -118,6 +118,8 @@
                                                 Width="Auto" Height="22" FontSize="11" Padding="8,0" Margin="0,0,6,0" ToolTip="Play this track through a VST3 instrument, for example a sampled guitar" Focusable="False" />
                                         <Button Style="{StaticResource TransportButton}" Content="Chords" Click="OnChordsClick" Visibility="{Binding IsChordMachine, Converter={StaticResource BoolToVis}}"
                                                 Width="Auto" Height="22" FontSize="11" Padding="8,0" Margin="0" ToolTip="Edit chord patterns and place them on the timeline" Focusable="False" />
+                                        <Button Style="{StaticResource TransportButton}" Content="Coach" Click="OnCoachClick" Visibility="{Binding IsBass, Converter={StaticResource BoolToVis}}"
+                                                Width="Auto" Height="22" FontSize="11" Padding="8,0" Margin="0,0,6,0" ToolTip="Bass lines over your chords, as tab, to learn and play" Focusable="False" />
                                         <Button Style="{StaticResource TransportButton}" Content="Melody" Click="OnMelodyClick" Visibility="{Binding IsLead, Converter={StaticResource BoolToVis}}"
                                                 Width="Auto" Height="22" FontSize="11" Padding="8,0" Margin="0,0,6,0" ToolTip="Generate a single-note melody" Focusable="False" />
                                         <Button Style="{StaticResource TransportButton}" Command="{Binding CycleMidi}" Content="{Binding MidiLabel}" Visibility="{Binding IsLead, Converter={StaticResource BoolToVis}}"
