@@ -10,6 +10,10 @@ public sealed class SoundLibraryWindow : Window
     private readonly StackPanel _list = new();
     private readonly CancellationTokenSource _cancel = new();
     private readonly HashSet<string> _busy = [];
+    private readonly TextBox _search = new() { Padding = new Thickness(6, 4, 6, 4), VerticalContentAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0), Background = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x27)), Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xEA)), BorderBrush = new SolidColorBrush(Color.FromRgb(0x3A, 0x3A, 0x3F)), CaretBrush = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xEA)) };
+    private readonly TextBlock _count = new() { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) };
+    private string? _kind;
+    private int _status;
 
     public SoundLibraryWindow(MainViewModel main, Window owner)
     {
@@ -17,7 +21,7 @@ public sealed class SoundLibraryWindow : Window
         Icon = owner.Icon;
         Title = "Sound library";
         Width = 640;
-        Height = 560;
+        Height = 720;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         Background = (Brush)FindResource("Bg");
         Foreground = (Brush)FindResource("Text");
@@ -73,13 +77,40 @@ public sealed class SoundLibraryWindow : Window
         DockPanel.SetDock(clearCache, Dock.Left);
         cache.Children.Add(clearCache);
         cache.Children.Add(cacheNote);
+        var filters = new DockPanel { Margin = new Thickness(18, 0, 18, 10) };
+        var kindButton = FilterButton("All kinds", 150);
+        var statusButton = FilterButton("All packs", 130);
+        _count.Foreground = (Brush)FindResource("TextDim");
+        void ShowFilters()
+        {
+            kindButton.Content = _kind ?? "All kinds";
+            statusButton.Content = StatusNames[_status];
+        }
+
+        kindButton.Click += (_, _) =>
+        {
+            var items = new List<(string Label, Action Pick)> { ("All kinds", () => _kind = null) };
+            items.AddRange(SoundCatalog.Packs.Select(p => p.Kind).Distinct().Select(k => (k, (Action)(() => _kind = k))));
+            ShowMenu(kindButton, items, () => { ShowFilters(); Refresh(); });
+        };
+        statusButton.Click += (_, _) => ShowMenu(statusButton, StatusNames.Select((n, i) => (n, (Action)(() => _status = i))), () => { ShowFilters(); Refresh(); });
+        _search.TextChanged += (_, _) => Refresh();
+        DockPanel.SetDock(_count, Dock.Right);
+        DockPanel.SetDock(statusButton, Dock.Right);
+        DockPanel.SetDock(kindButton, Dock.Right);
+        filters.Children.Add(_count);
+        filters.Children.Add(statusButton);
+        filters.Children.Add(kindButton);
+        filters.Children.Add(_search);
         var root = new DockPanel();
         DockPanel.SetDock(intro, Dock.Top);
         DockPanel.SetDock(quality, Dock.Top);
         DockPanel.SetDock(cache, Dock.Top);
+        DockPanel.SetDock(filters, Dock.Top);
         root.Children.Add(intro);
         root.Children.Add(quality);
         root.Children.Add(cache);
+        root.Children.Add(filters);
         root.Children.Add(new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Content = _list, Padding = new Thickness(18, 0, 18, 18) });
         Content = root;
         Closed += (_, _) => _cancel.Cancel();
@@ -89,11 +120,65 @@ public sealed class SoundLibraryWindow : Window
 
     private readonly MainViewModel _main;
 
+    private static readonly string[] StatusNames = ["All packs", "Installed", "Not installed"];
+
+    private Button FilterButton(string text, double width) => new()
+    {
+        Content = text,
+        Style = (Style)FindResource("TransportButton"),
+        Width = width,
+        Height = 28,
+        FontSize = 12,
+        Padding = new Thickness(12, 0, 12, 0),
+        Focusable = false,
+        Margin = new Thickness(0, 0, 0, 0),
+    };
+
+    private static void ShowMenu(Button anchor, IEnumerable<(string Label, Action Pick)> items, Action after)
+    {
+        var menu = new ContextMenu { PlacementTarget = anchor, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom };
+        foreach (var (label, pick) in items)
+        {
+            var item = new MenuItem { Header = label };
+            item.Click += (_, _) =>
+            {
+                pick();
+                after();
+            };
+            menu.Items.Add(item);
+        }
+
+        menu.IsOpen = true;
+    }
+
+    private bool Matches(SoundPack pack, string query, bool installed)
+    {
+        if (_kind is not null && pack.Kind != _kind)
+        {
+            return false;
+        }
+
+        if ((_status == 1 && !installed) || (_status == 2 && installed))
+        {
+            return false;
+        }
+
+        return query.Length == 0 || pack.Name.Contains(query, StringComparison.OrdinalIgnoreCase) || pack.Kind.Contains(query, StringComparison.OrdinalIgnoreCase) || pack.Description.Contains(query, StringComparison.OrdinalIgnoreCase);
+    }
+
     private void Refresh()
     {
         _list.Children.Clear();
+        var query = _search.Text.Trim();
+        var shown = 0;
         foreach (var pack in SoundCatalog.Packs)
         {
+            if (!Matches(pack, query, SoundCatalog.IsInstalled(pack)))
+            {
+                continue;
+            }
+
+            shown++;
             var current = pack;
             var card = new Border
             {
@@ -156,5 +241,12 @@ public sealed class SoundLibraryWindow : Window
             card.Child = grid;
             _list.Children.Add(card);
         }
+
+        if (shown == 0)
+        {
+            _list.Children.Add(new TextBlock { Text = "No packs match these filters.", Foreground = (Brush)FindResource("TextDim"), Margin = new Thickness(0, 10, 0, 0) });
+        }
+
+        _count.Text = $"{shown} of {SoundCatalog.Packs.Count}";
     }
 }
