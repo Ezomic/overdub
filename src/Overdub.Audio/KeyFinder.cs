@@ -7,7 +7,7 @@ public sealed record SongKey(int Root, bool Minor, double Confidence, string Sou
 
 public static class KeyFinder
 {
-    public static SongKey? FromSession(Session session)
+    public static SongKey? FromSession(Session session, bool includeAudio = false)
     {
         var fromChords = FromChords(session);
         if (fromChords is not null)
@@ -19,6 +19,11 @@ public static class KeyFinder
         if (notes.Count > 0 && AudioAnalyzer.DetectKey(notes) is { } fromMidi)
         {
             return new SongKey(fromMidi.Tonic, fromMidi.Minor, fromMidi.Confidence, "the MIDI notes");
+        }
+
+        if (!includeAudio)
+        {
+            return null;
         }
 
         var rate = session.Engine.SampleRate;

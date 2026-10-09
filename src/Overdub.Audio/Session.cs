@@ -531,11 +531,7 @@ public sealed class Session : IDisposable
         return midi.Count + audio.Count;
     }
 
-    public (int Root, MelodyScale Scale)? DetectedKey()
-    {
-        var notes = Tracks.Where(t => !t.IsDrums).SelectMany(t => t.MidiClips).SelectMany(c => c.NoteData()).ToList();
-        return notes.Count == 0 ? null : MelodyVariations.KeyOf(notes);
-    }
+    public (int Root, MelodyScale Scale)? DetectedKey() => KeyFinder.FromSession(this) is { } key ? (key.Root, key.Minor ? MelodyScale.Minor : MelodyScale.Major) : null;
 
     public void TransposeAll(int semitones)
     {
