@@ -47,6 +47,7 @@ public sealed class SoundPickerWindow : Window
     private readonly TextBlock _description = new() { TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
     private readonly Button _use;
     private readonly Button _preview;
+    private readonly CheckBox _auto = new() { Content = "Auto preview", VerticalAlignment = VerticalAlignment.Center, Focusable = false };
     private bool _filling;
 
     public SoundPickerWindow(MainViewModel main, Window owner, TrackViewModel track)
@@ -123,8 +124,31 @@ public sealed class SoundPickerWindow : Window
                 FillSounds();
             }
         };
-        _sounds.SelectionChanged += (_, _) => UpdateDescription();
+        _sounds.SelectionChanged += async (_, _) =>
+        {
+            UpdateDescription();
+            if (!_filling && _auto.IsChecked == true && Selected is not null)
+            {
+                await Preview();
+            }
+        };
         _sounds.MouseDoubleClick += (_, _) => Use();
+
+        var previewRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
+        previewRow.Children.Add(new TextBlock { Text = "Preview volume", Foreground = (Brush)FindResource("TextDim"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) });
+        var volume = new Slider { Minimum = 0, Maximum = 1, Value = PreviewSettings.Volume, Width = 140, Focusable = false, VerticalAlignment = VerticalAlignment.Center };
+        var readout = new TextBlock { Text = $"{PreviewSettings.Volume:P0}", FontFamily = new FontFamily("Consolas"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 20, 0), MinWidth = 36 };
+        volume.ValueChanged += (_, e) =>
+        {
+            PreviewSettings.Volume = (float)e.NewValue;
+            readout.Text = $"{e.NewValue:P0}";
+        };
+        previewRow.Children.Add(volume);
+        previewRow.Children.Add(readout);
+        _auto.IsChecked = PreviewSettings.Auto;
+        _auto.Checked += (_, _) => PreviewSettings.Auto = true;
+        _auto.Unchecked += (_, _) => PreviewSettings.Auto = false;
+        previewRow.Children.Add(_auto);
 
         var bottom = new DockPanel { Margin = new Thickness(0, 10, 0, 0) };
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
@@ -147,8 +171,10 @@ public sealed class SoundPickerWindow : Window
         var root = new DockPanel { Margin = new Thickness(18) };
         DockPanel.SetDock(top, Dock.Top);
         DockPanel.SetDock(bottom, Dock.Bottom);
+        DockPanel.SetDock(previewRow, Dock.Bottom);
         root.Children.Add(top);
         root.Children.Add(bottom);
+        root.Children.Add(previewRow);
         root.Children.Add(lists);
         Content = root;
         Reload();

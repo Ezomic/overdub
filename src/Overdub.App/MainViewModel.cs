@@ -1752,7 +1752,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public void PlayNote(byte note, byte velocity) => _session.HandleNote(note, velocity);
 
-    public Task PreviewSound(TrackViewModel track, string preset) => _session.PreviewMachineSound(track.Model, preset);
+    public Task PreviewSound(TrackViewModel track, string preset) => _session.PreviewMachineSound(track.Model, preset, PreviewSettings.Volume);
 
     public IReadOnlyList<(string Label, Clip Clip)> AudioTakes
     {

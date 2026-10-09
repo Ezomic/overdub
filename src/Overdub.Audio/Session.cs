@@ -175,7 +175,7 @@ public sealed class Session : IDisposable
 
     private int _previewVersion;
 
-    public Task PreviewMachineSound(Track track, string preset)
+    public Task PreviewMachineSound(Track track, string preset, float volume = 1f)
     {
         var machines = MachineTracks;
         var own = machines.IndexOf(track);
@@ -195,7 +195,7 @@ public sealed class Session : IDisposable
         };
         return Task.Run(() =>
         {
-            lane.Gain = track.Gain;
+            lane.Gain = track.Gain * volume;
             lane.Pan = track.Pan;
             lane.SetPreset(preset, waitForSamples: true);
             foreach (var note in phrase)
