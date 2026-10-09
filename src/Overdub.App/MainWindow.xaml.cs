@@ -155,7 +155,7 @@ public partial class MainWindow : Window
     {
         if (sender is Button { DataContext: TrackViewModel track } button)
         {
-            DrumKitMenu.Show(button, _viewModel, track.Model.DrumKitStyle);
+            DrumKitMenu.Show(button, _viewModel, track.Model.DrumKitStyle, track.Model.DrumKitSample);
         }
     }
 

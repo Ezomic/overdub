@@ -172,7 +172,7 @@ public sealed class DrumWindow : Window
             };
             _patternBar.Children.Add(presets);
             Button? kit = null;
-            kit = MakeButton($"Kit: {DrumKit.StyleNames[Track!.DrumKitStyle].ToLowerInvariant()}", () => DrumKitMenu.Show(kit!, _main, Track!.DrumKitStyle), width: 110);
+            kit = MakeButton(Track!.DrumKitSample is { } kitSample ? $"Kit: {SoundPrograms.DisplayTitle(kitSample)}" : $"Kit: {DrumKit.StyleNames[Track!.DrumKitStyle].ToLowerInvariant()}", () => DrumKitMenu.Show(kit!, _main, Track!.DrumKitStyle, Track!.DrumKitSample), width: double.NaN);
             _patternBar.Children.Add(kit);
             _patternBar.Children.Add(MakeButton($"Swing: {DrumPattern.SwingNames[current.Swing].ToLowerInvariant()}", () => _main.SetDrumSwing(current), width: 120));
             _patternBar.Children.Add(MakeButton($"Feel: {Humanizer.FeelNames[current.Feel]}", () => _main.SetDrumFeel(current), width: 100));

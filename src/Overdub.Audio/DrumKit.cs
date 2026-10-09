@@ -58,6 +58,80 @@ public sealed class DrumKit : INoteTarget
 
     public int Style { get; set; }
 
+    private static readonly int[][] FallbackNotes =
+    [
+        [36, 35],
+        [38, 40, 37],
+        [42, 44],
+        [46, 44, 42],
+        [39, 40, 38, 37],
+        [45, 43, 41, 47],
+        [50, 48, 47],
+        [49, 57, 55, 52, 51],
+    ];
+
+    private SfzInstrument? _sampled;
+    private string? _sampleName;
+    private SfzPlayer[]? _players;
+    private float[] _laneScratch = new float[4096];
+
+    public string? SampleName => _sampleName;
+
+    public bool IsSampled => _sampled is not null;
+
+    public void SetSample(string? name, bool waitForSamples = false)
+    {
+        if (name == _sampleName && !waitForSamples)
+        {
+            return;
+        }
+
+        _sampleName = name;
+        var path = SfzInstrument.FindPath(name);
+        if (path is null)
+        {
+            Volatile.Write(ref _sampled, null);
+            return;
+        }
+
+        if (waitForSamples)
+        {
+            Volatile.Write(ref _sampled, SfzInstrument.Load(path));
+            return;
+        }
+
+        Volatile.Write(ref _sampled, null);
+        _ = Task.Run(() =>
+        {
+            var instrument = SfzInstrument.Load(path);
+            if (_sampleName == name)
+            {
+                Volatile.Write(ref _sampled, instrument);
+            }
+        });
+    }
+
+    private SfzPlayer Player(int lane)
+    {
+        _players ??= Enumerable.Range(0, Lanes.Count).Select(_ => new SfzPlayer()).ToArray();
+        var player = _players[lane];
+        player.Configure(_sampleRate);
+        return player;
+    }
+
+    private static int MappedNote(SfzInstrument instrument, int lane)
+    {
+        foreach (var candidate in FallbackNotes[lane])
+        {
+            if (instrument.Covers(candidate))
+            {
+                return candidate;
+            }
+        }
+
+        return Lanes[lane].Note;
+    }
+
     public static readonly string[] StyleNames = ["Rock", "Electronic", "Brush"];
 
     public float[]? RightBuffer { get; set; }
@@ -82,16 +156,33 @@ public sealed class DrumKit : INoteTarget
 
     public void Render(float[] destination, int offset, int frames)
     {
+        var sampled = Volatile.Read(ref _sampled);
         while (_commands.TryDequeue(out var command))
         {
             if (command.Note < 0)
             {
                 Array.Clear(_voices);
+                if (_players is not null)
+                {
+                    foreach (var player in _players)
+                    {
+                        player.AllNotesOff();
+                    }
+                }
+            }
+            else if (sampled is not null)
+            {
+                TriggerSampled(sampled, command.Note, command.Velocity);
             }
             else
             {
                 Trigger(command.Note, command.Velocity);
             }
+        }
+
+        if (_players is not null)
+        {
+            RenderSampled(destination, offset, frames);
         }
 
         for (var v = 0; v < MaxVoices; v++)
@@ -100,6 +191,64 @@ public sealed class DrumKit : INoteTarget
             if (voice.Active)
             {
                 RenderVoice(ref voice, destination, offset, frames);
+            }
+        }
+    }
+
+    private void TriggerSampled(SfzInstrument instrument, int note, int velocity)
+    {
+        var lane = -1;
+        for (var i = 0; i < Lanes.Count; i++)
+        {
+            if (Lanes[i].Note == note)
+            {
+                lane = i;
+            }
+        }
+
+        if (lane < 0 || Mix is { } lanes && lane < lanes.Length && lanes[lane].Mute)
+        {
+            return;
+        }
+
+        if ((Sound)lane == Sound.ClosedHat)
+        {
+            Player((int)Sound.OpenHat).AllNotesOff();
+        }
+
+        var player = Player(lane);
+        player.SetInstrument(instrument);
+        player.NoteOn(MappedNote(instrument, lane), velocity);
+    }
+
+    private void RenderSampled(float[] destination, int offset, int frames)
+    {
+        if (_laneScratch.Length < frames)
+        {
+            _laneScratch = new float[frames];
+        }
+
+        var right = RightBuffer;
+        for (var lane = 0; lane < Lanes.Count; lane++)
+        {
+            var player = _players![lane];
+            Array.Clear(_laneScratch, 0, frames);
+            player.Render(_laneScratch, 0, frames);
+            var mix = Mix is { } lanes && lane < lanes.Length ? lanes[lane] : null;
+            Mixer.PanGains(mix?.Pan ?? 0f, out var panLeft, out var panRight);
+            var gain = (mix?.Gain ?? 1f) * Level * 1.6f;
+            for (var i = 0; i < frames; i++)
+            {
+                var sample = _laneScratch[i] * gain;
+                if (right is null)
+                {
+                    destination[offset + i] += sample * (panLeft + panRight) * 0.5f;
+                }
+                else
+                {
+                    destination[offset + i] += sample * panLeft * 1.4142f;
+                    right[offset + i] += sample * panRight * 1.4142f;
+                }
             }
         }
     }

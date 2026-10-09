@@ -52,6 +52,8 @@ public sealed class SfzInstrument
 
     public static string? FindPath(string? presetName) => SoundPrograms.FindPath(presetName);
 
+    public bool Covers(int note) => Regions.Any(r => !r.Release && note >= r.LoKey && note <= r.HiKey && r.Samples.Length > 0);
+
     public static SfzInstrument Load(string path) => Cache.GetOrAdd(System.IO.Path.GetFullPath(path), full =>
     {
         var instrument = new SfzInstrument(full);

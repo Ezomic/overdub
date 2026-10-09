@@ -6,13 +6,15 @@ public sealed record SoundProgram(string Pack, string PackFolder, string Kind, s
 {
     public bool IsBass => Kind.Contains("bass", StringComparison.OrdinalIgnoreCase) || Pack.Contains("bass", StringComparison.OrdinalIgnoreCase);
 
+    public bool IsDrumKit => Kind == "Drums" || Pack.Contains("drum", StringComparison.OrdinalIgnoreCase) || Pack.Contains("kit", StringComparison.OrdinalIgnoreCase);
+
     public bool IsGuitar => Kind.Contains("guitar", StringComparison.OrdinalIgnoreCase) || Pack.Contains("guitar", StringComparison.OrdinalIgnoreCase);
 
     public bool Fits(MachineRole? role) => role switch
     {
         MachineRole.Bass => IsBass,
-        MachineRole.Guitar => IsGuitar || Kind == "Other",
-        MachineRole.Lead => !IsBass,
+        MachineRole.Guitar => (IsGuitar || Kind == "Other") && !IsDrumKit,
+        MachineRole.Lead => !IsBass && !IsDrumKit,
         _ => true,
     };
 }
@@ -207,10 +209,10 @@ public static partial class SoundPrograms
     [GeneratedRegex("#define\\s+(\\$\\w+)\\s+(\\S+)")]
     private static partial Regex DefinePattern();
 
-    [GeneratedRegex("(?m)^\\s*sample=(\\S+)")]
+    [GeneratedRegex("(?m)(?:^|[\\s>])sample=(\\S+)")]
     private static partial Regex SamplePattern();
 
-    [GeneratedRegex("(?m)^\\s*default_path=(\\S+)")]
+    [GeneratedRegex("(?m)(?:^|[\\s>])default_path=(\\S+)")]
     private static partial Regex DefaultPathPattern();
 
     [GeneratedRegex("^\\d+[-_ ]*")]
