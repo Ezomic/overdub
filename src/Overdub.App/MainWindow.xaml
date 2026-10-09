@@ -111,38 +111,42 @@
                                     </Grid>
                                     <TextBlock Text="{Binding InputText}" Foreground="{StaticResource TextDim}" FontSize="11" Margin="0,1,0,6" Visibility="{Binding IsAudio, Converter={StaticResource BoolToVis}}" />
                                     <TextBlock Text="{Binding TakesText}" Foreground="{StaticResource Good}" FontSize="11" Margin="0,-3,0,6" TextWrapping="Wrap" Visibility="{Binding IsMultiLane, Converter={StaticResource BoolToVis}}" />
-                                    <StackPanel Orientation="Horizontal" Margin="0,2,0,6" Visibility="{Binding IsDrums, Converter={StaticResource BoolToVis}}">
+                                    <WrapPanel Orientation="Horizontal" Margin="0,2,0,2" Visibility="{Binding IsDrums, Converter={StaticResource BoolToVis}}">
                                         <Button Style="{StaticResource TransportButton}" Click="OnKitClick" Content="{Binding KitTitle}"
-                                                Width="Auto" Height="22" FontSize="11" Padding="8,0" Margin="0,0,6,0" ToolTip="Choose the drum kit" Focusable="False" />
+                                                Width="Auto" Height="22" FontSize="11" Padding="8,0" Margin="0,0,6,4" ToolTip="Choose the drum kit" Focusable="False" />
                                         <Button Style="{StaticResource TransportButton}" Content="Drum machine" Click="OnDrumsClick"
-                                                Width="Auto" Height="22" FontSize="11" Padding="8,0" Margin="0,0,6,0" ToolTip="Edit drum patterns and place them on the timeline" Focusable="False" />
+                                                Width="Auto" Height="22" FontSize="11" Padding="8,0" Margin="0,0,6,4" ToolTip="Edit drum patterns and place them on the timeline" Focusable="False" />
                                         <Button Style="{StaticResource TransportButton}" Content="Sends" Click="OnEffectsClick"
-                                                Width="Auto" Height="22" FontSize="11" Padding="8,0" Margin="0" ToolTip="Reverb and echo for the drums" Focusable="False" />
-                                    </StackPanel>
-                                    <StackPanel Orientation="Horizontal" Margin="0,2,0,6" Visibility="{Binding IsMachine, Converter={StaticResource BoolToVis}}">
-                                        <Button Style="{StaticResource TransportButton}" Click="OnPresetClick" Content="{Binding PresetTitle}"
-                                                Width="Auto" Height="22" FontSize="11" Padding="8,0" Margin="0,0,6,0" ToolTip="Choose the sound" Focusable="False" />
+                                                Width="Auto" Height="22" FontSize="11" Padding="8,0" Margin="0,0,6,4" ToolTip="Reverb and echo for the drums" Focusable="False" />
+                                    </WrapPanel>
+                                    <WrapPanel Orientation="Horizontal" Margin="0,2,0,2" Visibility="{Binding IsMachine, Converter={StaticResource BoolToVis}}">
+                                        <Button Style="{StaticResource TransportButton}" Click="OnPresetClick" ToolTip="{Binding PresetTitle}"
+                                                Width="Auto" MaxWidth="160" Height="22" FontSize="11" Padding="8,0" Margin="0,0,6,4" Focusable="False">
+                                            <TextBlock Text="{Binding PresetTitle}" TextTrimming="CharacterEllipsis" />
+                                        </Button>
                                         <Button Style="{StaticResource TransportButton}" Content="FX" Click="OnEffectsClick"
-                                                Width="Auto" Height="22" FontSize="11" Padding="8,0" Margin="0,0,6,0" ToolTip="Amp, EQ, compressor and reverb for this track, and a VST3 instrument such as a sampled guitar" Focusable="False" />
+                                                Width="Auto" Height="22" FontSize="11" Padding="8,0" Margin="0,0,6,4" ToolTip="Amp, EQ, compressor and reverb for this track, and a VST3 instrument such as a sampled guitar" Focusable="False" />
                                         <Button Style="{StaticResource TransportButton}" Content="Chords" Click="OnChordsClick" Visibility="{Binding IsChordMachine, Converter={StaticResource BoolToVis}}"
-                                                Width="Auto" Height="22" FontSize="11" Padding="8,0" Margin="0" ToolTip="Edit chord patterns and place them on the timeline" Focusable="False" />
+                                                Width="Auto" Height="22" FontSize="11" Padding="8,0" Margin="0,0,6,4" ToolTip="Edit chord patterns and place them on the timeline" Focusable="False" />
                                         <Button Style="{StaticResource TransportButton}" Content="Fretboard" Click="OnPracticeClick" Visibility="{Binding IsBass, Converter={StaticResource BoolToVis}}"
-                                                Width="Auto" Height="22" FontSize="11" Padding="8,0" Margin="0,0,6,0" ToolTip="See where the chord and the key live on the bass neck, following the playhead" Focusable="False" />
+                                                Width="Auto" Height="22" FontSize="11" Padding="8,0" Margin="0,0,6,4" ToolTip="See where the chord and the key live on the bass neck, following the playhead" Focusable="False" />
                                         <Button Style="{StaticResource TransportButton}" Content="Coach" Click="OnCoachClick" Visibility="{Binding IsBass, Converter={StaticResource BoolToVis}}"
-                                                Width="Auto" Height="22" FontSize="11" Padding="8,0" Margin="0,0,6,0" ToolTip="Bass lines over your chords, as tab, to learn and play" Focusable="False" />
+                                                Width="Auto" Height="22" FontSize="11" Padding="8,0" Margin="0,0,6,4" ToolTip="Bass lines over your chords, as tab, to learn and play" Focusable="False" />
                                         <Button Style="{StaticResource TransportButton}" Content="Melody" Click="OnMelodyClick" Visibility="{Binding IsLead, Converter={StaticResource BoolToVis}}"
-                                                Width="Auto" Height="22" FontSize="11" Padding="8,0" Margin="0,0,6,0" ToolTip="Generate a single-note melody" Focusable="False" />
+                                                Width="Auto" Height="22" FontSize="11" Padding="8,0" Margin="0,0,6,4" ToolTip="Generate a single-note melody" Focusable="False" />
                                         <Button Style="{StaticResource TransportButton}" Command="{Binding CycleMidi}" Content="{Binding MidiLabel}" Visibility="{Binding IsLead, Converter={StaticResource BoolToVis}}"
-                                                Width="Auto" Height="22" FontSize="11" Padding="8,0" Margin="0" ToolTip="Click to switch MIDI input, to record by playing" Focusable="False" />
-                                    </StackPanel>
-                                    <StackPanel Orientation="Horizontal" Margin="0,2,0,6" Visibility="{Binding IsKeys, Converter={StaticResource BoolToVis}}">
+                                                Width="Auto" Height="22" FontSize="11" Padding="8,0" Margin="0,0,6,4" ToolTip="Click to switch MIDI input, to record by playing" Focusable="False" />
+                                    </WrapPanel>
+                                    <WrapPanel Orientation="Horizontal" Margin="0,2,0,2" Visibility="{Binding IsKeys, Converter={StaticResource BoolToVis}}">
                                         <Button Style="{StaticResource TransportButton}" Command="{Binding CycleMidi}" Content="{Binding MidiLabel}"
-                                                Width="Auto" Height="22" FontSize="11" Padding="8,0" Margin="0,0,6,0" ToolTip="Click to switch MIDI input" Focusable="False" />
-                                        <Button Style="{StaticResource TransportButton}" Click="OnPresetClick" Content="{Binding PresetTitle}"
-                                                Width="Auto" Height="22" FontSize="11" Padding="8,0" Margin="0,0,6,0" ToolTip="Choose the sound" Focusable="False" />
+                                                Width="Auto" Height="22" FontSize="11" Padding="8,0" Margin="0,0,6,4" ToolTip="Click to switch MIDI input" Focusable="False" />
+                                        <Button Style="{StaticResource TransportButton}" Click="OnPresetClick" ToolTip="{Binding PresetTitle}"
+                                                Width="Auto" MaxWidth="160" Height="22" FontSize="11" Padding="8,0" Margin="0,0,6,4" Focusable="False">
+                                            <TextBlock Text="{Binding PresetTitle}" TextTrimming="CharacterEllipsis" />
+                                        </Button>
                                         <Button Style="{StaticResource TransportButton}" Content="VST" Click="OnEffectsClick"
-                                                Width="Auto" Height="22" FontSize="11" Padding="8,0" Margin="0" ToolTip="Play this track through a VST3 instrument" Focusable="False" />
-                                    </StackPanel>
+                                                Width="Auto" Height="22" FontSize="11" Padding="8,0" Margin="0,0,6,4" ToolTip="Play this track through a VST3 instrument" Focusable="False" />
+                                    </WrapPanel>
                                     <StackPanel Orientation="Horizontal">
                                         <ToggleButton Style="{StaticResource ArmChip}" Content="R" IsChecked="{Binding Armed}" IsEnabled="{Binding HasInput}" ToolTip="Arm for recording" Focusable="False" />
                                         <ToggleButton Style="{StaticResource Chip}" Content="M" IsChecked="{Binding Mute}" ToolTip="Mute" Focusable="False" />
