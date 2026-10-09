@@ -552,6 +552,26 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         engine.Seek(Math.Max(0, (long)(engine.Position + (direction * step))));
     }
 
+    public (IReadOnlyList<string> Done, IReadOnlyList<string> Undone) HistoryNames => (_session.History.UndoNames, _session.History.RedoNames);
+
+    public void JumpHistory(int undoSteps, int redoSteps)
+    {
+        if (IsRecording)
+        {
+            return;
+        }
+
+        for (var i = 0; i < undoSteps && _session.History.CanUndo; i++)
+        {
+            _session.History.Undo();
+        }
+
+        for (var i = 0; i < redoSteps && _session.History.CanRedo; i++)
+        {
+            _session.History.Redo();
+        }
+    }
+
     public IReadOnlyList<BackupEntry> Backups => _session.Backups;
 
     public void RestoreBackup(BackupEntry backup)
