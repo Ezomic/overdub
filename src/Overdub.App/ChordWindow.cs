@@ -20,7 +20,7 @@ public sealed class ChordWindow : Window
 
     private readonly MainViewModel _main;
     private readonly Track _track;
-    private readonly StackPanel _patternBar = new() { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) };
+    private readonly WrapPanel _patternBar = new() { Margin = new Thickness(0, 0, 0, 12), MaxWidth = 900 };
     private readonly StackPanel _chordRow = new() { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 14) };
     private readonly StackPanel _quickRow = new() { Orientation = Orientation.Horizontal };
     private ChordPattern? _current;
@@ -72,7 +72,7 @@ public sealed class ChordWindow : Window
             Height = 26,
             FontSize = 12,
             Padding = new Thickness(12, 0, 12, 0),
-            Margin = new Thickness(0, 0, 6, 0),
+            Margin = new Thickness(0, 0, 6, 6),
             Focusable = false,
         };
         if (selected)
@@ -149,6 +149,7 @@ public sealed class ChordWindow : Window
         _patternBar.Children.Add(MakeButton(current.Bars == 1 ? "1 bar" : $"{current.Bars} bars", () => _main.EditChordPattern(current, p => p.Bars = (p.Bars % ChordPattern.MaxBars) + 1, "Change pattern length"), width: 70));
         var styles = ChordPattern.Styles(current.Role);
         _patternBar.Children.Add(MenuButton(ChordPattern.StyleName(current.Style), styles.Select(s => (ChordPattern.StyleName(s), (Action)(() => _main.EditChordPattern(current, p => p.Style = s, "Change style")))), 130));
+        _patternBar.Children.Add(MakeButton("From recording", async () => await _main.ChordsFromRecordingAsync(current), width: 120));
         if (current.Role == MachineRole.Guitar)
         {
             _patternBar.Children.Add(MakeButton($"Notes: {ChordPattern.ArticulationNames[current.Articulation].ToLowerInvariant()}", () => _main.EditChordPattern(current, p => p.Articulation = (p.Articulation + 1) % ChordPattern.ArticulationNames.Length, "Change articulation"), width: 120));
