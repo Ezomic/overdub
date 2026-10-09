@@ -209,6 +209,11 @@ public partial class EffectsWindow : Window
 
     private void Sync()
     {
+        if (_track.Model.IsDrums)
+        {
+            return;
+        }
+
         var plugin = _track.Model.PluginSlot;
         _pluginName.Text = plugin.Error ?? plugin.Info?.Name ?? "None";
         _pluginEdit.IsEnabled = plugin.Instance is not null;
