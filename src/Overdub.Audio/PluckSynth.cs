@@ -29,7 +29,9 @@ public sealed class PluckSynth : INoteTarget
 
     public static PluckCharacter? Find(string? name) => Characters.FirstOrDefault(c => string.Equals(c.Name, name, StringComparison.OrdinalIgnoreCase));
 
-    public static string DefaultName(MachineRole role) => role switch
+    public static string DefaultName(MachineRole role) => SoundPrograms.Preferred(role) ?? BuiltInDefault(role);
+
+    public static string BuiltInDefault(MachineRole role) => role switch
     {
         MachineRole.Guitar => "Acoustic",
         MachineRole.Lead => "Electric lead",

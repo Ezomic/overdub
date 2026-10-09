@@ -48,6 +48,31 @@ public static partial class SoundPrograms
             ?? programs.FirstOrDefault(p => string.Equals(LegacyName(p.Path), name, StringComparison.OrdinalIgnoreCase))?.Path;
     }
 
+    private static readonly string[] PreferredGuitar = ["Emilyguitar: Clean", "Black and Green Guitars: Green twang", "Shinyguitar: Acoustic"];
+    private static readonly string[] PreferredLead = ["Emilyguitar: Clean", "Black and Green Guitars: Black twang", "Shinyguitar: Acoustic"];
+    private static readonly string[] PreferredBass = ["Swagbass: Clean", "Growlybass: Clean", "Fashionbass: Clean", "Pastabass: Spaghetti", "Big Little Bass: Pluck"];
+
+    public static string? Preferred(MachineRole role)
+    {
+        var wanted = role switch
+        {
+            MachineRole.Bass => PreferredBass,
+            MachineRole.Lead => PreferredLead,
+            _ => PreferredGuitar,
+        };
+        var programs = Discover();
+        foreach (var candidate in wanted)
+        {
+            var hit = programs.FirstOrDefault(p => string.Equals($"{p.Pack}: {p.Title}", candidate, StringComparison.OrdinalIgnoreCase));
+            if (hit is not null)
+            {
+                return hit.Name;
+            }
+        }
+
+        return null;
+    }
+
     public static string DisplayTitle(string? presetName)
     {
         if (presetName is null)
