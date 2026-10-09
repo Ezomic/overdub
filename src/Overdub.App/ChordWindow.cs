@@ -155,6 +155,34 @@ public sealed class ChordWindow : Window
             _repeat = _repeat >= 8 ? 1 : _repeat * 2;
             Refresh();
         }, width: 80));
+        _patternBar.Children.Add(MakeButton("Save to library", () =>
+        {
+            if (NameDialog.Ask(this, "Save pattern", "Name for this pattern in your library:", $"{current.Role} {current.Name}") is { } name)
+            {
+                _main.SavePatternToLibrary(current, name);
+            }
+        }, width: 110));
+        var library = MakeButton("Library", () => { }, width: 80);
+        library.Click += (_, _) =>
+        {
+            var menu = new ContextMenu { PlacementTarget = library, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom };
+            var entries = PatternLibrary.List(PatternLibrary.ChordKind(current.Role));
+            foreach (var entry in entries)
+            {
+                var path = entry.Path;
+                var item = new MenuItem { Header = entry.Name };
+                item.Click += (_, _) => _main.ImportChordPattern(_track, path);
+                menu.Items.Add(item);
+            }
+
+            if (entries.Count == 0)
+            {
+                menu.Items.Add(new MenuItem { Header = "Nothing saved yet", IsEnabled = false });
+            }
+
+            menu.IsOpen = true;
+        };
+        _patternBar.Children.Add(library);
         _patternBar.Children.Add(MakeButton("Place at playhead", () => _main.PlaceChordPattern(_track, current, _repeat), width: 130));
 
         var effective = _main.EffectivePattern(current);

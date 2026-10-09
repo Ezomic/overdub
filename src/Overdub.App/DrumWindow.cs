@@ -176,6 +176,34 @@ public sealed class DrumWindow : Window
                 menu.IsOpen = true;
             };
             _patternBar.Children.Add(everyButton);
+            _patternBar.Children.Add(MakeButton("Save to library", () =>
+            {
+                if (NameDialog.Ask(this, "Save pattern", "Name for this drum pattern in your library:", $"Drums {current.Name}") is { } name)
+                {
+                    _main.SavePatternToLibrary(current, name);
+                }
+            }, width: 110));
+            var library = MakeButton("Library", () => { }, width: 80);
+            library.Click += (_, _) =>
+            {
+                var menu = new ContextMenu { PlacementTarget = library, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom };
+                var entries = PatternLibrary.List(PatternLibrary.DrumKind);
+                foreach (var entry in entries)
+                {
+                    var path = entry.Path;
+                    var item = new MenuItem { Header = entry.Name };
+                    item.Click += (_, _) => _main.ImportDrumPattern(path);
+                    menu.Items.Add(item);
+                }
+
+                if (entries.Count == 0)
+                {
+                    menu.Items.Add(new MenuItem { Header = "Nothing saved yet", IsEnabled = false });
+                }
+
+                menu.IsOpen = true;
+            };
+            _patternBar.Children.Add(library);
             _patternBar.Children.Add(MakeButton("Place at playhead", () => _main.PlaceDrumPattern(current, _repeat, every), width: 130));
         }
 
