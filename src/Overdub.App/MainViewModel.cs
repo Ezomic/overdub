@@ -1433,6 +1433,17 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    public void SetDrumLane(int lane, float? gain, float? pan, bool? mute)
+    {
+        if (DrumTrack is { } track)
+        {
+            var current = track.DrumLanes[lane];
+            _session.EditDrumLane(track, lane, gain ?? current.Gain, pan ?? current.Pan, mute ?? current.Mute);
+        }
+    }
+
+    public DrumLaneMix? DrumLane(int lane) => DrumTrack?.DrumLanes[lane];
+
     public void SetDrumBars(DrumPattern pattern, int bars)
     {
         if (DrumTrack is { } track)

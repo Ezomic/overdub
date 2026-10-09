@@ -40,12 +40,20 @@ public sealed class DrumWindow : Window
         panel.Children.Add(_grid);
         panel.Children.Add(_hint);
         Content = panel;
-        _main.EditHistoryChanged += Refresh;
-        Closed += (_, _) => _main.EditHistoryChanged -= Refresh;
+        _main.EditHistoryChanged += OnHistory;
+        Closed += (_, _) => _main.EditHistoryChanged -= OnHistory;
         Refresh();
     }
 
     private Track? Track => _main.DrumTrack;
+
+    private void OnHistory()
+    {
+        if (Mouse.Captured is not Slider)
+        {
+            Refresh();
+        }
+    }
 
     private Button MakeButton(string text, Action click, bool selected = false, double width = double.NaN)
     {
@@ -143,8 +151,7 @@ public sealed class DrumWindow : Window
         for (var lane = 0; lane < DrumKit.Lanes.Count; lane++)
         {
             var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 4) };
-            var label = new TextBlock { Text = DrumKit.Lanes[lane].Name, Width = 90, VerticalAlignment = VerticalAlignment.Center, Foreground = (Brush)FindResource("TextDim") };
-            row.Children.Add(label);
+            row.Children.Add(LaneControls(lane));
             for (var step = 0; step < pattern.Steps; step++)
             {
                 row.Children.Add(StepCell(pattern, lane, step));
@@ -152,6 +159,25 @@ public sealed class DrumWindow : Window
 
             _grid.Children.Add(row);
         }
+    }
+
+    private StackPanel LaneControls(int lane)
+    {
+        var mix = _main.DrumLane(lane) ?? new DrumLaneMix();
+        var panel = new StackPanel { Orientation = Orientation.Horizontal, Width = 232 };
+        var mute = new System.Windows.Controls.Primitives.ToggleButton { Content = "M", Style = (Style)FindResource("Chip"), IsChecked = mix.Mute, Focusable = false, Margin = new Thickness(0, 0, 6, 0), ToolTip = "Mute this sound" };
+        mute.Click += (_, _) => _main.SetDrumLane(lane, null, null, mute.IsChecked == true);
+        var volume = new Slider { Minimum = 0, Maximum = 1.5, Value = mix.Gain, Width = 52, Focusable = false, VerticalAlignment = VerticalAlignment.Center, ToolTip = "Volume (double-click for 100%)" };
+        volume.ValueChanged += (_, e) => _main.SetDrumLane(lane, (float)e.NewValue, null, null);
+        volume.MouseDoubleClick += (_, _) => volume.Value = 1;
+        var pan = new Slider { Minimum = -1, Maximum = 1, Value = mix.Pan, Width = 40, Focusable = false, Margin = new Thickness(6, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center, ToolTip = "Pan (double-click for center)" };
+        pan.ValueChanged += (_, e) => _main.SetDrumLane(lane, null, (float)e.NewValue, null);
+        pan.MouseDoubleClick += (_, _) => pan.Value = 0;
+        panel.Children.Add(mute);
+        panel.Children.Add(volume);
+        panel.Children.Add(pan);
+        panel.Children.Add(new TextBlock { Text = DrumKit.Lanes[lane].Name, VerticalAlignment = VerticalAlignment.Center, Foreground = (Brush)FindResource("TextDim") });
+        return panel;
     }
 
     private Border StepCell(DrumPattern pattern, int lane, int step)

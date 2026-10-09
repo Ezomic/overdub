@@ -179,6 +179,9 @@ public static class Mixer
         var right = new float[block];
         var synthBuf = new float[block];
         var drumBuf = new float[block];
+        var drumRight = new float[block];
+        drumKit.RightBuffer = drumRight;
+        drumKit.Mix = drums?.Lanes;
         var stereo = new float[block * 2];
         using var writer = new WaveFileWriter(path, WaveFormat.CreateIeeeFloatWaveFormat(sampleRate, 2));
         for (long position = 0; position < length; position += block)
@@ -188,13 +191,14 @@ public static class Mixer
             Array.Clear(right, 0, block);
             Array.Clear(synthBuf, 0, block);
             Array.Clear(drumBuf, 0, block);
+            Array.Clear(drumRight, 0, block);
             MixChannels(channels, anySolo, position, left, right, frames, 0, scratch);
             sequencer.Render(synth, midi, anySolo, position, synthBuf, frames);
             AddPanned(synthBuf, synthGain, synthPan, left, right, frames);
             if (drums is not null)
             {
                 drumSequencer.Render(drumKit, drumClips, anySolo, position, drumBuf, frames);
-                AddPanned(drumBuf, drums.Gain, drums.Pan, left, right, frames);
+                AddPannedStereo(drumBuf, drumRight, drums.Gain, drums.Pan, left, right, frames);
             }
 
             for (var m = 0; m < machineList.Count; m++)
@@ -224,4 +228,4 @@ public static class Mixer
     }
 }
 
-public sealed record DrumMix(IReadOnlyList<MidiClip> Clips, float Gain, float Pan);
+public sealed record DrumMix(IReadOnlyList<MidiClip> Clips, float Gain, float Pan, DrumLaneMix[]? Lanes = null);
