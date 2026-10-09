@@ -71,6 +71,17 @@ public sealed class BassPracticeWindow : Window
         panel.Children.Add(tabHint);
         panel.Children.Add(_tab);
         panel.Children.Add(_mute);
+        var check = new Button { Content = "Check my playing", Style = (Style)FindResource("TransportButton"), Width = 150, Height = 26, FontSize = 12, Margin = new Thickness(0, 12, 0, 6), HorizontalAlignment = HorizontalAlignment.Left, Focusable = false, ToolTip = "Compare the selected audio clip (your recorded bass take) with the bass machine line" };
+        var result = new TextBox { IsReadOnly = true, TextWrapping = TextWrapping.Wrap, MinHeight = 70, BorderThickness = new Thickness(0), Background = (Brush)FindResource("Well"), Foreground = (Brush)FindResource("Text"), Padding = new Thickness(10), Text = "Record a take of yourself playing the line, click the clip in the main window, then check it. I compare every note with the bass machine: right note, early or late, wrong octave, missed." };
+        check.Click += async (_, _) =>
+        {
+            check.IsEnabled = false;
+            result.Text = "Listening...";
+            result.Text = await _main.CheckPlayingAsync(_track);
+            check.IsEnabled = true;
+        };
+        panel.Children.Add(check);
+        panel.Children.Add(result);
         Content = panel;
         _main.EditHistoryChanged += LoadTab;
         Closed += (_, _) => _main.EditHistoryChanged -= LoadTab;
