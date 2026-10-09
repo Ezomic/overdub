@@ -769,6 +769,11 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         EditHistoryChanged?.Invoke();
         if (change.Kind == EditKind.Mix)
         {
+            foreach (var track in Tracks)
+            {
+                track.NotifyKit();
+            }
+
             ScheduleSave();
             return;
         }
@@ -2098,11 +2103,11 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
     }
 
-    public void CycleDrumKit()
+    public void SetDrumKit(int style)
     {
-        if (DrumTrack is { } track)
+        if (DrumTrack is { } track && track.DrumKitStyle != style)
         {
-            _session.SetDrumKit(track, (track.DrumKitStyle + 1) % DrumKit.StyleNames.Length);
+            _session.SetDrumKit(track, style);
         }
     }
 

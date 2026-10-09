@@ -151,6 +151,14 @@ public partial class MainWindow : Window
         new PianoRollWindow(_viewModel, target.Track, target.Clip) { Owner = this }.Show();
     }
 
+    private void OnKitClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { DataContext: TrackViewModel track } button)
+        {
+            DrumKitMenu.Show(button, _viewModel, track.Model.DrumKitStyle);
+        }
+    }
+
     private void OnPresetClick(object sender, RoutedEventArgs e)
     {
         if (sender is not FrameworkElement { DataContext: TrackViewModel track } target)
