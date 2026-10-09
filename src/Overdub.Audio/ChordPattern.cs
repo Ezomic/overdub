@@ -87,6 +87,9 @@ public sealed class ChordPattern
     public ChordStyle Style { get; set; }
     public string? FollowId { get; set; }
     public int Feel { get; set; }
+    public int Articulation { get; set; }
+
+    public static readonly string[] ArticulationNames = ["Open", "Palm mute"];
 
     public Chord this[int bar]
     {
@@ -138,6 +141,7 @@ public sealed class ChordPattern
         Style = other.Style;
         FollowId = other.FollowId;
         Feel = other.Feel;
+        Articulation = other.Articulation;
         Array.Copy(other._chords, _chords, MaxBars);
     }
 
@@ -250,6 +254,17 @@ public sealed class ChordPattern
         }
 
         var total = LengthSamples(sampleRate, bpm, beatsPerBar);
+        if (Articulation == 1 && Role == MachineRole.Guitar)
+        {
+            for (var i = 2; i + 1 < events.Count; i += 2)
+            {
+                var on = events[i];
+                var limit = on.At + (long)(beat * 0.2);
+                events[i] = on with { Velocity = (byte)Math.Max(1, on.Velocity - 10) };
+                events[i + 1] = events[i + 1] with { At = Math.Min(events[i + 1].At, limit) };
+            }
+        }
+
         var clamped = events.Select(e => e.At > total ? e with { At = total } : e).ToList();
         return seed != 0 && Feel > 0 ? Humanizer.Apply(clamped, Feel, seed, sampleRate, total) : clamped.ToArray();
     }

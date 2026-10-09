@@ -244,11 +244,23 @@ public sealed class PluckSynth : INoteTarget
         var buffer = voice.Buffer;
         Array.Clear(buffer);
         var smooth = 0f;
+        var hammer = velocity <= MelodyGenerator.HammerVelocity;
+        if (hammer)
+        {
+            for (var v = 0; v < MaxVoices; v++)
+            {
+                if (_voices[v].Active && !_voices[v].Released && _voices[v].Start == _age)
+                {
+                    _voices[v].Released = true;
+                }
+            }
+        }
+
         var excite = Math.Clamp(_character.Excite + (0.4f * level), 0.15f, 0.95f);
         for (var i = 0; i < length; i++)
         {
             smooth += excite * (NextNoise() - smooth);
-            buffer[i] = smooth * (0.55f + (0.45f * level));
+            buffer[i] = smooth * (hammer ? 0.4f + level : 0.55f + (0.45f * level));
         }
 
         var pick = Math.Max(1, (int)(length * _character.PickPosition));
@@ -269,7 +281,7 @@ public sealed class PluckSynth : INoteTarget
         voice.Fade = 1f;
         voice.Age = 0;
         voice.ClickTotal = Math.Max(1, (int)(_sampleRate * 0.0035));
-        voice.ClickLeft = _character.Click > 0f ? voice.ClickTotal : 0;
+        voice.ClickLeft = _character.Click > 0f && !hammer ? voice.ClickTotal : 0;
         voice.ClickAmp = _character.Click * (0.4f + (0.6f * level));
         voice.ClickPrev = 0f;
         voice.Start = ++_age;

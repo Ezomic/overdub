@@ -1354,7 +1354,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _session.AddMachineTrackUndoable(role, UniqueName(name));
     }
 
-    public void GenerateMelody(Track track, int key, MelodyScale scale, int bars, MelodyDensity density, ChordPattern? follow = null)
+    public void GenerateMelody(Track track, int key, MelodyScale scale, int bars, MelodyDensity density, ChordPattern? follow = null, int ornaments = 0)
     {
         var engine = _session.Engine;
         if (engine.SampleRate == 0)
@@ -1366,7 +1366,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         var bar = engine.SamplesPerBeat * engine.BeatsPerBar;
         var start = (long)(Math.Round(engine.Position / bar) * bar);
         var barChords = follow is null ? null : Enumerable.Range(0, EffectivePattern(follow).Bars).Select(b => EffectivePattern(follow)[b]).ToList();
-        var events = MelodyGenerator.Generate(engine.SampleRate, engine.Bpm, engine.BeatsPerBar, key, scale, bars, density, Random.Shared.Next(), barChords);
+        var events = MelodyGenerator.Generate(engine.SampleRate, engine.Bpm, engine.BeatsPerBar, key, scale, bars, density, Random.Shared.Next(), barChords, ornaments);
         _session.PlaceMelody(track, events, start);
     }
 

@@ -805,7 +805,7 @@ public sealed class Session : IDisposable
             t.IsDrums ? true : null,
             t.IsDrums ? t.Patterns.Select(p => new PatternData(p.Id, p.Name, p.Bars, p.Encode().ToList(), p.Feel, p.Swing, p.Details().ToList())).ToList() : null,
             t.Machine?.ToString(),
-            t.Machine is null ? null : t.ChordPatterns.Select(p => new ChordPatternData(p.Id, p.Name, p.Bars, (int)p.Style, p.Encode(), p.FollowId, p.Feel)).ToList(),
+            t.Machine is null ? null : t.ChordPatterns.Select(p => new ChordPatternData(p.Id, p.Name, p.Bars, (int)p.Style, p.Encode(), p.FollowId, p.Feel, p.Articulation)).ToList(),
             t.IsDrums ? t.DrumLanes.Select(l => new DrumLaneData(l.Gain, l.Pan, l.Mute)).ToList() : null)).ToList();
         ProjectFile.Write(ProjectPath, new ProjectData(1, Engine.SampleRate, Engine.Bpm, tracks, Engine.BeatsPerBar, Engine.BeatUnit));
         RecentProjects.Add(ProjectPath);
@@ -891,6 +891,7 @@ public sealed class Session : IDisposable
                 track.ChordPatterns.Add(ChordPattern.Decode(p.Id, p.Name, track.Machine ?? MachineRole.Guitar, p.Bars, (ChordStyle)p.Style, p.Chords));
                 track.ChordPatterns[^1].FollowId = p.Follow;
                 track.ChordPatterns[^1].Feel = p.Feel;
+                track.ChordPatterns[^1].Articulation = Math.Clamp(p.Articulation, 0, ChordPattern.ArticulationNames.Length - 1);
             }
 
             foreach (var p in d.Patterns ?? [])
