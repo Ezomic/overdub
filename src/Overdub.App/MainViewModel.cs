@@ -1412,6 +1412,75 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         Notice = "Chords: " + string.Join("  ", found.Select(c => c?.Name ?? "?"));
     }
 
+    public void MakeVariations(Track track, int count)
+    {
+        var engine = _session.Engine;
+        var position = engine.Position;
+        var source = _selection as MidiClip
+            ?? track.MidiClips.FirstOrDefault(c => position >= c.StartSample && position < c.EndSample)
+            ?? track.MidiClips.LastOrDefault();
+        if (source is null || engine.SampleRate == 0)
+        {
+            Message = "Click a melody block first (Generate one, or record some notes), then make variations of it.";
+            return;
+        }
+
+        var notes = source.NoteData();
+        if (notes.Count == 0)
+        {
+            Message = "That block has no notes.";
+            return;
+        }
+
+        var key = MelodyVariations.KeyOf(notes);
+        var bar = engine.SamplesPerBeat * engine.BeatsPerBar;
+        var sourceBar = Math.Floor(notes.Min(n => n.Start) / bar) * bar;
+        var bars = Math.Max(1, Math.Ceiling((notes.Max(n => n.End) - sourceBar) / bar));
+        var cursor = sourceBar + (bars * bar);
+        var random = new Random();
+        var kinds = Enumerable.Range(0, MelodyVariations.Names.Length).OrderBy(_ => random.Next()).Take(count).ToList();
+        var clips = new List<MidiClip>();
+        foreach (var kind in kinds)
+        {
+            var shift = (long)(cursor - sourceBar);
+            var made = MelodyVariations.Make(notes, kind, key).Select(n => n with { Start = n.Start + shift, End = n.End + shift }).ToList();
+            clips.Add(new MidiClip([]).WithNotes(made));
+            cursor += bars * bar;
+        }
+
+        _session.PlaceClips(track, clips, "Make melody variations");
+        Message = "";
+        Notice = "Made: " + string.Join(", ", kinds.Select(k => MelodyVariations.Names[k].ToLowerInvariant()));
+    }
+
+    public async Task TranscribeAudioAsync(Track track)
+    {
+        var engine = _session.Engine;
+        var position = engine.Position;
+        var clip = _selection as Clip
+            ?? Tracks.SelectMany(t => t.Model.Clips).FirstOrDefault(c => position >= c.StartSample && position < c.EndSample)
+            ?? Tracks.SelectMany(t => t.Model.Clips).FirstOrDefault();
+        if (clip is null || engine.SampleRate == 0)
+        {
+            Message = "Record or import a clip of one-note-at-a-time playing or humming first, or click the clip.";
+            return;
+        }
+
+        var playback = clip.Playback;
+        Notice = "Listening for notes...";
+        var notes = await Task.Run(() => NoteTranscriber.FromAudio(playback.Samples, (int)playback.Offset, (int)playback.Length, engine.SampleRate, clip.StartSample));
+        if (notes.Count == 0)
+        {
+            Notice = "";
+            Message = "Could not hear clear single notes in that clip. Try one note at a time, played or sung clearly.";
+            return;
+        }
+
+        _session.PlaceClips(track, [new MidiClip([]).WithNotes(notes)], "Notes from audio");
+        Message = "";
+        Notice = $"Found {notes.Count} notes. Make variations next, or edit them in the piano roll.";
+    }
+
     public ChordPattern EffectivePattern(ChordPattern pattern) => _session.EffectivePattern(pattern);
 
     public IReadOnlyList<(string Label, ChordPattern Pattern)> GuitarPatterns() =>

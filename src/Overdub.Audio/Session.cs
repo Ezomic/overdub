@@ -378,6 +378,9 @@ public sealed class Session : IDisposable
         return track;
     }
 
+    public void PlaceClips(Track track, IReadOnlyList<MidiClip> clips, string name) =>
+        Edit(name, () => clips.ToList().ForEach(track.AddMidiClip), () => clips.ToList().ForEach(c => track.MidiClips.Remove(c)));
+
     public ChordPattern EffectivePattern(ChordPattern pattern)
     {
         if (pattern.FollowId is null)
