@@ -288,6 +288,60 @@ public sealed class Session : IDisposable
         });
     }
 
+    public Task PreviewLine(Track track, IReadOnlyList<(int Pitch, int AtMs, int LenMs)> notes, float volume = 1f)
+    {
+        var machines = MachineTracks;
+        var own = machines.IndexOf(track);
+        var spare = own < 0 ? -1 : machines.Count < Engine.Machines.Length ? machines.Count : own;
+        if (spare < 0 || Engine.SampleRate == 0 || notes.Count == 0)
+        {
+            return Task.CompletedTask;
+        }
+
+        var lane = Engine.Machines[spare];
+        var version = Interlocked.Increment(ref _previewVersion);
+        var events = notes
+            .SelectMany(n => new[] { (Time: n.AtMs, On: true, n.Pitch), (Time: n.AtMs + Math.Max(60, n.LenMs - 20), On: false, n.Pitch) })
+            .OrderBy(e => e.Time).ThenBy(e => e.On ? 1 : 0)
+            .ToList();
+        return Task.Run(() =>
+        {
+            lane.Gain = track.Gain * volume;
+            lane.Pan = track.Pan;
+            lane.SetPreset(track.Preset, waitForSamples: true);
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            foreach (var e in events)
+            {
+                if (version != _previewVersion)
+                {
+                    break;
+                }
+
+                var wait = e.Time - (int)clock.ElapsedMilliseconds;
+                if (wait > 0)
+                {
+                    Thread.Sleep(wait);
+                }
+
+                if (e.On)
+                {
+                    lane.Voice.NoteOn((byte)e.Pitch, 100);
+                }
+                else
+                {
+                    lane.Voice.NoteOff((byte)e.Pitch);
+                }
+            }
+
+            Thread.Sleep(500);
+            lane.AllNotesOff();
+            if (version == _previewVersion && spare != own)
+            {
+                lane.SetPreset(null);
+            }
+        });
+    }
+
     public void ApplyMixerState()
     {
         var drums = Tracks.FirstOrDefault(t => t.IsDrums);

@@ -27,6 +27,7 @@ public static class LearnCatalog
 
     public static IReadOnlyList<LearnCard> Cards { get; } =
     [
+        new("Why this bass line works", "See what each note of your bass line does (root, fifth, approach note) and the reason it fits the chord, bar by bar.", true, context => context.Show(new BassLineLesson(context))),
         new("Your song on the bass neck", "Watch the notes of each chord light up on the bass neck while the song plays, and see where the key lives.", false, context => OpenPractice(context)),
         new("Bass coach", "Bass lines over your chords, shown as tab, to learn and play along with.", false, context => OpenCoach(context)),
         new("Tuner", "Tune your bass or guitar before you play, with a needle that shows how close you are.", false, context => new TunerWindow(context.Main) { Owner = context.Owner }.Show()),

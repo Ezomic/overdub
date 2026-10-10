@@ -1836,6 +1836,87 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         return (SongProgression(), -1);
     }
 
+    public sealed record BassBar(Chord Chord, Chord? Next, long Start, long Length, IReadOnlyList<MidiNoteData> Notes);
+
+    public sealed record BassLineInfo(TrackViewModel Track, ChordStyle Style, IReadOnlyList<BassBar> Bars, int Playing);
+
+    public BassLineInfo? BassLineAtPlayhead()
+    {
+        var track = Tracks.FirstOrDefault(t => t.Model.Machine == MachineRole.Bass);
+        if (track is null)
+        {
+            return null;
+        }
+
+        var engine = _session.Engine;
+        var position = engine.Position;
+        var barLength = (long)(engine.SamplesPerBeat * engine.BeatsPerBar);
+        var clips = track.Model.MidiClips.Where(c => c.PatternId is not null).OrderBy(c => c.StartSample).ToList();
+        var clip = clips.FirstOrDefault(c => position >= c.StartSample && position < c.EndSample) ?? clips.FirstOrDefault();
+        if (clip is null || barLength <= 0)
+        {
+            return null;
+        }
+
+        var pattern = track.Model.ChordPatterns.FirstOrDefault(p => p.Id == clip.PatternId);
+        if (pattern is null)
+        {
+            return null;
+        }
+
+        var effective = _session.EffectivePattern(pattern);
+        var played = clip.NoteData().Where(n => n.Velocity >= 50).ToList();
+        var bars = new List<BassBar>();
+        for (var i = 0; i < effective.Bars; i++)
+        {
+            var start = clip.StartSample + (i * barLength);
+            var inBar = played.Where(n => n.Start >= start - 10 && n.Start < start + barLength - 10).ToList();
+            bars.Add(new BassBar(effective[i], effective[(i + 1) % effective.Bars], start, barLength, inBar));
+        }
+
+        var playing = engine.IsPlaying && position >= clip.StartSample && position < clip.EndSample ? (int)Math.Clamp((position - clip.StartSample) / barLength, 0, effective.Bars - 1) : -1;
+        return new BassLineInfo(track, pattern.Style, bars, playing);
+    }
+
+    public Task HearBar(BassBar bar)
+    {
+        var track = Tracks.FirstOrDefault(t => t.Model.Machine == MachineRole.Bass);
+        if (track is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        var rate = Math.Max(1, _session.Engine.SampleRate);
+        var notes = bar.Notes.Select(n => ((int)n.Pitch, (int)((n.Start - bar.Start) * 1000L / rate), Math.Max(80, (int)((n.End - n.Start) * 1000L / rate)))).ToList();
+        return _session.PreviewLine(track.Model, notes, PreviewSettings.Volume);
+    }
+
+    public void PlayAlongFromBar(BassBar bar)
+    {
+        var track = Tracks.FirstOrDefault(t => t.Model.Machine == MachineRole.Bass);
+        if (track is null)
+        {
+            return;
+        }
+
+        SetMachineMute(track.Model, true);
+        _session.Engine.Seek(bar.Start);
+        if (!_session.Engine.IsPlaying)
+        {
+            PlayCommand.Execute(null);
+        }
+    }
+
+    public void SetBassMuted(bool muted)
+    {
+        if (Tracks.FirstOrDefault(t => t.Model.Machine == MachineRole.Bass) is { } track)
+        {
+            SetMachineMute(track.Model, muted);
+        }
+    }
+
+    public bool BassIsMuted => Tracks.FirstOrDefault(t => t.Model.Machine == MachineRole.Bass)?.Model.Mute == true;
+
     public Task HearChords(IReadOnlyList<Chord> chords, int holdMs = 900)
     {
         var track = _session.Tracks.FirstOrDefault(t => t.Machine == MachineRole.Guitar) ?? _session.Tracks.FirstOrDefault(t => t.Machine == MachineRole.Lead);
