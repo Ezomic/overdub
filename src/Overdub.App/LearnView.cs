@@ -27,7 +27,8 @@ public static class LearnCatalog
 
     public static IReadOnlyList<LearnCard> Cards { get; } =
     [
-        new("Circle of fifths and progression builder", "See which keys and chords sit close together, build a progression from the chords of a key, and hear why famous progressions work.", true, context => context.Show(new CircleLesson(context))),
+        new("Ear trainer", "Listen and name what you hear: intervals, major or minor, chord types, scales and single bass notes, with a tip to remember each sound.", true, context => context.Show(new EarTrainerLesson(context))),
+        new("Circle of fifths and progression builder", "See which keys and chords sit close together, build a progression from the chords of a key, and hear why famous progressions work.", false, context => context.Show(new CircleLesson(context))),
         new("Scale and mode explorer", "Pick a root and a scale or mode, see its notes on the bass neck and hear how it sounds, alone, over a drone, or against major or minor.", false, context => context.Show(new ScaleExplorerLesson(context))),
         new("Theory quiz", "Ten short questions on notes, scales, chords, bass lines and rhythm, some about your own song, each with the reason behind the answer.", false, context => context.Show(new TheoryQuizLesson(context))),
         new("Why this bass line works", "See what each note of your bass line does (root, fifth, approach note) and the reason it fits the chord, bar by bar.", false, context => context.Show(new BassLineLesson(context))),
