@@ -1929,6 +1929,26 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    public void UseProgression(IReadOnlyList<Chord> chords)
+    {
+        var track = _session.Tracks.FirstOrDefault(t => t.Machine == MachineRole.Guitar && t.ChordPatterns.Count > 0);
+        if (track is null)
+        {
+            ShowMessage("Add a guitar player with a chord pattern first (Build a song), then you can put a progression on it.");
+            return;
+        }
+
+        var pattern = track.ChordPatterns[0];
+        _session.EditChordPattern(pattern, p =>
+        {
+            for (var bar = 0; bar < ChordPattern.MaxBars; bar++)
+            {
+                p[bar] = chords[bar % chords.Count];
+            }
+        }, "Use progression from the circle of fifths");
+        ShowNotice($"Pattern {pattern.Name} on {track.Name} now plays your progression. Undo brings the old chords back.");
+    }
+
     public Task HearDesigned(DesignedSound sound)
     {
         var track = _session.Tracks.FirstOrDefault(t => t.Machine == MachineRole.Bass) ?? _session.Tracks.FirstOrDefault(t => t.Machine is not null);
