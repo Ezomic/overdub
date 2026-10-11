@@ -567,6 +567,15 @@ public sealed class TrackViewModel(Track model, Brush color, Action onMixChanged
         }
     }
 
+    public void RefreshMix()
+    {
+        OnPropertyChanged(nameof(Gain));
+        OnPropertyChanged(nameof(GainText));
+        OnPropertyChanged(nameof(Pan));
+        OnPropertyChanged(nameof(PanText));
+        OnPropertyChanged(nameof(HasEffects));
+    }
+
     public void NotifyMixChanged()
     {
         OnPropertyChanged(nameof(Mute));

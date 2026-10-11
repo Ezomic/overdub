@@ -2128,6 +2128,68 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public (int Beats, int Unit) Signature => (_session.Engine.BeatsPerBar, _session.Engine.BeatUnit);
 
+    public MixPlan PlanMix(MixStep step) => MixingGuide.Plan(step, _session.Tracks);
+
+    public IReadOnlyList<Track> MixTracks => _session.Tracks;
+
+    private void SetMixStates(IReadOnlyDictionary<Track, MixState> states, IEnumerable<Track> tracks)
+    {
+        foreach (var track in tracks)
+        {
+            if (states.TryGetValue(track, out var state))
+            {
+                state.Restore(track);
+            }
+        }
+
+        _session.ApplyMixerState();
+        foreach (var track in Tracks)
+        {
+            track.RefreshMix();
+        }
+    }
+
+    public string MixEditName(MixPlan plan) => $"Mixing: {MixingGuide.StepNames[(int)plan.Step]}";
+
+    public void ApplyMixPlan(MixPlan plan)
+    {
+        var changed = plan.Suggestions.Where(s => s.CanApply).Select(s => s.Track).ToList();
+        _session.Edit(MixEditName(plan), () => SetMixStates(plan.After, changed), () => SetMixStates(plan.Before, changed), EditKind.Mix);
+        plan.Applied = true;
+        plan.ShowingBefore = false;
+    }
+
+    public void ShowMixState(MixPlan plan, bool before)
+    {
+        SetMixStates(before ? plan.Before : plan.After, plan.Suggestions.Where(s => s.CanApply).Select(s => s.Track));
+        plan.ShowingBefore = before;
+    }
+
+    public void UndoMixPlan(MixPlan plan)
+    {
+        if (_session.History.UndoName == MixEditName(plan))
+        {
+            Undo();
+        }
+        else
+        {
+            ShowMixState(plan, true);
+        }
+
+        plan.Applied = false;
+        plan.ShowingBefore = false;
+    }
+
+    public void PlayFromHere()
+    {
+        if (!_session.Engine.IsPlaying)
+        {
+            PlayCommand.Execute(null);
+        }
+    }
+
+    public int MasteringChoice => _session.MasterIndex;
+
     public Task HearDesigned(DesignedSound sound)
     {
         var track = _session.Tracks.FirstOrDefault(t => t.Machine == MachineRole.Bass) ?? _session.Tracks.FirstOrDefault(t => t.Machine is not null);
