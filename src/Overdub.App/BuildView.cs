@@ -132,6 +132,7 @@ public sealed class BuildView : UserControl
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(160) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(230) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         var dot = new Border { Width = 10, Height = 34, CornerRadius = new CornerRadius(3), Background = track.Color, HorizontalAlignment = HorizontalAlignment.Left };
         var name = new TextBlock { Text = track.Name, FontSize = 14, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis };
         var sound = new TextBlock { Text = track.IsDrums ? track.KitTitle : track.PresetTitle, FontSize = 12.5, Foreground = Ui.Res("TextDim"), VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(8, 0, 8, 0), ToolTip = track.IsDrums ? track.KitTitle : track.PresetTitle };
@@ -182,6 +183,26 @@ public sealed class BuildView : UserControl
             }
         }
 
+        var remove = Ui.Secondary("Remove", "Remove this player and its blocks from the song (Undo brings it back)", 90);
+        remove.Margin = new Thickness(0);
+        remove.HorizontalAlignment = HorizontalAlignment.Right;
+        Grid.SetColumn(remove, 4);
+        remove.Click += (_, _) =>
+        {
+            if (remove.Tag is true)
+            {
+                _main!.RemovePlayer(track);
+                return;
+            }
+
+            remove.Tag = true;
+            remove.Content = "Remove?";
+        };
+        remove.MouseLeave += (_, _) =>
+        {
+            remove.Tag = null;
+            remove.Content = "Remove";
+        };
         Grid.SetColumn(name, 1);
         Grid.SetColumn(sound, 2);
         Grid.SetColumn(buttons, 3);
@@ -189,6 +210,7 @@ public sealed class BuildView : UserControl
         grid.Children.Add(name);
         grid.Children.Add(sound);
         grid.Children.Add(buttons);
+        grid.Children.Add(remove);
         return Ui.Card(grid);
     }
 
