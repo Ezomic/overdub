@@ -1949,6 +1949,158 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         ShowNotice($"Pattern {pattern.Name} on {track.Name} now plays your progression. Undo brings the old chords back.");
     }
 
+    public sealed record ChallengePlan(string? Problem, long Start, IReadOnlyList<Chord> Chords, IReadOnlyList<TargetNote> Targets, Track? Input, SongKey? Key);
+
+    public ChallengePlan PrepareChallenge(ChallengeDef def)
+    {
+        static ChallengePlan Fail(string text) => new(text, 0, [], [], null, null);
+        var engine = _session.Engine;
+        if (engine.SampleRate == 0)
+        {
+            return Fail("Connect your Komplete Audio and restart Overdub.");
+        }
+
+        if (_speedPercent != 100)
+        {
+            return Fail("Practice speed is on. Set it back to 100% to record.");
+        }
+
+        var input = _session.Tracks.FirstOrDefault(t => t.Input == 1 && !t.IsMidi) ?? _session.Tracks.FirstOrDefault(t => t.Input is not null && !t.IsMidi && !t.IsBacking);
+        if (input is null)
+        {
+            return Fail("There is no audio track for your bass input. Add one on the Record and mix page.");
+        }
+
+        var key = DetectSongKeyQuick();
+        if (key is null)
+        {
+            return Fail("Overdub cannot tell the key yet. Build a song first (Build a song), so there are chords to play over.");
+        }
+
+        var source = _session.Tracks
+            .Where(t => t.Machine is MachineRole.Guitar or MachineRole.Bass)
+            .OrderBy(t => t.Machine == MachineRole.Guitar ? 0 : 1)
+            .SelectMany(t => t.MidiClips.Select(c => (Clip: c, Pattern: t.ChordPatterns.FirstOrDefault(p => p.Id == c.PatternId))))
+            .Where(x => x.Pattern is not null)
+            .OrderBy(x => x.Clip.StartSample)
+            .Cast<(MidiClip Clip, ChordPattern? Pattern)?>()
+            .FirstOrDefault();
+        if (source is not { Pattern: { } pattern } found)
+        {
+            return Fail("There are no chords on the timeline yet. Build a song first (Build a song).");
+        }
+
+        var effective = _session.EffectivePattern(pattern);
+        var chords = Enumerable.Range(0, PracticeChallenges.Bars).Select(bar => effective[bar % effective.Bars]).ToList();
+        var flats = NoteSpelling.KeyUsesFlats(key.Root, key.Minor);
+        var bassLine = _session.Tracks.Where(t => t.Machine == MachineRole.Bass).SelectMany(t => t.MidiClips).SelectMany(c => c.NoteData()).ToList();
+        var targets = PracticeChallenges.BuildTargets(def, chords, found.Clip.StartSample, engine.SamplesPerBeat, engine.BeatsPerBar, flats, bassLine);
+        if (PracticeChallenges.NeedsTargets(def) && targets.Count == 0)
+        {
+            return Fail("Your bass machine has no line in the first four bars. Place a chord pattern for it first (Build a song).");
+        }
+
+        return new ChallengePlan(null, found.Clip.StartSample, chords, targets, input, key);
+    }
+
+    public Task HearTargets(ChallengePlan plan)
+    {
+        var rate = Math.Max(1, _session.Engine.SampleRate);
+        var notes = plan.Targets.Select(t => (t.Pitch, (int)((t.Start - plan.Start) * 1000L / rate), Math.Max(150, (int)((t.End - t.Start) * 1000L / rate)))).ToList();
+        return HearNotes(notes);
+    }
+
+    private void MuteBassMachineQuietly(bool muted)
+    {
+        foreach (var track in Tracks.Where(t => t.Model.Machine == MachineRole.Bass))
+        {
+            track.Model.Mute = muted;
+            track.NotifyMixChanged();
+        }
+
+        _session.ApplyMixerState();
+    }
+
+    public async Task<(ChallengeResult? Result, string? Problem)> RunChallengeAsync(ChallengeDef def, ChallengePlan plan, IProgress<string> progress, CancellationToken cancel)
+    {
+        var engine = _session.Engine;
+        var input = plan.Input!;
+        var armed = _session.Tracks.Select(t => (Track: t, t.Armed)).ToList();
+        var oldCountIn = engine.CountInBars;
+        var oldPosition = engine.Position;
+        var wasMuted = BassIsMuted;
+        var before = input.Clips.ToHashSet();
+        var barSamples = engine.SamplesPerBeat * engine.BeatsPerBar;
+        var end = plan.Start + (long)(barSamples * PracticeChallenges.Bars) + (long)engine.SamplesPerBeat;
+        var secondsPerBar = barSamples / Math.Max(1, engine.SampleRate);
+        var deadline = DateTime.UtcNow.AddSeconds(((PracticeChallenges.Bars + 2) * secondsPerBar * 1.5) + 5);
+        try
+        {
+            foreach (var (track, _) in armed)
+            {
+                track.Armed = ReferenceEquals(track, input);
+            }
+
+            MuteBassMachineQuietly(true);
+            engine.CountInBars = 1;
+            engine.Seek(plan.Start);
+            _session.StartRecording();
+            IsRecording = true;
+            while (engine.Position < end && !cancel.IsCancellationRequested && DateTime.UtcNow < deadline)
+            {
+                var bar = Math.Clamp((int)((engine.Position - plan.Start) / Math.Max(1, barSamples)) + 1, 1, PracticeChallenges.Bars);
+                progress.Report(engine.IsCountingIn ? "Count-in. Get ready..." : $"Recording: play now (bar {bar} of {PracticeChallenges.Bars})");
+                await Task.Delay(40);
+            }
+        }
+        catch (InvalidOperationException e)
+        {
+            return (null, e.Message);
+        }
+        finally
+        {
+            if (IsRecording)
+            {
+                FinishRecording();
+            }
+
+            engine.Pause();
+            engine.CountInBars = oldCountIn;
+            MuteBassMachineQuietly(wasMuted);
+            foreach (var (track, was) in armed)
+            {
+                track.Armed = was;
+            }
+
+            engine.Seek(oldPosition);
+            OnPropertyChanged(nameof(IsPlaying));
+            foreach (var track in Tracks)
+            {
+                track.NotifyMixChanged();
+            }
+        }
+
+        if (cancel.IsCancellationRequested)
+        {
+            return (null, null);
+        }
+
+        progress.Report("Listening to your take...");
+        var clip = input.Clips.FirstOrDefault(c => !before.Contains(c));
+        if (clip is null)
+        {
+            return (null, "Nothing was recorded. Check that your bass is plugged into input 2.");
+        }
+
+        var rate = engine.SampleRate;
+        var playback = clip.Playback;
+        var played = await Task.Run(() => NoteTranscriber.FromAudio(playback.Samples, (int)playback.Offset, (int)playback.Length, rate, clip.StartSample, 36, 4096));
+        Undo();
+        Notice = "";
+        var result = def.Kind == ChallengeKind.Free ? PracticeChallenges.ScoreFree(played, plan.Key!) : PracticeChallenges.Score(plan.Targets, played, rate);
+        return (result, null);
+    }
+
     public Task HearDesigned(DesignedSound sound)
     {
         var track = _session.Tracks.FirstOrDefault(t => t.Machine == MachineRole.Bass) ?? _session.Tracks.FirstOrDefault(t => t.Machine is not null);
