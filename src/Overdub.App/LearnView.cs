@@ -28,6 +28,7 @@ public static class LearnCatalog
 
     public static IReadOnlyList<LearnCard> Cards { get; } =
     [
+        new("Mixing basics", "Six short steps on levels, pan, EQ, compression, reverb and mastering. Each one suggests changes for your own song, lets you hear before and after, and can be undone.", true, context => context.Show(new MixingLesson(context))),
         new("Glossary", "Plain-English meanings for the words used in Overdub and in music, with search. Words in the lessons that are underlined open here when you click them.", false, context => context.OpenGlossary()),
         new("Song structure by style", "See how pop, rock, blues, funk, jazz, metal, house and reggae arrange their sections, what each section does, and how your song compares.", true, context => context.Show(new StructureLesson(context))),
         new("Rhythm and time signatures", "See how beats are counted and grouped in 4/4, 3/4, 6/8, 7/8 and more, hear the click, and tap along to feel it.", false, context => context.Show(new RhythmLesson(context))),
