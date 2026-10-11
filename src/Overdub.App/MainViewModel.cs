@@ -2498,6 +2498,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _session.AddTrackUndoable(UniqueName("Keys"), null);
     }
 
+    public void RemovePlayer(TrackViewModel track) => RemoveTrack(track);
+
     private void RemoveTrack(TrackViewModel track)
     {
         if (IsRecording)
