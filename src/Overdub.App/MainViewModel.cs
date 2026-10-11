@@ -1917,6 +1917,12 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public bool BassIsMuted => Tracks.FirstOrDefault(t => t.Model.Machine == MachineRole.Bass)?.Model.Mute == true;
 
+    public Task HearNotes(IReadOnlyList<(int Pitch, int AtMs, int LenMs)> notes)
+    {
+        var track = _session.Tracks.FirstOrDefault(t => t.Machine == MachineRole.Bass) ?? _session.Tracks.FirstOrDefault(t => t.Machine is not null);
+        return track is null ? Task.CompletedTask : _session.PreviewLine(track, notes, PreviewSettings.Volume);
+    }
+
     public Task HearChords(IReadOnlyList<Chord> chords, int holdMs = 900)
     {
         var track = _session.Tracks.FirstOrDefault(t => t.Machine == MachineRole.Guitar) ?? _session.Tracks.FirstOrDefault(t => t.Machine == MachineRole.Lead);
