@@ -61,6 +61,8 @@ public sealed class BuildView : UserControl
         _page.Children.Add(Ui.Label("Start from a template"));
         _page.Children.Add(Templates());
         _page.Children.Add(new Border { Height = 14 });
+        _page.Children.Add(Ui.Label("Your song"));
+        _page.Children.Add(SongBox());
         _page.Children.Add(Ui.Label("Your band"));
         var players = _main.Tracks
             .Where(t => t.IsDrums || t.IsMachine || t.IsKeys)
@@ -162,6 +164,16 @@ public sealed class BuildView : UserControl
                 buttons.Children.Add(coach);
             }
 
+            if (track.IsKeys)
+            {
+                var play = Ui.Secondary("Play the chords", "Fill the keys with your song's chords as a pad, arpeggio or stabs", 120);
+                play.Click += (_, _) => ShowKeysStyles(play, track);
+                buttons.Children.Add(play);
+                var edit = Ui.Secondary("Edit notes", "Open the piano roll for the keys", 90);
+                edit.Click += (_, _) => EditKeys(track);
+                buttons.Children.Add(edit);
+            }
+
             if (track.Model.Machine == MachineRole.Lead)
             {
                 var melody = Ui.Secondary("Melody", "Generate a single-note melody in your key");
@@ -178,6 +190,133 @@ public sealed class BuildView : UserControl
         grid.Children.Add(sound);
         grid.Children.Add(buttons);
         return Ui.Card(grid);
+    }
+
+    private UIElement SongBox()
+    {
+        var key = _main!.DetectSongKeyQuick();
+        var stack = new StackPanel();
+        var top = new WrapPanel { Margin = new Thickness(0, 0, 0, 10) };
+        var keyBox = new StackPanel { Margin = new Thickness(0, 0, 18, 0) };
+        keyBox.Children.Add(new TextBlock { Text = "Key", FontSize = 12, Foreground = Ui.Res("TextDim"), Margin = new Thickness(0, 0, 0, 3) });
+        var keyButton = Ui.Secondary(key is null ? "Not known yet" : $"{key.Name} ▾", "Move every player to another key at once", 150);
+        keyButton.Margin = new Thickness(0);
+        keyButton.IsEnabled = key is not null;
+        keyButton.Click += (_, _) => ShowKeyMenu(keyButton);
+        keyBox.Children.Add(keyButton);
+        top.Children.Add(keyBox);
+
+        var tempoBox = new StackPanel { Margin = new Thickness(0, 0, 18, 0) };
+        tempoBox.Children.Add(new TextBlock { Text = "Tempo (BPM)", FontSize = 12, Foreground = Ui.Res("TextDim"), Margin = new Thickness(0, 0, 0, 3) });
+        var tempo = new TextBox { Text = _main.Bpm.ToString("0"), Width = 70, Height = 26, FontSize = 13, VerticalContentAlignment = VerticalAlignment.Center, ToolTip = "Beats per minute", Background = Ui.Res("Well"), Foreground = Ui.Res("Text"), BorderBrush = Ui.Res("Border"), CaretBrush = Ui.Res("Text") };
+        void Commit()
+        {
+            if (double.TryParse(tempo.Text, out var bpm))
+            {
+                _main.Bpm = bpm;
+            }
+
+            tempo.Text = _main.Bpm.ToString("0");
+        }
+
+        tempo.LostFocus += (_, _) => Commit();
+        tempo.KeyDown += (_, e) =>
+        {
+            if (e.Key == System.Windows.Input.Key.Enter)
+            {
+                Commit();
+            }
+        };
+        tempoBox.Children.Add(tempo);
+        top.Children.Add(tempoBox);
+        top.Children.Add(new TextBlock { Text = "Changing the key moves every player together: chords, bass lines, melody and keys.", FontSize = 12.5, Foreground = Ui.Res("TextDim"), TextWrapping = TextWrapping.Wrap, MaxWidth = 340, VerticalAlignment = VerticalAlignment.Bottom });
+        stack.Children.Add(top);
+
+        var chords = _main.SongProgression();
+        if (key is not null && chords.Count > 0)
+        {
+            stack.Children.Add(new TextBlock { Text = "Chords (every player follows these)", FontSize = 12, Foreground = Ui.Res("TextDim"), Margin = new Thickness(0, 0, 0, 5) });
+            var row = new WrapPanel();
+            var flats = NoteSpelling.Mode switch { 1 => false, 2 => true, _ => NoteSpelling.KeyUsesFlats(key.Root, key.Minor) };
+            foreach (var chord in chords)
+            {
+                var tile = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center };
+                tile.Children.Add(new TextBlock { Text = Theory.Numeral(chord, key.Root, key.Minor), FontFamily = new FontFamily("Georgia"), FontSize = 19, Foreground = Ui.AccentBrush, HorizontalAlignment = HorizontalAlignment.Center });
+                tile.Children.Add(new TextBlock { Text = NoteSpelling.NameFor(chord.Root, flats) + chord.QualitySuffix, FontSize = 13, HorizontalAlignment = HorizontalAlignment.Center });
+                row.Children.Add(new Border { Background = Ui.Res("Well"), BorderBrush = Ui.Res("Border"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 8, 6), Child = tile });
+            }
+
+            var edit = Ui.Secondary("Edit chords", "Open the chord editor for the guitar machine", 100);
+            edit.Margin = new Thickness(0, 0, 0, 6);
+            edit.Click += (_, _) => EditChords();
+            row.Children.Add(edit);
+            stack.Children.Add(row);
+        }
+        else
+        {
+            var edit = Ui.Secondary("Edit chords", "Open the chord editor for the guitar machine", 100);
+            edit.HorizontalAlignment = HorizontalAlignment.Left;
+            edit.Click += (_, _) => EditChords();
+            stack.Children.Add(new TextBlock { Text = "No chords yet. Pick a template above, or add a guitar player and edit its chords.", FontSize = 12.5, Foreground = Ui.Res("TextDim"), Margin = new Thickness(0, 0, 0, 6), TextWrapping = TextWrapping.Wrap });
+            stack.Children.Add(edit);
+        }
+
+        var card = Ui.Card(stack, 14);
+        card.CornerRadius = new CornerRadius(10);
+        card.Padding = new Thickness(16, 12, 16, 8);
+        return card;
+    }
+
+    private void ShowKeyMenu(FrameworkElement anchor)
+    {
+        var menu = new ContextMenu { PlacementTarget = anchor, Placement = PlacementMode.Bottom };
+        var minor = _main!.DetectSongKeyQuick()?.Minor == true;
+        for (var root = 0; root < 12; root++)
+        {
+            var target = root;
+            var item = new MenuItem { Header = $"{NoteSpelling.Name(target)} {(minor ? "minor" : "major")}" };
+            item.Click += (_, _) => _main.MoveToKey(target);
+            menu.Items.Add(item);
+        }
+
+        menu.IsOpen = true;
+    }
+
+    private void EditChords()
+    {
+        var track = _main!.Tracks.FirstOrDefault(t => t.Model.Machine == MachineRole.Guitar) ?? _main.Tracks.FirstOrDefault(t => t.Model.Machine == MachineRole.Bass);
+        if (track is null)
+        {
+            _main.ShowMessage("Add a guitar player first (Add a player), then edit its chords.");
+            return;
+        }
+
+        new ChordWindow(_main, Owner!, track.Model).Show();
+    }
+
+    private void ShowKeysStyles(FrameworkElement anchor, TrackViewModel track)
+    {
+        var menu = new ContextMenu { PlacementTarget = anchor, Placement = PlacementMode.Bottom };
+        foreach (var (style, name) in Session.KeysStyles)
+        {
+            var chosen = style;
+            var item = new MenuItem { Header = name, ToolTip = ChordPattern.StyleDescription(chosen) };
+            item.Click += (_, _) => _main!.PlayChordsOnKeys(track, chosen);
+            menu.Items.Add(item);
+        }
+
+        menu.IsOpen = true;
+    }
+
+    private void EditKeys(TrackViewModel track)
+    {
+        if (track.Model.MidiClips.FirstOrDefault() is not { } clip)
+        {
+            _main!.ShowMessage("The keys have no notes yet. Use Play the chords, or record on your keyboard first.");
+            return;
+        }
+
+        new PianoRollWindow(_main!, track, clip) { Owner = Owner }.Show();
     }
 
     private void ShowAddMenu(FrameworkElement anchor)

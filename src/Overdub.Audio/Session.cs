@@ -777,6 +777,61 @@ public sealed class Session : IDisposable
         return track;
     }
 
+    public const string KeysMarker = "keys:";
+
+    public static IReadOnlyList<(ChordStyle Style, string Name)> KeysStyles { get; } =
+    [
+        (ChordStyle.Pad, "Pad"),
+        (ChordStyle.Arpeggio, "Arpeggio"),
+        (ChordStyle.Strum, "Stabs"),
+    ];
+
+    public static bool IsKeysChordClip(MidiClip clip) => clip.PatternId?.StartsWith(KeysMarker, StringComparison.Ordinal) == true;
+
+    private List<(MidiClip Clip, ChordPattern Pattern)> ChordSources() => Tracks
+        .Where(t => t.Machine == MachineRole.Guitar)
+        .SelectMany(t => t.MidiClips.Select(c => (Clip: c, Pattern: t.ChordPatterns.FirstOrDefault(p => p.Id == c.PatternId))))
+        .Where(x => x.Pattern is not null)
+        .Select(x => (x.Clip, x.Pattern!))
+        .ToList();
+
+    private MidiClip KeysClip(ChordPattern source, ChordStyle style, long start)
+    {
+        var pattern = EffectivePattern(source).Clone();
+        pattern.Style = style;
+        return new MidiClip(pattern.ToEvents(Engine.SampleRate, Engine.Bpm, Engine.BeatsPerBar, Humanizer.StableSeed(pattern.Id, start)), start) { PatternId = KeysMarker + (int)style };
+    }
+
+    public string? PlayChordsOnKeys(Track keys, ChordStyle style)
+    {
+        if (Engine.SampleRate == 0)
+        {
+            return "Connect your Komplete Audio first.";
+        }
+
+        var sources = ChordSources();
+        if (sources.Count == 0)
+        {
+            return "The keys follow the chords of a guitar machine. Add a guitar player and place chords for it first.";
+        }
+
+        var old = keys.MidiClips.Where(IsKeysChordClip).ToList();
+        var fresh = sources.Select(x => KeysClip(x.Pattern, style, x.Clip.StartSample)).ToList();
+        Edit(
+            "Play the chords on the keys",
+            () =>
+            {
+                old.ForEach(c => keys.MidiClips.Remove(c));
+                fresh.ForEach(keys.AddMidiClip);
+            },
+            () =>
+            {
+                fresh.ForEach(c => keys.MidiClips.Remove(c));
+                old.ForEach(keys.AddMidiClip);
+            });
+        return null;
+    }
+
     public void RegeneratePatternClips()
     {
         if (Engine.SampleRate == 0)
@@ -796,6 +851,30 @@ public sealed class Session : IDisposable
                 }
 
                 var fresh = pattern.ToClip(Engine.SampleRate, Engine.Bpm, clip.Shift);
+                fresh.Mute = clip.Mute;
+                fresh.Solo = clip.Solo;
+                track.MidiClips[i] = fresh;
+            }
+        }
+
+        var sources = ChordSources();
+        foreach (var track in Tracks.Where(t => t.IsKeys))
+        {
+            for (var i = 0; i < track.MidiClips.Count; i++)
+            {
+                var clip = track.MidiClips[i];
+                if (!IsKeysChordClip(clip) || !int.TryParse(clip.PatternId![KeysMarker.Length..], out var style))
+                {
+                    continue;
+                }
+
+                var source = sources.FirstOrDefault(x => x.Clip.StartSample == clip.StartSample);
+                if (source.Pattern is null)
+                {
+                    continue;
+                }
+
+                var fresh = KeysClip(source.Pattern, (ChordStyle)style, clip.Shift);
                 fresh.Mute = clip.Mute;
                 fresh.Solo = clip.Solo;
                 track.MidiClips[i] = fresh;
