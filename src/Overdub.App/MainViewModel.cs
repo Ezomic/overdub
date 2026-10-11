@@ -1917,6 +1917,18 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public bool BassIsMuted => Tracks.FirstOrDefault(t => t.Model.Machine == MachineRole.Bass)?.Model.Mute == true;
 
+    public void PlayChordsOnKeys(TrackViewModel track, ChordStyle style)
+    {
+        if (_session.PlayChordsOnKeys(track.Model, style) is { } problem)
+        {
+            ShowMessage(problem);
+        }
+        else
+        {
+            ShowNotice($"The keys now play your chords ({Session.KeysStyles.First(k => k.Style == style).Name.ToLowerInvariant()}).");
+        }
+    }
+
     public Task HearNotes(IReadOnlyList<(int Pitch, int AtMs, int LenMs)> notes)
     {
         var track = _session.Tracks.FirstOrDefault(t => t.Machine == MachineRole.Bass) ?? _session.Tracks.FirstOrDefault(t => t.Machine is not null);
