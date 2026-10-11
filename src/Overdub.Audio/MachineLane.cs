@@ -69,6 +69,13 @@ public sealed class MachineLane(MachineRole role)
             return;
         }
 
+        if (DesignedSounds.Find(name) is { } designed)
+        {
+            _synth.SetPatch(designed.ToPatch());
+            _usePluck = false;
+            return;
+        }
+
         var character = PluckSynth.Find(name);
         if (character is not null)
         {
@@ -79,6 +86,14 @@ public sealed class MachineLane(MachineRole role)
 
         _usePluck = false;
         _synth.SetPreset(name == "Synth pluck" ? "Pluck" : name == "Synth bass" ? "Bass" : name == "Synth lead" ? "Lead" : name);
+    }
+
+    public void SetDesigned(DesignedSound sound)
+    {
+        _presetName = "designed preview";
+        _usePlayer = false;
+        _usePluck = false;
+        _synth.SetPatch(sound.ToPatch());
     }
 
     public void AllNotesOff()

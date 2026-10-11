@@ -1929,6 +1929,19 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    public Task HearDesigned(DesignedSound sound)
+    {
+        var track = _session.Tracks.FirstOrDefault(t => t.Machine == MachineRole.Bass) ?? _session.Tracks.FirstOrDefault(t => t.Machine is not null);
+        if (track is null)
+        {
+            ShowMessage("Add a bass machine first (Build a song, then Add a player) so there is something to play the sound.");
+            return Task.CompletedTask;
+        }
+
+        (int Pitch, int AtMs, int LenMs)[] riff = [(36, 0, 450), (36, 500, 450), (43, 1000, 450), (41, 1500, 1500)];
+        return _session.PreviewLine(track, riff, PreviewSettings.Volume, sound);
+    }
+
     public Task HearNotes(IReadOnlyList<(int Pitch, int AtMs, int LenMs)> notes)
     {
         var track = _session.Tracks.FirstOrDefault(t => t.Machine == MachineRole.Bass) ?? _session.Tracks.FirstOrDefault(t => t.Machine is not null);

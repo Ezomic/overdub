@@ -28,6 +28,8 @@ public sealed class SoundLibraryView : UserControl
     private readonly TextBlock _count = new() { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0), FontSize = 13 };
     private readonly Button _kindButton = Ui.Secondary("All kinds", "Show one kind of instrument", 150);
     private readonly Button _statusButton = Ui.Secondary("All packs", "Show installed or not installed packs", 130);
+    private readonly Border _designerHost = new() { Visibility = Visibility.Collapsed };
+    private DockPanel? _root;
     private MainViewModel? _main;
     private string? _kind;
     private int _status;
@@ -58,6 +60,11 @@ public sealed class SoundLibraryView : UserControl
         filters.Children.Add(_search);
 
         var head = new StackPanel { Margin = new Thickness(20, 16, 20, 0) };
+        var make = Ui.Accent("Make your own bass sound", "Design a bass sound by shaping the waveform, filter and punch");
+        make.HorizontalAlignment = HorizontalAlignment.Left;
+        make.Margin = new Thickness(0, 0, 0, 10);
+        make.OnClick(OpenDesigner);
+        head.Children.Add(make);
         head.Children.Add(Ui.Title("Sounds"));
         head.Children.Add(Ui.Sub("Free instruments you can install. Pick one from a track's Change sound button."));
         head.Children.Add(filters);
@@ -69,7 +76,11 @@ public sealed class SoundLibraryView : UserControl
         root.Children.Add(head);
         root.Children.Add(footer);
         root.Children.Add(new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, Content = _list, Padding = new Thickness(20, 0, 20, 10) });
-        Content = root;
+        var host = new Grid();
+        host.Children.Add(root);
+        host.Children.Add(_designerHost);
+        _root = root;
+        Content = host;
         IsVisibleChanged += (_, e) =>
         {
             if (e.NewValue is true)
@@ -81,6 +92,26 @@ public sealed class SoundLibraryView : UserControl
     }
 
     private Action? RefreshFooter { get; set; }
+
+    private void OpenDesigner()
+    {
+        if (_main is null)
+        {
+            return;
+        }
+
+        _designerHost.Child = new SoundDesignerView(_main, CloseDesigner);
+        _designerHost.Visibility = Visibility.Visible;
+        _root!.Visibility = Visibility.Collapsed;
+    }
+
+    private void CloseDesigner()
+    {
+        _designerHost.Child = null;
+        _designerHost.Visibility = Visibility.Collapsed;
+        _root!.Visibility = Visibility.Visible;
+        SoundPrograms.Invalidate();
+    }
 
     public void Attach(MainViewModel main)
     {
