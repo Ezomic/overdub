@@ -116,7 +116,7 @@ public sealed class ChallengesLesson : UserControl
         var stack = new StackPanel();
         stack.Children.Add(new TextBlock { Text = $"{_def.Level} · Over your song, {PracticeChallenges.Bars} bars", FontSize = 12, Foreground = Ui.Res("TextDim"), Margin = new Thickness(0, 0, 0, 3) });
         stack.Children.Add(new TextBlock { Text = _def.Title, FontSize = 18, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 4) });
-        stack.Children.Add(new TextBlock { Text = PracticeChallenges.Description(_def, _plan.Targets.Count), FontSize = 13.5, LineHeight = 20, Foreground = Frozen(0xD6, 0xD6, 0xDA), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 10) });
+        stack.Children.Add(new TextBlock { Text = PracticeChallenges.Description(_def, _plan.Targets.Count), FontSize = 13.5, LineHeight = 20, Foreground = Frozen(0xD6, 0xD6, 0xDA), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 10) }.Glossed(_context));
 
         if (_plan.Problem is { } problem)
         {
@@ -248,7 +248,7 @@ public sealed class ChallengesLesson : UserControl
         stack.Children.Add(strip);
         var tip = new TextBlock { TextWrapping = TextWrapping.Wrap, FontSize = 13, LineHeight = 19, Foreground = Frozen(0xCF, 0xE6, 0xD4) };
         tip.Inlines.Add(new System.Windows.Documents.Run("Tip: ") { FontWeight = FontWeights.SemiBold });
-        tip.Inlines.Add(new System.Windows.Documents.Run(result.Tip));
+        tip.Inlines.AddRange(Gloss.Inlines(result.Tip, _context));
         stack.Children.Add(new Border
         {
             Background = Frozen(0x1B, 0x2A, 0x22),

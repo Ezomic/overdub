@@ -169,10 +169,10 @@ public sealed class RhythmLesson : UserControl
         }
 
         stack.Children.Add(grid);
-        stack.Children.Add(new TextBlock { Text = _info.Description, FontSize = 13.5, LineHeight = 20, Foreground = Frozen(0xD6, 0xD6, 0xDA), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 8) });
+        stack.Children.Add(new TextBlock { Text = _info.Description, FontSize = 13.5, LineHeight = 20, Foreground = Frozen(0xD6, 0xD6, 0xDA), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 8) }.Glossed(_context));
         var tip = new TextBlock { TextWrapping = TextWrapping.Wrap, FontSize = 13, LineHeight = 19, Foreground = Frozen(0xCF, 0xE6, 0xD4) };
         tip.Inlines.Add(new System.Windows.Documents.Run("Try it: ") { FontWeight = FontWeights.SemiBold });
-        tip.Inlines.Add(new System.Windows.Documents.Run(_info.Tip));
+        tip.Inlines.AddRange(Gloss.Inlines(_info.Tip, _context));
         stack.Children.Add(new Border { Background = Frozen(0x1B, 0x2A, 0x22), BorderBrush = Ui.GoodBrush, BorderThickness = new Thickness(3, 0, 0, 0), Padding = new Thickness(12, 8, 12, 8), Child = tip });
         return Card(stack);
     }
