@@ -6,6 +6,12 @@ public sealed class SynthPatch
 
     public SynthPatch(string name, double[] harmonics, double[] detunes, float attack, float decay, float sustain, float release,
         float heldDecay, float cutoff, float velocityBrightness, float gain)
+        : this(name, BuildTable(harmonics), detunes, attack, decay, sustain, release, heldDecay, cutoff, velocityBrightness, gain)
+    {
+    }
+
+    public SynthPatch(string name, float[] table, double[] detunes, float attack, float decay, float sustain, float release,
+        float heldDecay, float cutoff, float velocityBrightness, float gain)
     {
         Name = name;
         Detunes = detunes;
@@ -17,7 +23,7 @@ public sealed class SynthPatch
         Cutoff = cutoff;
         VelocityBrightness = velocityBrightness;
         Gain = gain / detunes.Length;
-        Table = BuildTable(harmonics);
+        Table = table;
     }
 
     public string Name { get; }
@@ -31,6 +37,8 @@ public sealed class SynthPatch
     public float Cutoff { get; }
     public float VelocityBrightness { get; }
     public float Gain { get; }
+    public float SubLevel { get; init; }
+    public float Drive { get; init; }
 
     public static IReadOnlyList<SynthPatch> All { get; } =
     [

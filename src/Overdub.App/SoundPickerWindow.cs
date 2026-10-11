@@ -186,6 +186,11 @@ public sealed class SoundPickerWindow : Window
         var builtIn = role is { } machine ? PluckSynth.BuiltInNames(machine) : SynthPatch.All.Select(p => p.Name).ToList();
         var blurb = role is null ? "Overdub's own synth patches. No samples needed, so they load instantly." : "Overdub's own plucked-string and synth voices. No samples needed, so they load instantly.";
         var entries = builtIn.Select(name => new Entry("Built-in", "Built-in", name, name, blurb)).ToList();
+        if (role is not null)
+        {
+            entries.AddRange(DesignedSounds.List().Select(s => new Entry("My sounds", "My sounds", s.Name, DesignedSounds.PresetName(s.Name), "A sound you designed in Make your own bass sound.")));
+        }
+
         entries.AddRange(SoundPrograms.Discover()
             .Where(p => p.Fits(role))
             .Select(p => new Entry(p.Pack, p.Kind, p.Title, p.Name, p.Description)));

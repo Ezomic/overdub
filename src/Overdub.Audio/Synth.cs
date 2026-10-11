@@ -32,6 +32,8 @@ public sealed class Synth : INoteTarget
 
     public void SetPreset(string? name) => _patch = SynthPatch.Named(name);
 
+    public void SetPatch(SynthPatch patch) => _patch = patch;
+
     public float Volume { get; set; } = 0.35f;
 
     public Vst3.Vst3Plugin? Instrument { get => Volatile.Read(ref _instrument); set => Volatile.Write(ref _instrument, value); }
@@ -222,6 +224,9 @@ public sealed class Synth : INoteTarget
         var cutoff = patch.Cutoff * (1f - patch.VelocityBrightness + (patch.VelocityBrightness * voice.Velocity));
         cutoff = Math.Clamp(cutoff, 0.01f, 1f);
         var output = patch.Gain * voice.Velocity * Volume;
+        var drive = patch.Drive;
+        var driveGain = 1f + (9f * drive);
+        var driveNorm = MathF.Tanh(driveGain);
 
         for (var i = 0; i < frames; i++)
         {
@@ -282,7 +287,20 @@ public sealed class Synth : INoteTarget
             }
 
             voice.Filter += cutoff * (sample - voice.Filter);
-            destination[offset + i] += voice.Filter * voice.Level * voice.Droop * output;
+            var shaped = voice.Filter;
+            if (drive > 0f)
+            {
+                shaped = MathF.Tanh(shaped * driveGain) / driveNorm;
+            }
+
+            if (patch.SubLevel > 0f)
+            {
+                shaped += (float)Math.Sin(voice.PhaseSub * 2 * Math.PI) * patch.SubLevel;
+                voice.PhaseSub += step * 0.5;
+                voice.PhaseSub -= Math.Floor(voice.PhaseSub);
+            }
+
+            destination[offset + i] += shaped * voice.Level * voice.Droop * output;
 
             voice.Phase += step * detunes[0];
             voice.Phase -= Math.Floor(voice.Phase);
@@ -323,6 +341,7 @@ public sealed class Synth : INoteTarget
         public bool PedalHeld;
         public SynthPatch Patch;
         public double Phase2;
+        public double PhaseSub;
         public float Droop;
     }
 }
