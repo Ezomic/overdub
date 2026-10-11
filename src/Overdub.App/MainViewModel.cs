@@ -1484,6 +1484,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public void RemoveSection(SongSection section) => _session.RemoveSection(section);
 
+    public int SectionBars(SongSection section) => (int)Math.Round(section.Length / Math.Max(1.0, _session.Engine.SamplesPerBeat * _session.Engine.BeatsPerBar));
+
     public void GoToSection(SongSection section) => _session.Engine.Seek(section.Start);
 
     public void CopySectionToPlayhead(SongSection section, bool move)

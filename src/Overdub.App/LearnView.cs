@@ -27,7 +27,8 @@ public static class LearnCatalog
 
     public static IReadOnlyList<LearnCard> Cards { get; } =
     [
-        new("Rhythm and time signatures", "See how beats are counted and grouped in 4/4, 3/4, 6/8, 7/8 and more, hear the click, and tap along to feel it.", true, context => context.Show(new RhythmLesson(context))),
+        new("Song structure by style", "See how pop, rock, blues, funk, jazz, metal, house and reggae arrange their sections, what each section does, and how your song compares.", true, context => context.Show(new StructureLesson(context))),
+        new("Rhythm and time signatures", "See how beats are counted and grouped in 4/4, 3/4, 6/8, 7/8 and more, hear the click, and tap along to feel it.", false, context => context.Show(new RhythmLesson(context))),
         new("Practice challenges", "Play your real bass over your song: roots, fifths, octaves, approach notes and your bass machine's own line. Overdub listens and shows what you hit.", false, context => context.Show(new ChallengesLesson(context))),
         new("Ear trainer", "Listen and name what you hear: intervals, major or minor, chord types, scales and single bass notes, with a tip to remember each sound.", false, context => context.Show(new EarTrainerLesson(context))),
         new("Circle of fifths and progression builder", "See which keys and chords sit close together, build a progression from the chords of a key, and hear why famous progressions work.", false, context => context.Show(new CircleLesson(context))),
