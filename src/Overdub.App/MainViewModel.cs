@@ -2101,6 +2101,31 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         return (result, null);
     }
 
+    public Task HearClick(IReadOnlyList<(int Pitch, int AtMs, int LenMs)> notes, Action started)
+    {
+        var track = _session.Tracks.FirstOrDefault(t => t.Machine == MachineRole.Bass) ?? _session.Tracks.FirstOrDefault(t => t.Machine is not null);
+        if (track is null)
+        {
+            ShowMessage("Add a bass machine first (Build a song, then Add a player) so there is something to play the click.");
+            return Task.CompletedTask;
+        }
+
+        return _session.PreviewLine(track, notes, PreviewSettings.Volume, Rhythm.TickSound, started);
+    }
+
+    public void StopClick() => _session.StopPreview();
+
+    public void SetSignature(int beats, int unit)
+    {
+        var engine = _session.Engine;
+        (engine.BeatsPerBar, engine.BeatUnit) = (beats, unit);
+        OnPropertyChanged(nameof(SignatureLabel));
+        GridChanged();
+        ShowNotice($"Your song is now in {beats}/{unit}. Existing blocks keep their place, so the bar lines may no longer match them.");
+    }
+
+    public (int Beats, int Unit) Signature => (_session.Engine.BeatsPerBar, _session.Engine.BeatUnit);
+
     public Task HearDesigned(DesignedSound sound)
     {
         var track = _session.Tracks.FirstOrDefault(t => t.Machine == MachineRole.Bass) ?? _session.Tracks.FirstOrDefault(t => t.Machine is not null);
