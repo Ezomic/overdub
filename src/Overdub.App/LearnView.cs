@@ -6,13 +6,14 @@ using Overdub.Audio;
 
 namespace Overdub.App;
 
-public sealed class LearnContext(MainViewModel main, Window owner, Action<UserControl> show, Action back, Action<int> navigate)
+public sealed class LearnContext(MainViewModel main, Window owner, Action<UserControl> show, Action back, Action<int> navigate, Action<string?> openGlossary)
 {
     public MainViewModel Main { get; } = main;
     public Window Owner { get; } = owner;
     public void Show(UserControl lesson) => show(lesson);
     public void Back() => back();
     public void Navigate(int section) => navigate(section);
+    public void OpenGlossary(string? term = null) => openGlossary(term);
 }
 
 public sealed record LearnCard(string Title, string Description, bool IsNew, Action<LearnContext> Open);
@@ -27,6 +28,7 @@ public static class LearnCatalog
 
     public static IReadOnlyList<LearnCard> Cards { get; } =
     [
+        new("Glossary", "Plain-English meanings for the words used in Overdub and in music, with search. Words in the lessons that are underlined open here when you click them.", false, context => context.OpenGlossary()),
         new("Song structure by style", "See how pop, rock, blues, funk, jazz, metal, house and reggae arrange their sections, what each section does, and how your song compares.", true, context => context.Show(new StructureLesson(context))),
         new("Rhythm and time signatures", "See how beats are counted and grouped in 4/4, 3/4, 6/8, 7/8 and more, hear the click, and tap along to feel it.", false, context => context.Show(new RhythmLesson(context))),
         new("Practice challenges", "Play your real bass over your song: roots, fifths, octaves, approach notes and your bass machine's own line. Overdub listens and shows what you hit.", false, context => context.Show(new ChallengesLesson(context))),
@@ -39,6 +41,8 @@ public static class LearnCatalog
         new("Bass coach", "Bass lines over your chords, shown as tab, to learn and play along with.", false, context => OpenCoach(context)),
         new("Tuner", "Tune your bass or guitar before you play, with a needle that shows how close you are.", false, context => new TunerWindow(context.Main) { Owner = context.Owner }.Show()),
     ];
+
+    public static LearnCard? Find(string title) => title == StartHere.Title ? StartHere : Cards.FirstOrDefault(c => c.Title == title);
 
     private static TrackViewModel? Bass(MainViewModel main) => main.Tracks.FirstOrDefault(t => t.Model.Machine == MachineRole.Bass);
 
@@ -107,7 +111,16 @@ public sealed class LearnView : UserControl
 
     private Window? Owner => Window.GetWindow(this);
 
-    private LearnContext Context => new(_main!, Owner!, ShowLesson, CloseLesson, index => Navigate?.Invoke(index));
+    private LearnContext Context => new(_main!, Owner!, ShowLesson, CloseLesson, index => Navigate?.Invoke(index), OpenGlossary);
+
+    private UserControl? _returnTo;
+
+    private void OpenGlossary(string? term)
+    {
+        var current = _lessonHost.Child as UserControl;
+        ShowLesson(new GlossaryLesson(Context, term));
+        _returnTo = current is GlossaryLesson ? _returnTo : current;
+    }
 
     private void ShowLesson(UserControl lesson)
     {
@@ -118,6 +131,14 @@ public sealed class LearnView : UserControl
 
     private void CloseLesson()
     {
+        if (_lessonHost.Child is GlossaryLesson && _returnTo is { } previous)
+        {
+            _returnTo = null;
+            _lessonHost.Child = previous;
+            return;
+        }
+
+        _returnTo = null;
         _lessonHost.Child = null;
         _lessonHost.Visibility = Visibility.Collapsed;
         _home.Visibility = Visibility.Visible;

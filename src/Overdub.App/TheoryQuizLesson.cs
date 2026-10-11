@@ -133,7 +133,7 @@ public sealed class TheoryQuizLesson : UserControl
         {
             var why = new TextBlock { TextWrapping = TextWrapping.Wrap, FontSize = 13, LineHeight = 19, Foreground = Frozen(0xCF, 0xE6, 0xD4) };
             why.Inlines.Add(new System.Windows.Documents.Run("Why: ") { FontWeight = FontWeights.SemiBold });
-            why.Inlines.Add(new System.Windows.Documents.Run(question.Explanation));
+            why.Inlines.AddRange(Gloss.Inlines(question.Explanation, _context));
             stack.Children.Add(new Border
             {
                 Background = Frozen(0x1B, 0x2A, 0x22),

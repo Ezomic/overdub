@@ -72,7 +72,7 @@ public sealed class CircleLesson : UserControl
         var right = new StackPanel();
         Grid.SetColumn(right, 1);
         right.Children.Add(new TextBlock { Text = $"Key of {CircleOfFifths.KeyName(_index, _minor)}", FontSize = 16, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 4) });
-        right.Children.Add(new TextBlock { Text = $"{CircleOfFifths.Signature(_index)}. {CircleOfFifths.Neighbours(_index, _minor)}", FontSize = 13, LineHeight = 19, Foreground = Frozen(0xD6, 0xD6, 0xDA), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8) });
+        right.Children.Add(new TextBlock { Text = $"{CircleOfFifths.Signature(_index)}. {CircleOfFifths.Neighbours(_index, _minor)}", FontSize = 13, LineHeight = 19, Foreground = Frozen(0xD6, 0xD6, 0xDA), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8) }.Glossed(_context));
         right.Children.Add(Ui.Label("Chords in this key (tap to add)"));
         right.Children.Add(KeyChords());
         right.Children.Add(Ui.Label("Your progression"));
@@ -158,6 +158,7 @@ public sealed class CircleLesson : UserControl
     {
         var text = new TextBlock { TextWrapping = TextWrapping.Wrap, FontSize = 13, LineHeight = 19, Foreground = Frozen(0xCF, 0xE6, 0xD4) };
         text.Text = CircleOfFifths.Explain(Root, _minor, _degrees);
+        text.Glossed(_context);
         return new Border
         {
             Background = Frozen(0x1B, 0x2A, 0x22),

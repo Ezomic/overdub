@@ -186,10 +186,10 @@ public sealed class BassLineLesson : UserControl
     {
         var stack = new StackPanel();
         stack.Children.Add(new TextBlock { Text = analysis.Title, FontSize = 16, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 4) });
-        stack.Children.Add(new TextBlock { Text = analysis.Explanation, FontSize = 13.5, LineHeight = 20, Foreground = Frozen(0xD6, 0xD6, 0xDA), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8) });
+        stack.Children.Add(new TextBlock { Text = analysis.Explanation, FontSize = 13.5, LineHeight = 20, Foreground = Frozen(0xD6, 0xD6, 0xDA), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8) }.Glossed(_context));
         var tip = new TextBlock { TextWrapping = TextWrapping.Wrap, FontSize = 13, LineHeight = 19, Foreground = Frozen(0xCF, 0xE6, 0xD4) };
         tip.Inlines.Add(new System.Windows.Documents.Run("Try it: ") { FontWeight = FontWeights.SemiBold });
-        tip.Inlines.Add(new System.Windows.Documents.Run(analysis.Tip));
+        tip.Inlines.AddRange(Gloss.Inlines(analysis.Tip, _context));
         stack.Children.Add(new Border
         {
             Background = Frozen(0x1B, 0x2A, 0x22),

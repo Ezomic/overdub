@@ -168,10 +168,10 @@ public sealed class ScaleExplorerLesson : UserControl
     {
         var stack = new StackPanel();
         stack.Children.Add(new TextBlock { Text = $"What {_scale.Name} sounds like", FontSize = 16, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 4) });
-        stack.Children.Add(new TextBlock { Text = _scale.Sound, FontSize = 13.5, LineHeight = 20, Foreground = Frozen(0xD6, 0xD6, 0xDA), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8) });
+        stack.Children.Add(new TextBlock { Text = _scale.Sound, FontSize = 13.5, LineHeight = 20, Foreground = Frozen(0xD6, 0xD6, 0xDA), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8) }.Glossed(_context));
         var tip = new TextBlock { TextWrapping = TextWrapping.Wrap, FontSize = 13, LineHeight = 19, Foreground = Frozen(0xCF, 0xE6, 0xD4) };
         tip.Inlines.Add(new System.Windows.Documents.Run("Try it: ") { FontWeight = FontWeights.SemiBold });
-        tip.Inlines.Add(new System.Windows.Documents.Run(ScaleExplorer.Tip(_scale, _root)));
+        tip.Inlines.AddRange(Gloss.Inlines(ScaleExplorer.Tip(_scale, _root), _context));
         stack.Children.Add(new Border
         {
             Background = Frozen(0x1B, 0x2A, 0x22),

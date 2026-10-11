@@ -163,7 +163,7 @@ public sealed class StructureLesson : UserControl
         head.Children.Add(side);
         head.Children.Add(new TextBlock { Text = Title(SongStructure.Styles[_style], parts), FontSize = 18, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap });
         stack.Children.Add(head);
-        stack.Children.Add(new TextBlock { Text = SongStructure.Styles[_style].Overview, FontSize = 13, LineHeight = 19, Foreground = Frozen(0xD6, 0xD6, 0xDA), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 10) });
+        stack.Children.Add(new TextBlock { Text = SongStructure.Styles[_style].Overview, FontSize = 13, LineHeight = 19, Foreground = Frozen(0xD6, 0xD6, 0xDA), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 10) }.Glossed(_context));
 
         var map = new Grid { Margin = new Thickness(0, 0, 0, 4) };
         for (var i = 0; i < parts.Count; i++)
@@ -212,7 +212,7 @@ public sealed class StructureLesson : UserControl
         var stack = new StackPanel();
         stack.Children.Add(new TextBlock { Text = $"Section · {KindName(part.Kind)} · {guide.Typical}", FontSize = 12, Foreground = Ui.Res("TextDim"), Margin = new Thickness(0, 0, 0, 3) });
         stack.Children.Add(new TextBlock { Text = guide.Job, FontSize = 16, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 4) });
-        stack.Children.Add(new TextBlock { Text = guide.Detail, FontSize = 13.5, LineHeight = 20, Foreground = Frozen(0xD6, 0xD6, 0xDA), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 10) });
+        stack.Children.Add(new TextBlock { Text = guide.Detail, FontSize = 13.5, LineHeight = 20, Foreground = Frozen(0xD6, 0xD6, 0xDA), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 10) }.Glossed(_context));
         var players = new UniformGrid { Columns = 4, Margin = new Thickness(0, 0, 0, 10) };
         foreach (var (name, text) in new[] { ("Drums", guide.Drums), ("Guitar", guide.Guitar), ("Bass", guide.Bass), ("Keys", guide.Keys) })
         {
@@ -225,7 +225,7 @@ public sealed class StructureLesson : UserControl
         stack.Children.Add(players);
         var tip = new TextBlock { TextWrapping = TextWrapping.Wrap, FontSize = 13, LineHeight = 19, Foreground = Frozen(0xCF, 0xE6, 0xD4) };
         tip.Inlines.Add(new System.Windows.Documents.Run("Bass tip: ") { FontWeight = FontWeights.SemiBold });
-        tip.Inlines.Add(new System.Windows.Documents.Run(guide.Tip));
+        tip.Inlines.AddRange(Gloss.Inlines(guide.Tip, _context));
         stack.Children.Add(new Border { Background = Frozen(0x1B, 0x2A, 0x22), BorderBrush = Ui.GoodBrush, BorderThickness = new Thickness(3, 0, 0, 0), Padding = new Thickness(12, 8, 12, 8), Child = tip });
         return Card(stack);
     }
