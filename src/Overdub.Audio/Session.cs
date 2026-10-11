@@ -288,7 +288,9 @@ public sealed class Session : IDisposable
         });
     }
 
-    public Task PreviewLine(Track track, IReadOnlyList<(int Pitch, int AtMs, int LenMs)> notes, float volume = 1f, DesignedSound? designed = null)
+    public void StopPreview() => Interlocked.Increment(ref _previewVersion);
+
+    public Task PreviewLine(Track track, IReadOnlyList<(int Pitch, int AtMs, int LenMs)> notes, float volume = 1f, DesignedSound? designed = null, Action? started = null)
     {
         var machines = MachineTracks;
         var own = machines.IndexOf(track);
@@ -318,6 +320,7 @@ public sealed class Session : IDisposable
             }
 
             var clock = System.Diagnostics.Stopwatch.StartNew();
+            started?.Invoke();
             foreach (var e in events)
             {
                 if (version != _previewVersion)
