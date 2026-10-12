@@ -2128,6 +2128,30 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public (int Beats, int Unit) Signature => (_session.Engine.BeatsPerBar, _session.Engine.BeatUnit);
 
+    public ArrangeGrid BuildArrangeGrid() => Arrangement.Build(_session.Tracks, _session.Sections);
+
+    public int EditDepth => _session.History.UndoNames.Count;
+
+    public void SetArrangement(string name, ArrangeGrid grid, IEnumerable<(int Player, int Section, bool Active)> changes)
+    {
+        var clips = changes.SelectMany(c => grid[c.Player, c.Section].Clips.Select(clip => (clip, Mute: !c.Active))).ToList();
+        if (clips.Count > 0)
+        {
+            _session.SetClipMutes(name, clips);
+        }
+    }
+
+    public void UndoLast() => Undo();
+
+    public void PlayFromSong(long start)
+    {
+        _session.Engine.Seek(start);
+        if (!_session.Engine.IsPlaying)
+        {
+            PlayCommand.Execute(null);
+        }
+    }
+
     public MixPlan PlanMix(MixStep step) => MixingGuide.Plan(step, _session.Tracks);
 
     public IReadOnlyList<Track> MixTracks => _session.Tracks;
