@@ -193,6 +193,7 @@ public sealed class ChallengesLesson : UserControl
             if (result is not null)
             {
                 ChallengeProgress.Record(_def.Id, result.Stars);
+                GuidedProgress.Report($"challenge:{_def.Id}", result.Stars);
             }
         }
         finally

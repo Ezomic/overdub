@@ -16,7 +16,14 @@ public sealed class LearnContext(MainViewModel main, Window owner, Action<UserCo
     public void OpenGlossary(string? term = null) => openGlossary(term);
 }
 
-public sealed record LearnCard(string Title, string Description, bool IsNew, Action<LearnContext> Open);
+public sealed record LearnCard(string Title, string Description, bool IsNew, Action<LearnContext> Open)
+{
+    public void Launch(LearnContext context)
+    {
+        GuidedProgress.Report($"opened:{Title}", 1);
+        Open(context);
+    }
+}
 
 public static class LearnCatalog
 {
@@ -158,6 +165,7 @@ public sealed class LearnView : UserControl
         _page.Children.Add(Ui.Title("Learn"));
         _page.Children.Add(Ui.Sub("Short, hands-on lessons that use the song you are working on."));
         _page.Children.Add(SongPanel());
+        _page.Children.Add(GuidedPanel());
         _page.Children.Add(StartCard());
         var grid = new UniformGrid { Columns = 3 };
         foreach (var card in LearnCatalog.Cards)
@@ -166,6 +174,65 @@ public sealed class LearnView : UserControl
         }
 
         _page.Children.Add(grid);
+    }
+
+    private UIElement GuidedPanel()
+    {
+        var stack = new StackPanel { Margin = new Thickness(0, 0, 0, 4) };
+        var course = GuidedProgress.LastCourse() is { } last && GuidedProgress.NextStep(last) is not null ? last : GuidedCourses.All.FirstOrDefault(c => GuidedProgress.NextStep(c) is not null && GuidedProgress.DoneCount(c) > 0) ?? GuidedCourses.All.FirstOrDefault(c => GuidedProgress.NextStep(c) is not null);
+        var bar = new Border { BorderBrush = Ui.AccentBrush, BorderThickness = new Thickness(1), Background = Ui.Res("Panel"), CornerRadius = new CornerRadius(10), Padding = new Thickness(18, 12, 18, 12), Margin = new Thickness(0, 0, 0, 10) };
+        var row = new DockPanel();
+        if (course is null)
+        {
+            row.Children.Add(new TextBlock { Text = "You have finished every course. Open one below to go through it again.", FontSize = 14, VerticalAlignment = VerticalAlignment.Center });
+        }
+        else
+        {
+            var step = GuidedProgress.NextStep(course)!;
+            var number = course.Steps.ToList().IndexOf(step) + 1;
+            var go = Ui.Accent(GuidedProgress.Started ? "Continue" : "Start", "Open this step");
+            go.OnClick(() => GuidedCourseLesson.StartStep(Context, course, step));
+            DockPanel.SetDock(go, Dock.Right);
+            row.Children.Add(go);
+            var left = new StackPanel { Margin = new Thickness(0, 0, 14, 0) };
+            left.Children.Add(new TextBlock { Text = GuidedProgress.Started ? "Continue where you left off" : "Start your first course", FontSize = 12, Foreground = Ui.Res("TextDim") });
+            left.Children.Add(new TextBlock { Text = $"{course.Title} · step {number} of {course.Steps.Count}: {step.Title}", FontSize = 16, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap });
+            var track = new Grid { Height = 5, Margin = new Thickness(0, 8, 0, 0) };
+            var done = GuidedProgress.DoneCount(course);
+            track.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(Math.Max(0.0001, done), GridUnitType.Star) });
+            track.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(Math.Max(0.0001, course.Steps.Count - done), GridUnitType.Star) });
+            var back = new Border { Background = Ui.Res("Well"), CornerRadius = new CornerRadius(3) };
+            Grid.SetColumnSpan(back, 2);
+            track.Children.Add(back);
+            track.Children.Add(new Border { Background = Ui.AccentBrush, CornerRadius = new CornerRadius(3) });
+            left.Children.Add(track);
+            row.Children.Add(left);
+        }
+
+        bar.Child = row;
+        stack.Children.Add(bar);
+        var grid = new UniformGrid { Columns = 4, Margin = new Thickness(0, 0, 0, 12) };
+        foreach (var c in GuidedCourses.All)
+        {
+            var chosen = c;
+            var done = GuidedProgress.DoneCount(c);
+            var text = new StackPanel();
+            text.Children.Add(new TextBlock { Text = c.Title, FontSize = 14, FontWeight = FontWeights.SemiBold });
+            text.Children.Add(new TextBlock { Text = $"{c.Steps.Count} steps · about {c.Minutes} minutes", FontSize = 12, Foreground = Ui.Res("TextDim"), Margin = new Thickness(0, 2, 0, 6) });
+            text.Children.Add(new TextBlock { Text = done == 0 ? "not started" : done == c.Steps.Count ? "finished" : $"{done} of {c.Steps.Count} done", FontSize = 12, Foreground = done == 0 ? Ui.Res("TextDim") : Ui.AccentBrush });
+            var card = Ui.ClickCard(text, () => Context.Show(new GuidedCourseLesson(Context, chosen)), c.Blurb);
+            card.Margin = new Thickness(0, 0, 8, 0);
+            card.Padding = new Thickness(12, 10, 12, 10);
+            if (course == c)
+            {
+                card.BorderBrush = Ui.AccentBrush;
+            }
+
+            grid.Children.Add(card);
+        }
+
+        stack.Children.Add(grid);
+        return stack;
     }
 
     private UIElement SongPanel()
@@ -243,7 +310,7 @@ public sealed class LearnView : UserControl
         text.Children.Add(new TextBlock { Text = start.Title, FontSize = 16, FontWeight = FontWeights.SemiBold });
         text.Children.Add(new TextBlock { Text = start.Description, FontSize = 13, Foreground = new SolidColorBrush(Color.FromRgb(0xCF, 0xC6, 0xB4)), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 12, 0) });
         var open = Ui.Accent("Open", "Open this lesson");
-        open.OnClick(() => start.Open(Context));
+        open.OnClick(() => start.Launch(Context));
         Grid.SetColumn(open, 1);
         grid.Children.Add(text);
         grid.Children.Add(open);
@@ -273,7 +340,7 @@ public sealed class LearnView : UserControl
         head.Children.Add(new TextBlock { Text = card.Title, FontSize = 14, FontWeight = FontWeights.SemiBold });
         text.Children.Add(head);
         text.Children.Add(new TextBlock { Text = card.Description, FontSize = 12.5, Foreground = Ui.Res("TextDim"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 3, 0, 0), LineHeight = 17 });
-        var border = Ui.ClickCard(text, () => card.Open(Context), card.Description);
+        var border = Ui.ClickCard(text, () => card.Launch(Context), card.Description);
         border.Margin = new Thickness(0, 0, 10, 10);
         border.Padding = new Thickness(13, 11, 13, 11);
         return border;

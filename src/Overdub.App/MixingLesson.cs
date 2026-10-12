@@ -294,6 +294,7 @@ public sealed class MixingLesson : UserControl
     private void Apply(MixPlan plan)
     {
         _context.Main.ApplyMixPlan(plan);
+        GuidedProgress.Report($"mix:{_step}", 1);
         _done.Add(_step);
         Render();
     }
@@ -321,6 +322,11 @@ public sealed class MixingLesson : UserControl
             chip.OnClick(() =>
             {
                 _context.Main.SetMastering(index);
+                if (index > 0)
+                {
+                    GuidedProgress.Report("mix:Finish", 1);
+                }
+
                 Render();
             });
             chips.Children.Add(chip);

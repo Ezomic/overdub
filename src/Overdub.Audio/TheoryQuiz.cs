@@ -243,6 +243,15 @@ public static class TheoryQuiz
         return Make(QuizTopic.Bass, $"The chord is {Note(root, flats)}. Which note is its fifth, the safe second choice for the bass?", answer, OtherNotes(root + 7, root, flats, rng), $"The fifth is 7 frets above the root: {Note(root, flats)} to {answer}.", rng);
     }
 
+    public static QuizQuestion FifthOfKey(SongKey key, Random rng)
+    {
+        var flats = NoteSpelling.Mode switch { 1 => false, 2 => true, _ => KeyFlats(key.Root, key.Minor) };
+        var scale = Theory.Scale(key.Minor);
+        var answer = Note(key.Root + scale[4], flats);
+        var others = scale.Select(s => Note(key.Root + s, flats)).Where(n => n != answer).OrderBy(_ => rng.Next());
+        return Make(QuizTopic.Song, $"Your song is in {key.Name}. What is the 5th note of its scale?", answer, others, $"The 5th note of {key.Name} is {answer}: seven semitones, or seven frets, above the root.", rng);
+    }
+
     private static QuizQuestion? Song(Random rng, SongKey key, IReadOnlyList<Chord> progression)
     {
         var flats = NoteSpelling.Mode switch { 1 => false, 2 => true, _ => KeyFlats(key.Root, key.Minor) };
