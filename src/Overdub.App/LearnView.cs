@@ -28,6 +28,7 @@ public static class LearnCatalog
 
     public static IReadOnlyList<LearnCard> Cards { get; } =
     [
+        new("Arrangement: build a song that grows", "Decide who plays when: start small, grow into the chorus, pull back for the bridge, mark the changes with fills and end softly, with each idea tried on your own song.", true, context => context.Show(new ArrangementLesson(context))),
         new("Mixing basics", "Six short steps on levels, pan, EQ, compression, reverb and mastering. Each one suggests changes for your own song, lets you hear before and after, and can be undone.", true, context => context.Show(new MixingLesson(context))),
         new("Glossary", "Plain-English meanings for the words used in Overdub and in music, with search. Words in the lessons that are underlined open here when you click them.", false, context => context.OpenGlossary()),
         new("Song structure by style", "See how pop, rock, blues, funk, jazz, metal, house and reggae arrange their sections, what each section does, and how your song compares.", true, context => context.Show(new StructureLesson(context))),

@@ -695,6 +695,15 @@ public sealed class Session : IDisposable
             });
     }
 
+    public void SetClipMutes(string name, IReadOnlyList<(MidiClip Clip, bool Mute)> changes)
+    {
+        var before = changes.Select(c => (c.Clip, Mute: c.Clip.Mute)).ToList();
+        Edit(
+            name,
+            () => changes.ToList().ForEach(c => c.Clip.Mute = c.Mute),
+            () => before.ForEach(c => c.Clip.Mute = c.Mute));
+    }
+
     public void PlaceClips(Track track, IReadOnlyList<MidiClip> clips, string name) =>
         Edit(name, () => clips.ToList().ForEach(track.AddMidiClip), () => clips.ToList().ForEach(c => track.MidiClips.Remove(c)));
 
