@@ -214,7 +214,7 @@ public sealed class TrackViewModel(Track model, Brush color, Action onMixChanged
     public bool HasInput => !Model.IsBacking && !Model.IsDrums && Model.Machine is null or MachineRole.Lead;
     public int LaneCount => Model.LaneCount;
     public bool IsMultiLane => LaneCount > 1;
-    public double RowHeight => IsMultiLane ? Math.Max(124, 10 + (LaneCount * 58)) : 124;
+    public double RowHeight => IsMultiLane ? Math.Max(124, 10 + (LaneCount * 58)) : IsMachine || IsDrums ? 158 : 124;
     public string TakesText => $"{LaneCount} takes: drag a strip to choose which plays";
     public ObservableCollection<StripViewModel> Strips { get; } = [];
 
