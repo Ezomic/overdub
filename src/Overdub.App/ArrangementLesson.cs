@@ -251,6 +251,11 @@ public sealed class ArrangementLesson : UserControl
                 _appliedAt[_idea] = _context.Main.EditDepth;
             }
 
+            if (_appliedAt.ContainsKey(_idea))
+            {
+                GuidedProgress.Report("arr:any", 1);
+            }
+
             Render();
         });
         row.Children.Add(apply);

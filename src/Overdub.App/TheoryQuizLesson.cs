@@ -245,6 +245,7 @@ public sealed class TheoryQuizLesson : UserControl
 
     private UIElement Result()
     {
+        GuidedProgress.Report("quiz", _correct);
         var stack = new StackPanel();
         stack.Children.Add(new TextBlock { Text = $"You got {_correct} of {_questions.Count}", FontSize = 20, FontWeight = FontWeights.SemiBold });
         var message = _correct == _questions.Count ? "Perfect round." : _correct >= _questions.Count * 0.7 ? "Solid. A few to revisit." : "Good start. Every question you missed came with a reason, and a new round gives new questions.";

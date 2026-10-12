@@ -354,6 +354,11 @@ public sealed class RhythmLesson : UserControl
         var strong = _steps.Where(s => s.Main && _info.GroupStarts.Contains(s.Beat)).Select(s => (double)s.AtMs).ToList();
         var last = _taps.TakeLast(8).ToList();
         var (onTime, early, late, off, average) = Rhythm.JudgeTaps(last, strong);
+        if (last.Count == 8)
+        {
+            GuidedProgress.Report("tap", onTime);
+        }
+
         var parts = new List<string> { $"{onTime} on time" };
         if (late > 0)
         {

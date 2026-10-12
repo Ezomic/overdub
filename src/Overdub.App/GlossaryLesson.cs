@@ -140,7 +140,7 @@ public sealed class GlossaryLesson : UserControl
         if (term.Lesson is { } lesson && LearnCatalog.Find(lesson) is { } card)
         {
             var link = new TextBlock { Text = $"Open the lesson: {lesson} ›", FontSize = 12.5, Foreground = Ui.AccentBrush, Cursor = Cursors.Hand, Margin = new Thickness(0, 6, 0, 0), TextWrapping = TextWrapping.Wrap };
-            link.MouseLeftButtonUp += (_, _) => card.Open(_context);
+            link.MouseLeftButtonUp += (_, _) => card.Launch(_context);
             stack.Children.Add(link);
         }
 

@@ -346,6 +346,7 @@ public sealed class EarTrainerLesson : UserControl
 
     private UIElement Result()
     {
+        GuidedProgress.Report($"ear:{_kind}", _correct);
         var stack = new StackPanel();
         stack.Children.Add(new TextBlock { Text = $"You got {_correct} of {_questions.Count}", FontSize = 20, FontWeight = FontWeights.SemiBold });
         var message = _correct == _questions.Count ? "Perfect round." : _correct >= _questions.Count * 0.7 ? "Good ears. Try the next level when you are ready." : "Ears take practice. Another round gives new questions, and the tips help you remember each sound.";
