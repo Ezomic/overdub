@@ -150,7 +150,7 @@ public static class MixingGuide
             }
         }
 
-        var scale = raw.Count == 0 ? 1 : Math.Min(1, 0.9 / Math.Max(1e-6, raw.Values.Max()));
+        var scale = raw.Count == 0 ? 1 : Scale(raw, measured);
         var after = new Dictionary<Track, MixState>();
         foreach (var track in players)
         {
@@ -160,6 +160,26 @@ public static class MixingGuide
         }
 
         return new MixPlan(MixStep.Levels, suggestions, before, after);
+    }
+
+    private const double TargetMixLufs = -18;
+    private const double TopGain = 1.2;
+
+    private static double Scale(Dictionary<Track, double> raw, IReadOnlyList<(Track Track, MixRole Role, double Lufs, double Low)> measured)
+    {
+        var energy = 0.0;
+        foreach (var m in measured)
+        {
+            if (!raw.TryGetValue(m.Track, out var gain) || m.Track.Gain < 0.0001)
+            {
+                continue;
+            }
+
+            energy += Math.Pow(10, (m.Lufs + (20 * Math.Log10(gain / m.Track.Gain))) / 10);
+        }
+
+        var wanted = energy <= 0 ? 1 : Math.Pow(10, (TargetMixLufs - (10 * Math.Log10(energy))) / 20);
+        return Math.Min(wanted, TopGain / Math.Max(1e-6, raw.Values.Max()));
     }
 
     public static double LevelFor(MixRole role) => role switch
