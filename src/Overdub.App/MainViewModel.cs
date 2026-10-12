@@ -2156,6 +2156,12 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public MixPlan PlanMix(MixStep step) => MixingGuide.Plan(step, _session.Tracks);
 
+    public async Task<MixPlan> MeasureLevelsPlanAsync()
+    {
+        var measured = await Task.Run(() => MixCheck.MeasureInTemp(_session));
+        return MixingGuide.PlanLevelsMeasured(_session.Tracks, measured);
+    }
+
     public IReadOnlyList<Track> MixTracks => _session.Tracks;
 
     private void SetMixStates(IReadOnlyDictionary<Track, MixState> states, IEnumerable<Track> tracks)
