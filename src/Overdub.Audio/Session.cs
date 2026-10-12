@@ -1499,7 +1499,7 @@ public sealed class Session : IDisposable
         return data.Bpm;
     }
 
-    public IReadOnlyList<string> ExportStems(string folder)
+    public IReadOnlyList<string> ExportStems(string folder, bool respectClipMutes = false)
     {
         System.IO.Directory.CreateDirectory(folder);
         var tail = Tracks.Any(t => t.MidiClips.Count > 0) ? Engine.SampleRate : 0;
@@ -1526,7 +1526,7 @@ public sealed class Session : IDisposable
             var midi = track.MidiClips.Select(m => m.Copy(0)).ToList();
             midi.ForEach(m =>
             {
-                m.Mute = false;
+                m.Mute = respectClipMutes && m.Mute;
                 m.Solo = false;
             });
             var path = System.IO.Path.Combine(folder, unique + ".wav");

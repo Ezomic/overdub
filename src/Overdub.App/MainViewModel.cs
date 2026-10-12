@@ -2152,6 +2152,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    public Session MixSession => _session;
+
     public MixPlan PlanMix(MixStep step) => MixingGuide.Plan(step, _session.Tracks);
 
     public IReadOnlyList<Track> MixTracks => _session.Tracks;

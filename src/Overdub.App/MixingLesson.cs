@@ -45,9 +45,10 @@ public sealed class MixingLesson : UserControl
     private readonly HashSet<MixStep> _done = [];
     private MixStep _step;
 
-    public MixingLesson(LearnContext context)
+    public MixingLesson(LearnContext context, MixStep start = MixStep.Levels)
     {
         _context = context;
+        _step = start;
         Content = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, Content = _page };
         Render();
     }
