@@ -319,7 +319,7 @@ public sealed class MixingLesson : UserControl
             var measured = await _context.Main.MeasureLevelsPlanAsync();
             _plans[MixStep.Levels] = measured;
             Apply(measured);
-            _context.Main.ShowNotice("Levels balanced. The song is now quieter overall, which is normal: the Finish step brings the loudness back up.");
+            _context.Main.ShowNotice("Levels balanced. The song may sound a little quieter overall, which is normal: the Finish step brings it up to streaming loudness.");
             if (play)
             {
                 _context.Main.PlayFromHere();
