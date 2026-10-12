@@ -115,6 +115,53 @@ public static class MixingGuide
         .OrderBy(t => (int)RoleOf(t))
         .ToList();
 
+    public static double OffsetFromDrumsDb(MixRole role) => role switch
+    {
+        MixRole.Drums => 0,
+        MixRole.Bass or MixRole.AudioBass => -1,
+        MixRole.AudioGuitar => -5,
+        MixRole.Guitar => -6,
+        MixRole.Lead => -6,
+        MixRole.Keys => -8,
+        _ => -6,
+    };
+
+    public static MixPlan PlanLevelsMeasured(IEnumerable<Track> tracks, IReadOnlyList<(Track Track, MixRole Role, double Lufs, double Low)> measured)
+    {
+        var players = Players(tracks);
+        var anchor = measured.Where(m => m.Role == MixRole.Drums).Select(m => (double?)m.Lufs).FirstOrDefault()
+            ?? measured.Where(m => m.Role is MixRole.Bass or MixRole.AudioBass).Select(m => (double?)m.Lufs).FirstOrDefault()
+            ?? measured.Select(m => (double?)m.Lufs).DefaultIfEmpty(null).Max();
+        var suggestions = new List<MixSuggestion>();
+        var before = new Dictionary<Track, MixState>();
+        var raw = new Dictionary<Track, double>();
+        foreach (var track in players)
+        {
+            var role = RoleOf(track);
+            before[track] = MixState.Capture(track);
+            var found = measured.FirstOrDefault(m => ReferenceEquals(m.Track, track));
+            if (found.Track is not null && anchor is { } loudness)
+            {
+                raw[track] = track.Gain * Math.Pow(10, (loudness + OffsetFromDrumsDb(role) - found.Lufs) / 20);
+            }
+            else
+            {
+                raw[track] = LevelFor(role);
+            }
+        }
+
+        var scale = raw.Count == 0 ? 1 : Math.Min(1, 0.9 / Math.Max(1e-6, raw.Values.Max()));
+        var after = new Dictionary<Track, MixState>();
+        foreach (var track in players)
+        {
+            var target = Math.Clamp(raw[track] * scale, 0.02, 1.5);
+            suggestions.Add(new MixSuggestion(track, RoleOf(track), track.Name, track.Gain, target, true, null));
+            after[track] = before[track] with { Gain = (float)target };
+        }
+
+        return new MixPlan(MixStep.Levels, suggestions, before, after);
+    }
+
     public static double LevelFor(MixRole role) => role switch
     {
         MixRole.Drums => 0.85,

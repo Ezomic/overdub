@@ -36,31 +36,7 @@ public static class MixCheck
             var rmsL = Rms(left);
             var rmsR = Rms(right);
 
-            var audible = session.Tracks
-                .Where(t => (t.Clips.Count > 0 || t.MidiClips.Count > 0))
-                .Where(t => !t.Mute && (!session.Tracks.Any(o => o.Solo) || t.Solo))
-                .ToList();
-            var stemsFolder = Path.Combine(folder, "stems");
-            var written = session.ExportStems(stemsFolder, respectClipMutes: true);
-            var all = session.Tracks.Where(t => t.Clips.Count > 0 || t.MidiClips.Count > 0).ToList();
-            var players = new List<(Track Track, MixRole Role, double Lufs, double Low)>();
-            for (var i = 0; i < Math.Min(all.Count, written.Count); i++)
-            {
-                if (!audible.Contains(all[i]))
-                {
-                    continue;
-                }
-
-                var (sl, sr, srate) = Read(written[i]);
-                var lufs = LoudnessMeter.Integrated(sl, sr, srate) ?? double.NegativeInfinity;
-                if (double.IsNegativeInfinity(lufs))
-                {
-                    continue;
-                }
-
-                players.Add((all[i], MixingGuide.RoleOf(all[i]), lufs, LowEnergy(sl, sr, srate)));
-            }
-
+            var players = MeasurePlayers(session, Path.Combine(folder, "stems"));
             var barSamples = session.Engine.SamplesPerBeat * session.Engine.BeatsPerBar;
             var bars = (int)Math.Round(session.LengthSamples / Math.Max(1.0, barSamples));
             var preset = Mastering.Presets[Math.Clamp(session.MasterIndex, 0, Mastering.Presets.Count - 1)].Name;
@@ -86,6 +62,55 @@ public static class MixCheck
         }
     }
 
+    public static List<(Track Track, MixRole Role, double Lufs, double Low)> MeasurePlayers(Session session, string stemsFolder)
+    {
+        var audible = session.Tracks
+            .Where(t => t.Clips.Count > 0 || t.MidiClips.Count > 0)
+            .Where(t => !t.Mute && (!session.Tracks.Any(o => o.Solo) || t.Solo))
+            .ToList();
+        var written = session.ExportStems(stemsFolder, respectClipMutes: true);
+        var all = session.Tracks.Where(t => t.Clips.Count > 0 || t.MidiClips.Count > 0).ToList();
+        var players = new List<(Track Track, MixRole Role, double Lufs, double Low)>();
+        for (var i = 0; i < Math.Min(all.Count, written.Count); i++)
+        {
+            if (!audible.Contains(all[i]))
+            {
+                continue;
+            }
+
+            var (sl, sr, srate) = Read(written[i]);
+            var lufs = LoudnessMeter.Integrated(sl, sr, srate) ?? double.NegativeInfinity;
+            if (double.IsNegativeInfinity(lufs))
+            {
+                continue;
+            }
+
+            players.Add((all[i], MixingGuide.RoleOf(all[i]), lufs, LowEnergy(sl, sr, srate)));
+        }
+
+        return players;
+    }
+
+    public static List<(Track Track, MixRole Role, double Lufs, double Low)> MeasureInTemp(Session session)
+    {
+        var folder = Path.Combine(Path.GetTempPath(), "overdub-levels-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(folder);
+        try
+        {
+            return MeasurePlayers(session, folder);
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(folder, true);
+            }
+            catch (IOException)
+            {
+            }
+        }
+    }
+
     private static MixFinding Peaks(LoudnessReport loudness)
     {
         var peak = loudness.PeakDb;
@@ -95,7 +120,7 @@ public static class MixCheck
             return new MixFinding("Peaks", MixLight.Fix, "worth fixing", value, "The mix reaches the top, so parts of it may crackle. Turn the loudest players down.", "the mix reaches the top and may crackle", MixStep.Levels, null, null);
         }
 
-        if (peak >= -1.0)
+        if (peak > -0.9)
         {
             return new MixFinding("Peaks", MixLight.Look, "a look", value, "The peaks are very close to the top. A little more room would be safer.", "the peaks are very close to the top", MixStep.Levels, null, null);
         }

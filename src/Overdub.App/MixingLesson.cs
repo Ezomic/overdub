@@ -21,7 +21,7 @@ public sealed class MixingLesson : UserControl
 
     private static readonly string[] Notes =
     [
-        "Drums and bass at about 85 percent, the guitar and the lead a little lower, and the keys softer, so the rhythm section leads.",
+        "The white markers are a starting guess. When you press the button, Overdub measures how loud each player really is and sets the levels so the bass sits just under the drums, with the guitar, lead and keys below.",
         "Guitar a little left, keys a little right, the lead just right of centre, and the bass and drums in the middle.",
         "Turn the low end of the guitar down by 4 dB and the lead by 3 dB, so they stop covering the bass.",
         "A 4:1 ratio on the bass for a steady low end, and a gentler 2:1 on the guitar and the lead.",
@@ -44,6 +44,7 @@ public sealed class MixingLesson : UserControl
     private readonly Dictionary<MixStep, MixPlan> _plans = [];
     private readonly HashSet<MixStep> _done = [];
     private MixStep _step;
+    private bool _measuring;
 
     public MixingLesson(LearnContext context, MixStep start = MixStep.Levels)
     {
@@ -240,7 +241,14 @@ public sealed class MixingLesson : UserControl
                 return;
             }
 
-            Apply(plan);
+            if (_step == MixStep.Levels)
+            {
+                _ = ApplyLevelsAsync(plan);
+            }
+            else
+            {
+                Apply(plan);
+            }
         });
         row.Children.Add(apply);
         var before = Ui.Secondary("Hear before", "Play the song with the mixer as it was", 100);
@@ -262,6 +270,11 @@ public sealed class MixingLesson : UserControl
                 if (!plan.HasChanges)
                 {
                     _context.Main.ShowNotice("This step is already set the way I would set it.");
+                }
+                else if (_step == MixStep.Levels)
+                {
+                    _ = ApplyLevelsAsync(plan, play: true);
+                    return;
                 }
                 else
                 {
@@ -290,6 +303,36 @@ public sealed class MixingLesson : UserControl
         };
         row.Children.Add(undo);
         return row;
+    }
+
+    private async Task ApplyLevelsAsync(MixPlan plan, bool play = false)
+    {
+        if (_measuring)
+        {
+            return;
+        }
+
+        _measuring = true;
+        _context.Main.ShowNotice("Measuring how loud each player really is. This takes a little while.");
+        try
+        {
+            var measured = await _context.Main.MeasureLevelsPlanAsync();
+            _plans[MixStep.Levels] = measured;
+            Apply(measured);
+            _context.Main.ShowNotice("Levels balanced. The song is now quieter overall, which is normal: the Finish step brings the loudness back up.");
+            if (play)
+            {
+                _context.Main.PlayFromHere();
+            }
+        }
+        catch (Exception e)
+        {
+            _context.Main.ShowMessage($"Could not measure the players: {e.Message}");
+        }
+        finally
+        {
+            _measuring = false;
+        }
     }
 
     private void Apply(MixPlan plan)
